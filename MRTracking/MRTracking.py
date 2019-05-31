@@ -4,7 +4,8 @@ import time
 from __main__ import vtk, qt, ctk, slicer
 from slicer.ScriptedLoadableModule import *
 
-
+import CurveMaker
+    
 #------------------------------------------------------------
 #
 # MRTracking
@@ -279,6 +280,14 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
     self.connectorNodeID = ''
 
     self.count = 0
+
+    # CurveMaker
+    self.cmLogic = CurveMaker.CurveMakerLogic()
+    self.cmModel = None
+    self.cmFiducials = None
+    self.cmOpacity = 1
+    self.cmRadius = 0.5
+    
     
   def setWidget(self, widget):
     self.widget = widget
@@ -359,7 +368,52 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
       return False
 
   def onMessageReceived(self, node):
-    pass
+    if node.GetName() == 'Tracker':
+
+      # Check if the fiducial node exists; if not, create one.
+      fiducialNode = None
+      fiducialNodeID = node.GetAttribute('CoilPositions')
+      if fiducialNodeID != None:
+        fiducialNode = self.scene.GetNodeByID(fiducialNodeID)
+      
+      if fiducialNode == None:
+        fiducialNode = self.scene.CreateNodeByClass("vtkMRMLMarkupsFiducialNode")
+        fiducialNode.SetLocked(True)
+        fiducialNode.SetName('CoilPositions')
+        self.scene.AddNode(fiducialNode)
+        fiducialNodeID = fiducialNode.GetID()
+        node.SetAttribute('CoilPositions', fiducialNodeID)
+
+      self.cmLogic.SourceNode = fiducialNode
+
+      # Check if the curve model exists; if not, create one.
+      if self.cmModel == None:
+        self.cmModel = self.scene.CreateNodeByClass("vtkMRMLModelNode")
+        self.cmModel.SetName('Catheter')
+        self.scene.AddNode(self.cmModel)
+        modelDisplayNode = self.scene.CreateNodeByClass("vtkMRMLModelDisplayNode")
+        modelDisplayNode.SetColor(self.cmLogic.ModelColor)
+        modelDisplayNode.SetOpacity(self.cmOpacity)
+        self.scene.AddNode(modelDisplayNode)
+        self.cmLogic.DestinationNode = self.cmModel
+        self.cmLogic.SourceNode.SetAttribute('CurveMaker.CurveModel', self.cmLogic.DestinationNode.GetID())
+
+      # Update coordinates in the fiducial node.
+      nCoils = node.GetNumberOfTransformNodes()
+      if fiducialNode.GetNumberOfFiducials() != nCoils:
+        fiducialNode.RemoveAllMarkups()
+        for i in range(nCoils):
+          fiducialNode.AddFiducial(0.0, 0.0, 0.0)
+      for i in range(nCoils):
+        tnode = node.GetTransformNode(i)
+        trans = tnode.GetTransformToParent()
+        fiducialNode.SetNthFiducialPositionFromArray(i, trans.GetPosition())
+
+      self.cmLogic.setTubeRadius(1)
+      self.cmLogic.enableAutomaticUpdate(1)
+      self.cmLogic.setInterpolationMethod(1)
+      self.cmLogic.updateCurve()
+        
     # A message handler for the Tracking state.
     # Return True, if the message has been processed
 
@@ -412,17 +466,16 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
       node = cnode.GetIncomingMRMLNode(i)
       if not node.GetID() in self.eventTag:
         self.eventTag[node.GetID()] = node.AddObserver(vtk.vtkCommand.ModifiedEvent, self.onIncomingNodeModifiedEvent)
-        if node.GetNodeTagName() == 'IGTLTrackingDataSplitter':
-          n = node.GetNumberOfTransformNodes()
-          for id in range (n):
-            tnode = node.GetTransformNode(id)
-            if tnode and tnode.GetAttribute('MRTracking') == None:
-              print "No MRTracking"
-              needleModelID = self.createNeedleModelNode("Needle_%s" % tnode.GetName())
-              needleModel = self.scene.GetNodeByID(needleModelID)
-              needleModel.SetAndObserveTransformNodeID(tnode.GetID())
-              needleModel.InvokeEvent(slicer.vtkMRMLTransformableNode.TransformModifiedEvent)
-              tnode.SetAttribute('MRTracking', needleModelID)
+#        if node.GetNodeTagName() == 'IGTLTrackingDataSplitter':
+#          n = node.GetNumberOfTransformNodes()
+#          for id in range (n):
+#            tnode = node.GetTransformNode(id)
+#            if tnode and tnode.GetAttribute('MRTracking') == None:
+#              needleModelID = self.createNeedleModelNode("Needle_%s" % tnode.GetName())
+#              needleModel = self.scene.GetNodeByID(needleModelID)
+#              needleModel.SetAndObserveTransformNodeID(tnode.GetID())
+#              needleModel.InvokeEvent(slicer.vtkMRMLTransformableNode.TransformModifiedEvent)
+#              tnode.SetAttribute('MRTracking', needleModelID)
 
   def createNeedleModel(self, node):
     if node and node.GetClassName() == 'vtkMRMLIGTLTrackingDataBundleNode':
