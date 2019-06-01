@@ -438,26 +438,12 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
       if self.tipPoly==None:
         self.tipPoly = vtk.vtkPolyData()
         
-      points = vtk.vtkPoints()
-      cellArray = vtk.vtkCellArray()
-      points.SetNumberOfPoints(2)
-      cellArray.InsertNextCell(2)
-
-      points.SetPoint(0, p0)
-      cellArray.InsertCellPoint(0)
-      points.SetPoint(1, pe)
-      cellArray.InsertCellPoint(1)
-
-      self.tipPoly.Initialize()
-      self.tipPoly.SetPoints(points)
-      self.tipPoly.SetLines(cellArray)
-
       if self.tipModelNode == None:
         self.tipModelNode = self.scene.CreateNodeByClass('vtkMRMLModelNode')
         self.tipModelNode.SetName('Tip')
         self.scene.AddNode(self.tipModelNode)
         
-      self.updateTipModelNode(self.tipModelNode, self.tipPoly, 1.0)
+      self.updateTipModelNode(self.tipModelNode, self.tipPoly, p0, pe, 1.0)
 
 
   def onConnectedEvent(self, caller, event):
@@ -493,8 +479,22 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
 #              tnode.SetAttribute('MRTracking', needleModelID)
 
 
-  def updateTipModelNode(self, tipModelNode, poly, radius):
+  def updateTipModelNode(self, tipModelNode, poly, p0, pe, radius):
     #tipModel = self.scene.CreateNodeByClass('vtkMRMLModelNode')
+
+    points = vtk.vtkPoints()
+    cellArray = vtk.vtkCellArray()
+    points.SetNumberOfPoints(2)
+    cellArray.InsertNextCell(2)
+    
+    points.SetPoint(0, p0)
+    cellArray.InsertCellPoint(0)
+    points.SetPoint(1, pe)
+    cellArray.InsertCellPoint(1)
+
+    poly.Initialize()
+    poly.SetPoints(points)
+    poly.SetLines(cellArray)
 
     tubeFilter = vtk.vtkTubeFilter()
     tubeFilter.SetInputData(poly)
