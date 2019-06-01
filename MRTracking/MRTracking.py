@@ -3,6 +3,7 @@ import unittest
 import time
 from __main__ import vtk, qt, ctk, slicer
 from slicer.ScriptedLoadableModule import *
+import numpy
 
 import CurveMaker
     
@@ -20,12 +21,12 @@ class MRTracking(ScriptedLoadableModule):
     self.parent.title = "MRTracking" # TODO make this more human readable by adding spaces
     self.parent.categories = ["IGT"]
     self.parent.dependencies = []
-    self.parent.contributors = ["Junichi Tokuda, Wei Wang, Ehud Schmidt (BWH)"] # replace with "Firstname Lastname (Organization)"
+    self.parent.contributors = ["Junichi Tokuda, Wei Wang, Ehud Schmidt (BWH)"]
     self.parent.helpText = """
-    A communication interface for Koh Young's 3D sensors.
+    Visualization of MR-tracked catheter. 
     """
     self.parent.acknowledgementText = """
-    This work is supported by NIH National Center for Image Guided Therapy (P41EB015898).
+    This work is supported by NIH (P41EB015898, R01EB020667).
     """ 
     # replace with organization, grant and thanks.
 
@@ -121,10 +122,10 @@ class MRTrackingWidget(ScriptedLoadableModuleWidget):
     setupFormLayout.addRow("Active: ", self.activeCheckBox)
 
     #
-    # Registration Matrix Selection Area
+    # Configuration Selection Area
     #
     selectionCollapsibleButton = ctk.ctkCollapsibleButton()
-    selectionCollapsibleButton.text = "Registration Matrix Selection"
+    selectionCollapsibleButton.text = "Configuration"
     self.layout.addWidget(selectionCollapsibleButton)
 
     selectionFormLayout = qt.QFormLayout(selectionCollapsibleButton)
@@ -287,6 +288,12 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
     self.cmFiducials = None
     self.cmOpacity = 1
     self.cmRadius = 0.5
+
+    # Tip model
+    self.tipLength = 10.0
+    self.tipModelNode = None
+    self.tipPoly = None
+
     
     
   def setWidget(self, widget):
@@ -413,36 +420,44 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
       self.cmLogic.enableAutomaticUpdate(1)
       self.cmLogic.setInterpolationMethod(1)
       self.cmLogic.updateCurve()
-        
-    # A message handler for the Tracking state.
-    # Return True, if the message has been processed
 
-    #print "onMessageReceivedTracking(self, node)"
-    
-    #if node.GetNodeTagName() == 'IGTLStatus' and node.GetName() == 'CUR_REG':
-    #
-    #  if node.GetCode() == slicer.vtkMRMLIGTLStatusNode.STATUS_OK:
-    #    # Current registration matrix ID is received
-    #    self.currentRegID = node.GetErrorName()
-    #
-    #  elif node.GetCode() == slicer.vtkMRMLIGTLStatusNode.STATUS_CONFIG_ERROR:
-    #    # Registration has not been completed
-    #    self.currentRegID = ''
-    #
-    #  return True
-    #
-    #elif node.GetNodeTagName() == 'IGTLStatus' and node.GetName() == 'NEW_REG':
-    #  
-    #  if node.GetCode() == slicer.vtkMRMLIGTLStatusNode.STATUS_OK:
-    #    self.widget.updateGUI()          
-    #      
-    #  return True
-    #
-    #else:
-    #
-    #  return False
-    pass
-    
+      # Add a extended tip
+      lines = self.cmLogic.CurvePoly.GetLines()
+      points = self.cmLogic.CurvePoly.GetPoints()
+      pts = vtk.vtkIdList()
+
+      lines.GetCell(0, pts)
+      n = pts.GetNumberOfIds()
+      if n > 1:
+        p0 = numpy.array(points.GetPoint(pts.GetId(0)))
+        p1 = numpy.array(points.GetPoint(pts.GetId(1)))
+        v10 = p0 - p1
+        n10 = v10 / numpy.linalg.norm(v10) # Normal vector at the tip
+        pe = p0 + n10 * self.tipLength
+
+      if self.tipPoly==None:
+        self.tipPoly = vtk.vtkPolyData()
+        
+      points = vtk.vtkPoints()
+      cellArray = vtk.vtkCellArray()
+      points.SetNumberOfPoints(2)
+      cellArray.InsertNextCell(2)
+
+      points.SetPoint(0, p0)
+      cellArray.InsertCellPoint(0)
+      points.SetPoint(1, pe)
+      cellArray.InsertCellPoint(1)
+
+      self.tipPoly.Initialize()
+      self.tipPoly.SetPoints(points)
+      self.tipPoly.SetLines(cellArray)
+
+      if self.tipModelNode == None:
+        self.tipModelNode = self.scene.CreateNodeByClass('vtkMRMLModelNode')
+        self.tipModelNode.SetName('Tip')
+        self.scene.AddNode(self.tipModelNode)
+        
+      self.updateTipModelNode(self.tipModelNode, self.tipPoly, 1.0)
 
 
   def onConnectedEvent(self, caller, event):
@@ -476,6 +491,36 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
 #              needleModel.SetAndObserveTransformNodeID(tnode.GetID())
 #              needleModel.InvokeEvent(slicer.vtkMRMLTransformableNode.TransformModifiedEvent)
 #              tnode.SetAttribute('MRTracking', needleModelID)
+
+
+  def updateTipModelNode(self, tipModelNode, poly, radius):
+    #tipModel = self.scene.CreateNodeByClass('vtkMRMLModelNode')
+
+    tubeFilter = vtk.vtkTubeFilter()
+    tubeFilter.SetInputData(poly)
+    tubeFilter.SetRadius(radius)
+    tubeFilter.SetNumberOfSides(20)
+    tubeFilter.CappingOn()
+    tubeFilter.Update()
+    tipModelNode.SetAndObservePolyData(tubeFilter.GetOutput())
+    tipModelNode.Modified
+
+    tipDispID = tipModelNode.GetDisplayNodeID()
+    if tipDispID == None:
+      tipDispNode = self.scene.CreateNodeByClass('vtkMRMLModelDisplayNode')
+      self.scene.AddNode(tipDispNode)
+      tipDispNode.SetScene(self.scene)
+      tipModelNode.SetAndObserveDisplayNodeID(tipDispNode.GetID());
+      tipDispID = tipModelNode.GetDisplayNodeID()
+      
+    tipDispNode = self.scene.GetNodeByID(tipDispID)
+      
+    color = [0, 0, 0]
+    color[0] = 0.0
+    color[1] = 0.0
+    color[2] = 1.0
+    tipDispNode.SetColor(color)
+    
 
   def createNeedleModel(self, node):
     if node and node.GetClassName() == 'vtkMRMLIGTLTrackingDataBundleNode':
