@@ -74,14 +74,14 @@ class MRTrackingWidget(ScriptedLoadableModuleWidget):
     # GUI components
     
     #
-    # Setup Area
+    # Connection Area
     #
-    setupCollapsibleButton = ctk.ctkCollapsibleButton()
-    setupCollapsibleButton.text = "Setup"
-    self.layout.addWidget(setupCollapsibleButton)
+    connectionCollapsibleButton = ctk.ctkCollapsibleButton()
+    connectionCollapsibleButton.text = "Connection (OpenIGTLink)"
+    self.layout.addWidget(connectionCollapsibleButton)
 
     # Layout within the dummy collapsible button
-    setupFormLayout = qt.QFormLayout(setupCollapsibleButton)
+    connectionFormLayout = qt.QFormLayout(connectionCollapsibleButton)
 
     #
     # input volume selector
@@ -96,7 +96,7 @@ class MRTrackingWidget(ScriptedLoadableModuleWidget):
     self.connectorSelector.showChildNodeTypes = False
     self.connectorSelector.setMRMLScene( slicer.mrmlScene )
     self.connectorSelector.setToolTip( "Establish a connection with the server" )
-    setupFormLayout.addRow("Connector: ", self.connectorSelector)
+    connectionFormLayout.addRow("Connector: ", self.connectorSelector)
     
     #self.connectorAddressLineEdit = qt.QLineEdit()
     #self.connectorAddressLineEdit.text = "localhost"
@@ -104,14 +104,14 @@ class MRTrackingWidget(ScriptedLoadableModuleWidget):
     #self.connectorAddressLineEdit.frame = True
     #self.connectorAddressLineEdit.styleSheet = "QLineEdit { background:transparent; }"
     #self.connectorAddressLineEdit.cursor = qt.QCursor(qt.Qt.IBeamCursor)
-    #setupFormLayout.addRow("Address: ", self.connectorAddressLineEdit)
+    #connectionFormLayout.addRow("Address: ", self.connectorAddressLineEdit)
 
     self.connectorPort = qt.QSpinBox()
     self.connectorPort.objectName = 'PortSpinBox'
     self.connectorPort.setMaximum(64000)
     self.connectorPort.setValue(18944)
     self.connectorPort.setToolTip("Port number of the server")
-    setupFormLayout.addRow("Port: ", self.connectorPort)
+    connectionFormLayout.addRow("Port: ", self.connectorPort)
 
     #
     # check box to trigger transform conversion
@@ -119,87 +119,67 @@ class MRTrackingWidget(ScriptedLoadableModuleWidget):
     self.activeCheckBox = qt.QCheckBox()
     self.activeCheckBox.checked = 0
     self.activeCheckBox.setToolTip("Activate OpenIGTLink connection")
-    setupFormLayout.addRow("Active: ", self.activeCheckBox)
+    connectionFormLayout.addRow("Active: ", self.activeCheckBox)
 
     #
     # Configuration Selection Area
     #
     selectionCollapsibleButton = ctk.ctkCollapsibleButton()
-    selectionCollapsibleButton.text = "Configuration"
+    selectionCollapsibleButton.text = "Catheter Configuration"
     self.layout.addWidget(selectionCollapsibleButton)
 
     selectionFormLayout = qt.QFormLayout(selectionCollapsibleButton)
 
-    self.regIDLineEdit = qt.QLineEdit()
-    self.regIDLineEdit.text = ''
-    self.regIDLineEdit.readOnly = True
-    self.regIDLineEdit.frame = True
-    self.regIDLineEdit.styleSheet = "QLineEdit { background:transparent; }"
-    self.regIDLineEdit.cursor = qt.QCursor(qt.Qt.IBeamCursor)
-
-    self.freLineEdit = qt.QLineEdit()
-    self.freLineEdit.text = 'FRE not available'
-    self.freLineEdit.readOnly = True
-    self.freLineEdit.frame = True
-    self.freLineEdit.styleSheet = "QLineEdit { background:transparent; }"
-    self.freLineEdit.cursor = qt.QCursor(qt.Qt.IBeamCursor)
-
-    currentRegLayout = qt.QHBoxLayout()
-    currentIDLabel = qt.QLabel('ID:')
-    currentFRELabel = qt.QLabel('  FRE:')
-    currentUnitLabel = qt.QLabel('mm')
-    currentRegLayout.addWidget(currentIDLabel)
-    currentRegLayout.addWidget(self.regIDLineEdit)
-    currentRegLayout.addWidget(currentFRELabel)
-    currentRegLayout.addWidget(self.freLineEdit)
-    currentRegLayout.addWidget(currentUnitLabel)
-    selectionFormLayout.addRow("Current:", currentRegLayout)
-
-    self.newRegIDLineEdit = qt.QLineEdit()
-    self.newRegIDLineEdit.text = ''
-    self.newRegIDLineEdit.readOnly = True
-    self.newRegIDLineEdit.frame = True
-    self.newRegIDLineEdit.styleSheet = "QLineEdit { background:transparent; }"
-    self.newRegIDLineEdit.cursor = qt.QCursor(qt.Qt.IBeamCursor)
-
-    self.newFreLineEdit = qt.QLineEdit()
-    self.newFreLineEdit.text = 'FRE not available'
-    self.newFreLineEdit.readOnly = True
-    self.newFreLineEdit.frame = True
-    self.newFreLineEdit.styleSheet = "QLineEdit { background:transparent; }"
-    self.newFreLineEdit.cursor = qt.QCursor(qt.Qt.IBeamCursor)
-
-    newRegLayout = qt.QHBoxLayout()
-    newIDLabel = qt.QLabel('ID:')
-    newFRELabel = qt.QLabel('  FRE:')
-    newUnitLabel = qt.QLabel('mm')
-    newRegLayout.addWidget(newIDLabel)
-    newRegLayout.addWidget(self.newRegIDLineEdit)
-    newRegLayout.addWidget(newFRELabel)
-    newRegLayout.addWidget(self.newFreLineEdit)
-    newRegLayout.addWidget(newUnitLabel)
-    selectionFormLayout.addRow("New:", newRegLayout)
-
-    self.acceptButton = qt.QPushButton("Accept New")
-    self.acceptButton.toolTip = "Accept new registration"
-    self.acceptButton.enabled = False
-    selectionFormLayout.addRow(self.acceptButton)
-
-    self.rejectButton = qt.QPushButton("Use Current")
-    self.rejectButton.toolTip = "Reject new registration and use current one"
-    self.rejectButton.enabled = False
-    selectionFormLayout.addRow(self.rejectButton)
+    #
+    # Tip Length (legnth between the catheter tip and the first coil)
+    #
+    self.tipLengthSliderWidget = ctk.ctkSliderWidget()
+    self.tipLengthSliderWidget.singleStep = 0.5
+    self.tipLengthSliderWidget.minimum = 0.0
+    self.tipLengthSliderWidget.maximum = 100.0
+    self.tipLengthSliderWidget.value = 10.0
+    self.tipLengthSliderWidget.setToolTip("Set the length of the catheter tip.")
+    selectionFormLayout.addRow("Tip Length (mm): ", self.tipLengthSliderWidget)
     
-    matrixSelectionLayout = qt.QHBoxLayout()
-    matrixSelectionLayout.addWidget(self.acceptButton)
-    matrixSelectionLayout.addWidget(self.rejectButton)
-    selectionFormLayout.addRow(matrixSelectionLayout)
+    #
+    # Catheter diameter
+    #
+    self.catheterDiameterSliderWidget = ctk.ctkSliderWidget()
+    self.catheterDiameterSliderWidget.singleStep = 0.1
+    self.catheterDiameterSliderWidget.minimum = 0.1
+    self.catheterDiameterSliderWidget.maximum = 10.0
+    self.catheterDiameterSliderWidget.value = 1.0
+    self.catheterDiameterSliderWidget.setToolTip("Set the diameter of the catheter")
+    selectionFormLayout.addRow("Diameter (mm): ", self.catheterDiameterSliderWidget)
+
+    #
+    # Catheter opacity
+    #
+    self.catheterOpacitySliderWidget = ctk.ctkSliderWidget()
+    self.catheterOpacitySliderWidget.singleStep = 0.1
+    self.catheterOpacitySliderWidget.minimum = 0.0
+    self.catheterOpacitySliderWidget.maximum = 1.0
+    self.catheterOpacitySliderWidget.value = 1.0
+    self.catheterOpacitySliderWidget.setToolTip("Set the opacity of the catheter")
+    selectionFormLayout.addRow("Opacity: ", self.catheterOpacitySliderWidget)
+    
+    #
+    # Check box to show/hide coil labels 
+    #
+    self.showCoilLabelCheckBox = qt.QCheckBox()
+    self.showCoilLabelCheckBox.checked = 0
+    self.showCoilLabelCheckBox.setToolTip("Show/hide coil labels")
+    selectionFormLayout.addRow("Show Coil Labels: ", self.showCoilLabelCheckBox)
 
     #--------------------------------------------------
     # connections
     #
     self.connectorSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onConnectorSelect)
     self.activeCheckBox.connect('toggled(bool)', self.onActive)
+    self.tipLengthSliderWidget.connect("valueChanged(double)", self.onTipLengthChanged)
+    self.catheterDiameterSliderWidget.connect("valueChanged(double)", self.onCatheterDiameterChanged)
+    self.catheterOpacitySliderWidget.connect("valueChanged(double)", self.onCatheterOpacityChanged)
+    self.showCoilLabelCheckBox.connect('toggled(bool)', self.onCoilLabelChecked)
 
     # Add vertical spacer
     self.layout.addStretch(1)
@@ -216,10 +196,7 @@ class MRTrackingWidget(ScriptedLoadableModuleWidget):
 
     if self.activeCheckBox.checked == True:
       if self.logic.connected() != True:
-        # Setup connector
-        #addr  = self.connectorAddressLineEdit.text
         port  = self.connectorPort.value
-        #self.logic.connectToServer(addr, port)
         self.logic.waitForClient(port)
     else:
       self.logic.disconnect()
@@ -236,7 +213,21 @@ class MRTrackingWidget(ScriptedLoadableModuleWidget):
   def onRejectRegistration(self):
     self.logic.acceptNewMatrix(self, False)
 
+    
+  def onTipLengthChanged(self):
+    self.logic.setTipLength(self.tipLengthSliderWidget.value)
 
+    
+  def onCatheterDiameterChanged(self):
+    self.logic.setCatheterDiameter(self.catheterDiameterSliderWidget.value)
+
+  def onCatheterOpacityChanged(self):
+    self.logic.setCatheterOpacity(self.catheterOpacitySliderWidget.value)
+    
+  def onCoilLabelChecked(self):
+    self.logic.setShowCoilLabel(self.showCoilLabelCheckBox.checked)
+    
+    
   def onReload(self, moduleName="MRTracking"):
     # Generic reload method for any scripted module.
     # ModuleWizard will subsitute correct default moduleName.
@@ -286,19 +277,37 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
     self.cmLogic = CurveMaker.CurveMakerLogic()
     self.cmModel = None
     self.cmFiducials = None
-    self.cmOpacity = 1
+    self.cmOpacity = 1.0
     self.cmRadius = 0.5
 
     # Tip model
     self.tipLength = 10.0
     self.tipModelNode = None
     self.tipPoly = None
-
-    
+    self.showCoilLabel = False
     
   def setWidget(self, widget):
     self.widget = widget
 
+
+  def setTipLength(self, length):
+    self.tipLength = length
+    self.updateCatheter()
+
+
+  def setCatheterDiameter(self, diameter):
+    self.cmRadius = diameter / 2.0
+    self.updateCatheter()
+
+
+  def setCatheterOpacity(self, opacity):
+    self.cmOpacity = opacity
+    self.updateCatheter()
+    
+  def setShowCoilLabel(self, show):
+    self.showCoilLabel = show
+    self.updateCatheter()
+    
 
   def setConnector(self, cnode):
 
@@ -398,10 +407,7 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
         self.cmModel = self.scene.CreateNodeByClass("vtkMRMLModelNode")
         self.cmModel.SetName('Catheter')
         self.scene.AddNode(self.cmModel)
-        modelDisplayNode = self.scene.CreateNodeByClass("vtkMRMLModelDisplayNode")
-        modelDisplayNode.SetColor(self.cmLogic.ModelColor)
-        modelDisplayNode.SetOpacity(self.cmOpacity)
-        self.scene.AddNode(modelDisplayNode)
+        #self.scene.AddNode(modelDisplayNode)
         self.cmLogic.DestinationNode = self.cmModel
         self.cmLogic.SourceNode.SetAttribute('CurveMaker.CurveModel', self.cmLogic.DestinationNode.GetID())
 
@@ -415,35 +421,58 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
         tnode = node.GetTransformNode(i)
         trans = tnode.GetTransformToParent()
         fiducialNode.SetNthFiducialPositionFromArray(i, trans.GetPosition())
-
-      self.cmLogic.setTubeRadius(1)
-      self.cmLogic.enableAutomaticUpdate(1)
-      self.cmLogic.setInterpolationMethod(1)
-      self.cmLogic.updateCurve()
-
-      # Add a extended tip
-      lines = self.cmLogic.CurvePoly.GetLines()
-      points = self.cmLogic.CurvePoly.GetPoints()
-      pts = vtk.vtkIdList()
-
-      lines.GetCell(0, pts)
-      n = pts.GetNumberOfIds()
-      if n > 1:
-        p0 = numpy.array(points.GetPoint(pts.GetId(0)))
-        p1 = numpy.array(points.GetPoint(pts.GetId(1)))
-        v10 = p0 - p1
-        n10 = v10 / numpy.linalg.norm(v10) # Normal vector at the tip
-        pe = p0 + n10 * self.tipLength
-
-      if self.tipPoly==None:
-        self.tipPoly = vtk.vtkPolyData()
         
-      if self.tipModelNode == None:
-        self.tipModelNode = self.scene.CreateNodeByClass('vtkMRMLModelNode')
-        self.tipModelNode.SetName('Tip')
-        self.scene.AddNode(self.tipModelNode)
+      self.updateCatheter()
+
+
+  def updateCatheter(self):
+
+    if self.cmModel == None:
+      return
+
+    modelDisplayNode = self.cmModel.GetDisplayNode()
+    if modelDisplayNode:
+      modelDisplayNode.SetColor(self.cmLogic.ModelColor)
+      modelDisplayNode.SetOpacity(self.cmOpacity)
+
+    # Update catheter using the CurveMaker module
+    self.cmLogic.setTubeRadius(self.cmRadius)
+    self.cmLogic.enableAutomaticUpdate(1)
+    self.cmLogic.setInterpolationMethod(1)
+    self.cmLogic.updateCurve()
+
+    # Skip if the model has not been created. (Don't call this section before self.cmLogic.updateCurve()
+    if self.cmLogic.CurvePoly == None or self.cmLogic.SourceNode == None:
+      return
+
+    # Show/hide fiducials for coils
+    fiducialDisplayNode = self.cmLogic.SourceNode.GetDisplayNode()
+    if fiducialDisplayNode:
+      fiducialDisplayNode.SetVisibility(self.showCoilLabel)
+
+    # Add a extended tip
+    lines = self.cmLogic.CurvePoly.GetLines()
+    points = self.cmLogic.CurvePoly.GetPoints()
+    pts = vtk.vtkIdList()
+    
+    lines.GetCell(0, pts)
+    n = pts.GetNumberOfIds()
+    if n > 1:
+      p0 = numpy.array(points.GetPoint(pts.GetId(0)))
+      p1 = numpy.array(points.GetPoint(pts.GetId(1)))
+      v10 = p0 - p1
+      n10 = v10 / numpy.linalg.norm(v10) # Normal vector at the tip
+      pe = p0 + n10 * self.tipLength
+
+    if self.tipPoly==None:
+      self.tipPoly = vtk.vtkPolyData()
         
-      self.updateTipModelNode(self.tipModelNode, self.tipPoly, p0, pe, 1.0)
+    if self.tipModelNode == None:
+      self.tipModelNode = self.scene.CreateNodeByClass('vtkMRMLModelNode')
+      self.tipModelNode.SetName('Tip')
+      self.scene.AddNode(self.tipModelNode)
+
+    self.updateTipModelNode(self.tipModelNode, self.tipPoly, p0, pe, self.cmRadius, self.cmLogic.ModelColor, self.cmOpacity)
 
 
   def onConnectedEvent(self, caller, event):
@@ -479,7 +508,7 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
 #              tnode.SetAttribute('MRTracking', needleModelID)
 
 
-  def updateTipModelNode(self, tipModelNode, poly, p0, pe, radius):
+  def updateTipModelNode(self, tipModelNode, poly, p0, pe, radius, color, opacity):
     #tipModel = self.scene.CreateNodeByClass('vtkMRMLModelNode')
 
     points = vtk.vtkPoints()
@@ -515,11 +544,8 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
       
     tipDispNode = self.scene.GetNodeByID(tipDispID)
       
-    color = [0, 0, 0]
-    color[0] = 0.0
-    color[1] = 0.0
-    color[2] = 1.0
     tipDispNode.SetColor(color)
+    tipDispNode.SetOpacity(opacity)
     
 
   def createNeedleModel(self, node):
