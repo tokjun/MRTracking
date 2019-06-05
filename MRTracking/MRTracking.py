@@ -429,7 +429,6 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
 
   def onMessageReceived(self, node):
 
-    print 'onMessageReceived(self, node)'
     if node.GetName() == 'Tracker':
 
       # Check if the fiducial node exists; if not, create one.
@@ -439,11 +438,9 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
 
       fiducialNodeID = node.GetAttribute('CoilPositions')
       if fiducialNodeID != None:
-        print fiducialNodeID
         fiducialNode = self.scene.GetNodeByID(fiducialNodeID)
       
       if fiducialNode == None:
-        print 'add new fiducial node'
         fiducialNode = self.scene.CreateNodeByClass("vtkMRMLMarkupsFiducialNode")
         fiducialNode.SetLocked(True)
         fiducialNode.SetName('CoilPositions')
@@ -454,7 +451,6 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
 
       # Check if the curve model exists; if not, create one.
       if self.cmLogic.DestinationNode == None:
-        print 'add new model'
         cmModel = self.scene.CreateNodeByClass("vtkMRMLModelNode")
         cmModel.SetName('Catheter')
         self.scene.AddNode(cmModel)
@@ -474,12 +470,10 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
       # Update coordinates in the fiducial node.
       nCoils = node.GetNumberOfTransformNodes()
       if fiducialNode.GetNumberOfFiducials() != nCoils:
-        print 'change number of coils'
         fiducialNode.RemoveAllMarkups()
         for i in range(nCoils):
           fiducialNode.AddFiducial(0.0, 0.0, 0.0)
       for i in range(nCoils):
-        print 'Set coil position'
         tnode = node.GetTransformNode(i)
         trans = tnode.GetTransformToParent()
         fiducialNode.SetNthFiducialPositionFromArray(i, trans.GetPosition())
@@ -491,8 +485,6 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
 
     if self.cmLogic.DestinationNode == None:
       return
-    
-    print "updateCatheter()"
     
     modelDisplayNode = self.cmLogic.DestinationNode.GetDisplayNode()
     if modelDisplayNode:
@@ -508,8 +500,6 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
     # Skip if the model has not been created. (Don't call this section before self.cmLogic.updateCurve()
     if self.cmLogic.CurvePoly == None or self.cmLogic.SourceNode == None:
       return
-
-    print "updateCatheter() - 2"
 
     # Show/hide fiducials for coils
     fiducialDisplayNode = self.cmLogic.SourceNode.GetDisplayNode()
@@ -533,8 +523,6 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
     if self.tipPoly==None:
       self.tipPoly = vtk.vtkPolyData()
 
-    print "updateCatheter() - 3"
-      
     if self.tipModelNode == None:
       self.tipModelNode = self.scene.CreateNodeByClass('vtkMRMLModelNode')
       self.tipModelNode.SetName('Tip')
@@ -565,7 +553,6 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
     for i in range (nInNode):
       node = cnode.GetIncomingMRMLNode(i)
       if not node.GetID() in self.eventTag:
-        print "onNewDeviceEvent(): %s" % node.GetID()
         self.eventTag[node.GetID()] = node.AddObserver(vtk.vtkCommand.ModifiedEvent, self.onIncomingNodeModifiedEvent)
       if cnode.GetAttribute('MRTracking.incomingNode') != node.GetID():
         cnode.SetAttribute('MRTracking.incomingNode', node.GetID())
@@ -642,7 +629,6 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
   def createNeedleModel(self, node):
     if node and node.GetClassName() == 'vtkMRMLIGTLTrackingDataBundleNode':
       n = node.GetNumberOfTransformNodes()
-      print n
       for id in range (n):
         tnode = node.GetTransformNode(id)
         if tnode:
