@@ -118,6 +118,7 @@ class MRTrackingWidget(ScriptedLoadableModuleWidget):
     #
     self.activeCheckBox = qt.QCheckBox()
     self.activeCheckBox.checked = 0
+    self.activeCheckBox.enabled = 0
     self.activeCheckBox.setToolTip("Activate OpenIGTLink connection")
     connectionFormLayout.addRow("Active: ", self.activeCheckBox)
 
@@ -171,10 +172,10 @@ class MRTrackingWidget(ScriptedLoadableModuleWidget):
     self.showCoilLabelCheckBox.setToolTip("Show/hide coil labels")
     selectionFormLayout.addRow("Show Coil Labels: ", self.showCoilLabelCheckBox)
 
-    #--------------------------------------------------
-    # connections
     #
-    self.connectorSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onConnectorSelect)
+    # Connections
+    #
+    self.connectorSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onConnectorSelected)
     self.activeCheckBox.connect('toggled(bool)', self.onActive)
     self.tipLengthSliderWidget.connect("valueChanged(double)", self.onTipLengthChanged)
     self.catheterDiameterSliderWidget.connect("valueChanged(double)", self.onCatheterDiameterChanged)
@@ -188,6 +189,10 @@ class MRTrackingWidget(ScriptedLoadableModuleWidget):
   def cleanup(self):
     pass
 
+
+  #--------------------------------------------------
+  # GUI Call Back functions
+  #
 
   def onActive(self):
     
@@ -205,9 +210,10 @@ class MRTrackingWidget(ScriptedLoadableModuleWidget):
     #self.updateGUI()
 
 
-  def onConnectorSelect(self):
+  def onConnectorSelected(self):
     cnode = self.connectorSelector.currentNode()    
     self.logic.setConnector(cnode)
+    self.updateGUI()
 
 
   def onRejectRegistration(self):
@@ -220,9 +226,11 @@ class MRTrackingWidget(ScriptedLoadableModuleWidget):
     
   def onCatheterDiameterChanged(self):
     self.logic.setCatheterDiameter(self.catheterDiameterSliderWidget.value)
+    
 
   def onCatheterOpacityChanged(self):
     self.logic.setCatheterOpacity(self.catheterOpacitySliderWidget.value)
+    
     
   def onCoilLabelChecked(self):
     self.logic.setShowCoilLabel(self.showCoilLabelCheckBox.checked)
@@ -275,8 +283,6 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
 
     # CurveMaker
     self.cmLogic = CurveMaker.CurveMakerLogic()
-    self.cmModel = None
-    self.cmFiducials = None
     self.cmOpacity = 1.0
     self.cmRadius = 0.5
 
@@ -285,6 +291,9 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
     self.tipModelNode = None
     self.tipPoly = None
     self.showCoilLabel = False
+
+    self.incomingNode = None
+
     
   def setWidget(self, widget):
     self.widget = widget
@@ -320,6 +329,41 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
         self.deactivateEvent()
       self.connectorNodeID = cnode.GetID()
       self.activateEvent()
+
+    # Set up markups fiducial node, if specified in the connector node
+    cmFiducialsID = cnode.GetAttribute('MRTracking.cmFiducials')
+    if cmFiducialsID != None:
+      self.cmLogic.SourceNode = self.scene.GetNodeByID(cmFiducialsID)
+    else:
+      self.cmLogic.SourceNode = None
+      
+    # Set up model node, if specified in the connector node
+    cmModelID = cnode.GetAttribute('MRTracking.cmModel')
+    if cmModelID != None:
+      self.cmLogic.DestinationNode = self.scene.GetNodeByID(cmModelID)
+      if self.cmLogic.SourceNode:
+        self.cmLogic.SourceNode.SetAttribute('CurveMaker.CurveModel', self.cmLogic.DestinationNode.GetID())
+    else:
+      self.cmLogic.DestinationNode = None
+      
+    #if self.cmLogic.SourceNode:
+    #  cnode.SetAttribute('CoilPositions', cmFiducialsID)
+
+    # Set up tip model node, if specified in the connector node
+    tipModelID = cnode.GetAttribute('MRTracking.tipModel')
+    if tipModelID != None:
+      self.tipModelNode = self.scene.GetNodeByID(tipModelID)
+    else:
+      self.tipModelNode = None
+
+    # Set up incoming node, if specified in the connector node
+    incomingNodeID = cnode.GetAttribute('MRTracking.incomingNode')
+    if incomingNodeID != None:
+      incomingNode = self.scene.GetNodeByID(incomingNodeID)
+      if incomingNode:
+          self.eventTag[incomingNodeID] = incomingNode.AddObserver(vtk.vtkCommand.ModifiedEvent, self.onIncomingNodeModifiedEvent)
+        
+
 
   def connectToServer(self, addr, port):
 
@@ -384,40 +428,58 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
       return False
 
   def onMessageReceived(self, node):
+
+    print 'onMessageReceived(self, node)'
     if node.GetName() == 'Tracker':
 
       # Check if the fiducial node exists; if not, create one.
+      cnode = self.scene.GetNodeByID(self.connectorNodeID)
+        
       fiducialNode = None
+
       fiducialNodeID = node.GetAttribute('CoilPositions')
       if fiducialNodeID != None:
+        print fiducialNodeID
         fiducialNode = self.scene.GetNodeByID(fiducialNodeID)
       
       if fiducialNode == None:
+        print 'add new fiducial node'
         fiducialNode = self.scene.CreateNodeByClass("vtkMRMLMarkupsFiducialNode")
         fiducialNode.SetLocked(True)
         fiducialNode.SetName('CoilPositions')
         self.scene.AddNode(fiducialNode)
         fiducialNodeID = fiducialNode.GetID()
         node.SetAttribute('CoilPositions', fiducialNodeID)
-
-      self.cmLogic.SourceNode = fiducialNode
+        self.cmLogic.SourceNode = fiducialNode
 
       # Check if the curve model exists; if not, create one.
-      if self.cmModel == None:
-        self.cmModel = self.scene.CreateNodeByClass("vtkMRMLModelNode")
-        self.cmModel.SetName('Catheter')
-        self.scene.AddNode(self.cmModel)
+      if self.cmLogic.DestinationNode == None:
+        print 'add new model'
+        cmModel = self.scene.CreateNodeByClass("vtkMRMLModelNode")
+        cmModel.SetName('Catheter')
+        self.scene.AddNode(cmModel)
         #self.scene.AddNode(modelDisplayNode)
-        self.cmLogic.DestinationNode = self.cmModel
-        self.cmLogic.SourceNode.SetAttribute('CurveMaker.CurveModel', self.cmLogic.DestinationNode.GetID())
+        self.cmLogic.DestinationNode = cmModel
 
+      if cnode:
+        if self.cmLogic.DestinationNode:
+          cnode.SetAttribute('MRTracking.cmModel', self.cmLogic.DestinationNode.GetID())
+        if self.cmLogic.SourceNode:
+          cnode.SetAttribute('MRTracking.cmFiducials', self.cmLogic.SourceNode.GetID())
+          
+      if self.cmLogic.DestinationNode and self.cmLogic.SourceNode:
+        self.cmLogic.SourceNode.SetAttribute('CurveMaker.CurveModel', self.cmLogic.DestinationNode.GetID())
+                
+        
       # Update coordinates in the fiducial node.
       nCoils = node.GetNumberOfTransformNodes()
       if fiducialNode.GetNumberOfFiducials() != nCoils:
+        print 'change number of coils'
         fiducialNode.RemoveAllMarkups()
         for i in range(nCoils):
           fiducialNode.AddFiducial(0.0, 0.0, 0.0)
       for i in range(nCoils):
+        print 'Set coil position'
         tnode = node.GetTransformNode(i)
         trans = tnode.GetTransformToParent()
         fiducialNode.SetNthFiducialPositionFromArray(i, trans.GetPosition())
@@ -427,10 +489,12 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
 
   def updateCatheter(self):
 
-    if self.cmModel == None:
+    if self.cmLogic.DestinationNode == None:
       return
-
-    modelDisplayNode = self.cmModel.GetDisplayNode()
+    
+    print "updateCatheter()"
+    
+    modelDisplayNode = self.cmLogic.DestinationNode.GetDisplayNode()
     if modelDisplayNode:
       modelDisplayNode.SetColor(self.cmLogic.ModelColor)
       modelDisplayNode.SetOpacity(self.cmOpacity)
@@ -444,6 +508,8 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
     # Skip if the model has not been created. (Don't call this section before self.cmLogic.updateCurve()
     if self.cmLogic.CurvePoly == None or self.cmLogic.SourceNode == None:
       return
+
+    print "updateCatheter() - 2"
 
     # Show/hide fiducials for coils
     fiducialDisplayNode = self.cmLogic.SourceNode.GetDisplayNode()
@@ -466,11 +532,16 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
 
     if self.tipPoly==None:
       self.tipPoly = vtk.vtkPolyData()
-        
+
+    print "updateCatheter() - 3"
+      
     if self.tipModelNode == None:
       self.tipModelNode = self.scene.CreateNodeByClass('vtkMRMLModelNode')
       self.tipModelNode.SetName('Tip')
       self.scene.AddNode(self.tipModelNode)
+      cnode = self.scene.GetNodeByID(self.connectorNodeID)
+      if cnode:
+        cnode.SetAttribute('MRTracking.tipModel', self.tipModelNode.GetID())
 
     self.updateTipModelNode(self.tipModelNode, self.tipPoly, p0, pe, self.cmRadius, self.cmLogic.ModelColor, self.cmOpacity)
 
@@ -491,11 +562,14 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
 
     cnode = self.scene.GetNodeByID(self.connectorNodeID)
     nInNode = cnode.GetNumberOfIncomingMRMLNodes()
-    print nInNode
     for i in range (nInNode):
       node = cnode.GetIncomingMRMLNode(i)
       if not node.GetID() in self.eventTag:
+        print "onNewDeviceEvent(): %s" % node.GetID()
         self.eventTag[node.GetID()] = node.AddObserver(vtk.vtkCommand.ModifiedEvent, self.onIncomingNodeModifiedEvent)
+      if cnode.GetAttribute('MRTracking.incomingNode') != node.GetID():
+        cnode.SetAttribute('MRTracking.incomingNode', node.GetID())
+        
 #        if node.GetNodeTagName() == 'IGTLTrackingDataSplitter':
 #          n = node.GetNumberOfTransformNodes()
 #          for id in range (n):
