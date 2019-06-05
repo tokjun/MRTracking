@@ -605,8 +605,25 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
     tubeFilter.SetNumberOfSides(20)
     tubeFilter.CappingOn()
     tubeFilter.Update()
-    tipModelNode.SetAndObservePolyData(tubeFilter.GetOutput())
-    tipModelNode.Modified
+
+    # Sphere represents the locator tip
+    sphere = vtk.vtkSphereSource()
+    sphere.SetRadius(radius*2.0)
+    sphere.SetCenter(pe)
+    sphere.Update()
+
+    apd = vtk.vtkAppendPolyData()
+
+    if vtk.VTK_MAJOR_VERSION <= 5:
+      apd.AddInput(sphere.GetOutput())
+      apd.AddInput(tubeFilter.GetOutput())
+    else:
+      apd.AddInputConnection(sphere.GetOutputPort())
+      apd.AddInputConnection(tubeFilter.GetOutputPort())
+    apd.Update()
+    
+    tipModelNode.SetAndObservePolyData(apd.GetOutput())
+    tipModelNode.Modified()
 
     tipDispID = tipModelNode.GetDisplayNodeID()
     if tipDispID == None:
