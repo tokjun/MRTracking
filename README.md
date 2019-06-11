@@ -47,26 +47,32 @@ $ git clone https://github.com/tokjun/MRTracking
 Usage
 =====
 
+Network Setting
+---------------
+The following network configuration is assumed:
+- Siemens MRI Host: 192.168.2.1
+- Slicer Workstation: 192.168.2.5
+
+Make sure that port 18944 TCP is open. To check the network connection, open the command prompt on the MRI host (Advanced User required), and ping the Slicer workstation:
+
+~~~~
+> PING 192.168.2.5
+~~~~
 
 
-Establish Communication
------------------------
-1. Start the ICS Server
-2. Start 3D Slicer
-3. In the MRTracking, click the "Connector" menu, and select"Create new IGTLConnector".
-4. Set hostname and port number.
-5. Click "Active" check box. Once it is connected, 3D Slicer will send "INITIALIZATION" command to the ICS.
-
-Start Tracking
---------------
+Setting Up 3D Slicer
+--------------------
+- Open 3D Slicer
+- Choose "IGT" -> "MRTracking" under the modules menu.
+- Click the "Connector" pull-down menu and choose "Create new IGTLConnector"
+- Make sure to specify "18944" (default) for the Port.
+- Click the "Active" check box.
 
 
-Send Surface Model
-------------------
+Start MR Tracking Sequence
+--------------------------
+Setup the tracking sequence and start the scan. If the tracking sequence is connected to the 3D Slicer properly, the catheter model should appear on the screen. You may not seen the model during prescan or while the catheter is outside the imaging volume.
 
-
-Registration
-------------
 
 
 
