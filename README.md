@@ -69,9 +69,44 @@ Setting Up 3D Slicer
 - Click the "Active" check box.
 
 
-Start MR Tracking Sequence
---------------------------
+Starting MR Tracking Sequence
+-----------------------------
 Setup the tracking sequence and start the scan. If the tracking sequence is connected to the 3D Slicer properly, the catheter model should appear on the screen. You may not seen the model during prescan or while the catheter is outside the imaging volume.
+
+
+Testing with Simulator
+======================
+
+You can test the MRTracking module using [Tracking Simulator](https://github.com/tokjun/MRCatheterTrackingSim) with the following steps. We assume that both simulator and 3D Slicer are running on the same computer.
+
+
+Setting Up 3D Slicer
+--------------------
+- Open 3D Slicer
+- Choose "IGT" -> "MRTracking" under the modules menu.
+- Click the "Connector" pull-down menu and choose "Create new IGTLConnector"
+- Make sure to specify "18944" (default) for the Port.
+- Click the "Active" check box.
+
+
+Starting Simulator
+------------------
+To start the simulator from the terminal on Linux/Mac
+
+~~~~
+$ cd <SIMULATOR_PATH>/
+$ ./TrackingDataClient localhost 18944 5 <DATA_PATH>/TestTracking.log
+~~~~
+
+"SIMULATOR_PATH" is the path to the folder where the executable file is placed, whereas "DATA_PATH" is the path to the folder where the tracking log file ("TestTracking.log") is placed. "TestTracking.log" comes along with the source code for the simulator.
+
+On Windows,
+
+~~~~
+> cd <path to the simulator>
+> TrackingDataClient localhost 18944 5 <path to the test tracking data>\TestTracking.log
+~~~~
+
 
 
 
