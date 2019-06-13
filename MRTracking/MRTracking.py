@@ -615,7 +615,9 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
         if self.activeCoils[i]:
           tnode = node.GetTransformNode(i)
           trans = tnode.GetTransformToParent()
-          fiducialNode.SetNthFiducialPositionFromArray(j, trans.GetPosition())
+          #fiducialNode.SetNthFiducialPositionFromArray(j, trans.GetPosition())
+          v = trans.GetPosition()
+          fiducialNode.SetNthFiducialPosition(j, -v[0], v[1], v[2])
           j += 1
         
       self.updateCatheter()
