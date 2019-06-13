@@ -563,7 +563,8 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
 
   def onMessageReceived(self, node):
 
-    if node.GetName() == 'Tracker':
+    #if node.GetName() == 'WWTracker':
+    if node.GetClassName() == 'vtkMRMLIGTLTrackingDataBundleNode':
 
       # Check if the fiducial node exists; if not, create one.
       cnode = self.scene.GetNodeByID(self.connectorNodeID)
