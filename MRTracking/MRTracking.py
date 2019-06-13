@@ -224,6 +224,30 @@ class MRTrackingWidget(ScriptedLoadableModuleWidget):
     coilSelectionLayout.addRow("", self.coilGroup2Layout)
 
     #
+    # Reslice
+    #
+    resliceCollapsibleButton = ctk.ctkCollapsibleButton()
+    resliceCollapsibleButton.text = "Image Reslice"
+    self.layout.addWidget(resliceCollapsibleButton)
+    
+    resliceLayout = qt.QFormLayout(resliceCollapsibleButton)
+    self.resliceAxCheckBox = qt.QCheckBox()
+    self.resliceAxCheckBox.checked = 0
+    self.resliceAxCheckBox.text = "AX"
+    self.resliceSagCheckBox = qt.QCheckBox()
+    self.resliceSagCheckBox.checked = 0
+    self.resliceSagCheckBox.text = "SAG"
+    self.resliceCorCheckBox = qt.QCheckBox()
+    self.resliceCorCheckBox.checked = 0
+    self.resliceCorCheckBox.text = "COR"
+
+    self.resliceBoxLayout = qt.QHBoxLayout()
+    self.resliceBoxLayout.addWidget(self.resliceAxCheckBox)
+    self.resliceBoxLayout.addWidget(self.resliceSagCheckBox)
+    self.resliceBoxLayout.addWidget(self.resliceCorCheckBox)
+    resliceLayout.addRow("Reslice Plane:", self.resliceBoxLayout)
+
+    #
     # Connections
     #
     self.connectorSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onConnectorSelected)
@@ -241,6 +265,10 @@ class MRTrackingWidget(ScriptedLoadableModuleWidget):
     self.coil6CheckBox.connect('toggled(bool)', self.onCoilChecked)
     self.coil7CheckBox.connect('toggled(bool)', self.onCoilChecked)
     self.coil8CheckBox.connect('toggled(bool)', self.onCoilChecked)
+
+    self.resliceAxCheckBox.connect('toggled(bool)', self.onResliceChecked)
+    self.resliceSagCheckBox.connect('toggled(bool)', self.onResliceChecked)
+    self.resliceCorCheckBox.connect('toggled(bool)', self.onResliceChecked)
     
     # Add vertical spacer
     self.layout.addStretch(1)
@@ -308,6 +336,15 @@ class MRTrackingWidget(ScriptedLoadableModuleWidget):
       self.coil8CheckBox.checked
     ]
     self.logic.setActiveCoils(activeCoils)
+
+    
+  def onResliceChecked(self):
+    ax  = self.resliceAxCheckBox.checked
+    sag = self.resliceSagCheckBox.checked
+    cor = self.resliceCorCheckBox.checked
+
+    self.logic.setReslice(ax, sag, cor)
+
     
   def onReload(self, moduleName="MRTracking"):
     # Generic reload method for any scripted module.
@@ -362,9 +399,16 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
     # Tip model
     self.tipLength = 10.0
     self.tipModelNode = None
+    self.tipTransformNode = None
     self.tipPoly = None
     self.showCoilLabel = False
     self.activeCoils = [True, True, True, True, True, True, True, True]
+    self.reslice = [False, False, False]
+    self.resliceDriverLogic= slicer.modules.volumereslicedriver.logic()
+
+    self.sliceNodeRed = slicer.app.layoutManager().sliceWidget('Red').mrmlSliceNode()
+    self.sliceNodeYellow = slicer.app.layoutManager().sliceWidget('Yellow').mrmlSliceNode()
+    self.sliceNodeGreen = slicer.app.layoutManager().sliceWidget('Green').mrmlSliceNode()
 
     self.incomingNode = None
 
@@ -396,7 +440,11 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
   def setActiveCoils(self, coils):
     self.activeCoils = coils
     self.updateCatheter()
-    
+
+
+  def setReslice(self, ax, sag, cor):
+    self.reslice = [ax, sag, cor]
+    self.updateCatheter()
 
   def setConnector(self, cnode):
 
@@ -435,6 +483,12 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
       self.tipModelNode = self.scene.GetNodeByID(tipModelID)
     else:
       self.tipModelNode = None
+
+    tipTransformNodeID = cnode.GetAttribute('MRTracking.tipTransform')
+    if tipTransformNodeID != None:
+      self.tipTransformNode = self.scene.GetNodeByID(tipTransformNodeID)
+    else:
+      self.tipTransformNode = None
 
     # Set up incoming node, if specified in the connector node
     incomingNodeID = cnode.GetAttribute('MRTracking.incomingNode')
@@ -575,6 +629,8 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
     if modelDisplayNode:
       modelDisplayNode.SetColor(self.cmLogic.ModelColor)
       modelDisplayNode.SetOpacity(self.cmOpacity)
+      modelDisplayNode.SliceIntersectionVisibilityOn()
+      modelDisplayNode.SetSliceDisplayModeToIntersection()
 
     # Update catheter using the CurveMaker module
     self.cmLogic.setTubeRadius(self.cmRadius)
@@ -615,6 +671,44 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
       cnode = self.scene.GetNodeByID(self.connectorNodeID)
       if cnode:
         cnode.SetAttribute('MRTracking.tipModel', self.tipModelNode.GetID())
+        
+    if self.tipTransformNode == None:
+      self.tipTransformNode = self.scene.CreateNodeByClass('vtkMRMLLinearTransformNode')
+      self.tipTransformNode.SetName('TipTransform')
+      self.scene.AddNode(self.tipTransformNode)
+      cnode = self.scene.GetNodeByID(self.connectorNodeID)
+      if cnode:
+        cnode.SetAttribute('MRTracking.tipTransform', self.tipTransformNode.GetID())
+
+    matrix = vtk.vtkMatrix4x4()
+    matrix.Identity()
+    matrix.SetElement(0, 3, pe[0])
+    matrix.SetElement(1, 3, pe[1])
+    matrix.SetElement(2, 3, pe[2])
+    self.tipTransformNode.SetMatrixTransformToParent(matrix)
+
+    
+    if self.reslice[0]:
+      self.resliceDriverLogic.SetDriverForSlice(self.tipTransformNode.GetID(), self.sliceNodeRed)
+      self.resliceDriverLogic.SetModeForSlice(self.resliceDriverLogic.MODE_AXIAL, self.sliceNodeRed)
+    else:
+      self.resliceDriverLogic.SetDriverForSlice('', self.sliceNodeRed)
+      self.resliceDriverLogic.SetModeForSlice(self.resliceDriverLogic.MODE_NONE, self.sliceNodeRed)
+      
+      
+    if self.reslice[1]:
+      self.resliceDriverLogic.SetDriverForSlice(self.tipTransformNode.GetID(), self.sliceNodeYellow)
+      self.resliceDriverLogic.SetModeForSlice(self.resliceDriverLogic.MODE_SAGITTAL, self.sliceNodeYellow)
+    else:
+      self.resliceDriverLogic.SetDriverForSlice('', self.sliceNodeYellow)
+      self.resliceDriverLogic.SetModeForSlice(self.resliceDriverLogic.MODE_NONE, self.sliceNodeYellow)
+
+    if self.reslice[2]:
+      self.resliceDriverLogic.SetDriverForSlice(self.tipTransformNode.GetID(), self.sliceNodeGreen)
+      self.resliceDriverLogic.SetModeForSlice(self.resliceDriverLogic.MODE_CORONAL, self.sliceNodeGreen)
+    else:
+      self.resliceDriverLogic.SetDriverForSlice('', self.sliceNodeGreen)
+      self.resliceDriverLogic.SetModeForSlice(self.resliceDriverLogic.MODE_NONE, self.sliceNodeGreen)
 
     self.updateTipModelNode(self.tipModelNode, self.tipPoly, p0, pe, self.cmRadius, self.cmLogic.ModelColor, self.cmOpacity)
 
@@ -709,6 +803,8 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
       
     tipDispNode.SetColor(color)
     tipDispNode.SetOpacity(opacity)
+    tipDispNode.SliceIntersectionVisibilityOn()
+    tipDispNode.SetSliceDisplayModeToIntersection()
     
 
   def createNeedleModel(self, node):
