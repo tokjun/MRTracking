@@ -165,12 +165,63 @@ class MRTrackingWidget(ScriptedLoadableModuleWidget):
     selectionFormLayout.addRow("Opacity: ", self.catheterOpacitySliderWidget)
     
     #
+    # Coil Selection Aare
+    #
+    coilCollapsibleButton = ctk.ctkCollapsibleButton()
+    coilCollapsibleButton.text = "Coil Selection"
+    self.layout.addWidget(coilCollapsibleButton)
+    
+    coilSelectionLayout = qt.QFormLayout(coilCollapsibleButton)
+    
+    #
     # Check box to show/hide coil labels 
     #
     self.showCoilLabelCheckBox = qt.QCheckBox()
     self.showCoilLabelCheckBox.checked = 0
     self.showCoilLabelCheckBox.setToolTip("Show/hide coil labels")
-    selectionFormLayout.addRow("Show Coil Labels: ", self.showCoilLabelCheckBox)
+    coilSelectionLayout.addRow("Show Coil Labels: ", self.showCoilLabelCheckBox)
+
+    #
+    # Coil seleciton check boxes
+    #
+    self.coil1CheckBox = qt.QCheckBox()
+    self.coil1CheckBox.checked = 1
+    self.coil1CheckBox.text = "CH 1"
+    self.coil2CheckBox = qt.QCheckBox()
+    self.coil2CheckBox.checked = 1
+    self.coil2CheckBox.text = "CH 2"
+    self.coil3CheckBox = qt.QCheckBox()
+    self.coil3CheckBox.checked = 1
+    self.coil3CheckBox.text = "CH 3"
+    self.coil4CheckBox = qt.QCheckBox()
+    self.coil4CheckBox.checked = 1
+    self.coil4CheckBox.text = "CH 4"
+    self.coil5CheckBox = qt.QCheckBox()
+    self.coil5CheckBox.checked = 1
+    self.coil5CheckBox.text = "CH 5"
+    self.coil6CheckBox = qt.QCheckBox()
+    self.coil6CheckBox.checked = 1
+    self.coil6CheckBox.text = "CH 6"
+    self.coil7CheckBox = qt.QCheckBox()
+    self.coil7CheckBox.checked = 1
+    self.coil7CheckBox.text = "CH 7"
+    self.coil8CheckBox = qt.QCheckBox()
+    self.coil8CheckBox.checked = 1
+    self.coil8CheckBox.text = "CH 8"
+
+    self.coilGroup1Layout = qt.QHBoxLayout()
+    self.coilGroup1Layout.addWidget(self.coil1CheckBox)
+    self.coilGroup1Layout.addWidget(self.coil2CheckBox)
+    self.coilGroup1Layout.addWidget(self.coil3CheckBox)
+    self.coilGroup1Layout.addWidget(self.coil4CheckBox)
+    coilSelectionLayout.addRow("Active Coils:", self.coilGroup1Layout)
+
+    self.coilGroup2Layout = qt.QHBoxLayout()
+    self.coilGroup2Layout.addWidget(self.coil5CheckBox)
+    self.coilGroup2Layout.addWidget(self.coil6CheckBox)
+    self.coilGroup2Layout.addWidget(self.coil7CheckBox)
+    self.coilGroup2Layout.addWidget(self.coil8CheckBox)
+    coilSelectionLayout.addRow("", self.coilGroup2Layout)
 
     #
     # Connections
@@ -181,7 +232,16 @@ class MRTrackingWidget(ScriptedLoadableModuleWidget):
     self.catheterDiameterSliderWidget.connect("valueChanged(double)", self.onCatheterDiameterChanged)
     self.catheterOpacitySliderWidget.connect("valueChanged(double)", self.onCatheterOpacityChanged)
     self.showCoilLabelCheckBox.connect('toggled(bool)', self.onCoilLabelChecked)
-
+    
+    self.coil1CheckBox.connect('toggled(bool)', self.onCoilChecked)
+    self.coil2CheckBox.connect('toggled(bool)', self.onCoilChecked)
+    self.coil3CheckBox.connect('toggled(bool)', self.onCoilChecked)
+    self.coil4CheckBox.connect('toggled(bool)', self.onCoilChecked)
+    self.coil5CheckBox.connect('toggled(bool)', self.onCoilChecked)
+    self.coil6CheckBox.connect('toggled(bool)', self.onCoilChecked)
+    self.coil7CheckBox.connect('toggled(bool)', self.onCoilChecked)
+    self.coil8CheckBox.connect('toggled(bool)', self.onCoilChecked)
+    
     # Add vertical spacer
     self.layout.addStretch(1)
 
@@ -234,7 +294,20 @@ class MRTrackingWidget(ScriptedLoadableModuleWidget):
     
   def onCoilLabelChecked(self):
     self.logic.setShowCoilLabel(self.showCoilLabelCheckBox.checked)
-    
+
+
+  def onCoilChecked(self):
+    activeCoils = [
+      self.coil1CheckBox.checked,
+      self.coil2CheckBox.checked,
+      self.coil3CheckBox.checked,
+      self.coil4CheckBox.checked,
+      self.coil5CheckBox.checked,
+      self.coil6CheckBox.checked,
+      self.coil7CheckBox.checked,
+      self.coil8CheckBox.checked
+    ]
+    self.logic.setActiveCoils(activeCoils)
     
   def onReload(self, moduleName="MRTracking"):
     # Generic reload method for any scripted module.
@@ -291,6 +364,7 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
     self.tipModelNode = None
     self.tipPoly = None
     self.showCoilLabel = False
+    self.activeCoils = [True, True, True, True, True, True, True, True]
 
     self.incomingNode = None
 
@@ -313,8 +387,14 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
     self.cmOpacity = opacity
     self.updateCatheter()
     
+    
   def setShowCoilLabel(self, show):
     self.showCoilLabel = show
+    self.updateCatheter()
+    
+
+  def setActiveCoils(self, coils):
+    self.activeCoils = coils
     self.updateCatheter()
     
 
@@ -443,7 +523,7 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
       if fiducialNode == None:
         fiducialNode = self.scene.CreateNodeByClass("vtkMRMLMarkupsFiducialNode")
         fiducialNode.SetLocked(True)
-        fiducialNode.SetName('CoilPositions')
+        fiducialNode.SetName('Coil')
         self.scene.AddNode(fiducialNode)
         fiducialNodeID = fiducialNode.GetID()
         node.SetAttribute('CoilPositions', fiducialNodeID)
@@ -469,14 +549,19 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
         
       # Update coordinates in the fiducial node.
       nCoils = node.GetNumberOfTransformNodes()
-      if fiducialNode.GetNumberOfFiducials() != nCoils:
+      mask = self.activeCoils[0:nCoils]
+      nActiveCoils = sum(mask)
+      if fiducialNode.GetNumberOfFiducials() != nActiveCoils:
         fiducialNode.RemoveAllMarkups()
-        for i in range(nCoils):
+        for i in range(nActiveCoils):
           fiducialNode.AddFiducial(0.0, 0.0, 0.0)
+      j = 0
       for i in range(nCoils):
-        tnode = node.GetTransformNode(i)
-        trans = tnode.GetTransformToParent()
-        fiducialNode.SetNthFiducialPositionFromArray(i, trans.GetPosition())
+        if self.activeCoils[i]:
+          tnode = node.GetTransformNode(i)
+          trans = tnode.GetTransformToParent()
+          fiducialNode.SetNthFiducialPositionFromArray(j, trans.GetPosition())
+          j += 1
         
       self.updateCatheter()
 
