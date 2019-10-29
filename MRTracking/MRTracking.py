@@ -184,53 +184,105 @@ class MRTrackingWidget(ScriptedLoadableModuleWidget):
     #
     # Coil seleciton check boxes
     #
-    self.coil1CheckBox = qt.QCheckBox()
-    self.coil1CheckBox.checked = 1
-    self.coil1CheckBox.text = "CH 1"
-    self.coil2CheckBox = qt.QCheckBox()
-    self.coil2CheckBox.checked = 1
-    self.coil2CheckBox.text = "CH 2"
-    self.coil3CheckBox = qt.QCheckBox()
-    self.coil3CheckBox.checked = 1
-    self.coil3CheckBox.text = "CH 3"
-    self.coil4CheckBox = qt.QCheckBox()
-    self.coil4CheckBox.checked = 1
-    self.coil4CheckBox.text = "CH 4"
-    self.coil5CheckBox = qt.QCheckBox()
-    self.coil5CheckBox.checked = 1
-    self.coil5CheckBox.text = "CH 5"
-    self.coil6CheckBox = qt.QCheckBox()
-    self.coil6CheckBox.checked = 1
-    self.coil6CheckBox.text = "CH 6"
-    self.coil7CheckBox = qt.QCheckBox()
-    self.coil7CheckBox.checked = 1
-    self.coil7CheckBox.text = "CH 7"
-    self.coil8CheckBox = qt.QCheckBox()
-    self.coil8CheckBox.checked = 1
-    self.coil8CheckBox.text = "CH 8"
+    self.coil_1_1_CheckBox = qt.QCheckBox()
+    self.coil_1_1_CheckBox.checked = 1
+    self.coil_1_1_CheckBox.text = "CH 1"
+    self.coil_1_2_CheckBox = qt.QCheckBox()
+    self.coil_1_2_CheckBox.checked = 1
+    self.coil_1_2_CheckBox.text = "CH 2"
+    self.coil_1_3_CheckBox = qt.QCheckBox()
+    self.coil_1_3_CheckBox.checked = 1
+    self.coil_1_3_CheckBox.text = "CH 3"
+    self.coil_1_4_CheckBox = qt.QCheckBox()
+    self.coil_1_4_CheckBox.checked = 1
+    self.coil_1_4_CheckBox.text = "CH 4"
+    self.coil_1_5_CheckBox = qt.QCheckBox()
+    self.coil_1_5_CheckBox.checked = 0
+    self.coil_1_5_CheckBox.text = "CH 5"
+    self.coil_1_6_CheckBox = qt.QCheckBox()
+    self.coil_1_6_CheckBox.checked = 0
+    self.coil_1_6_CheckBox.text = "CH 6"
+    self.coil_1_7_CheckBox = qt.QCheckBox()
+    self.coil_1_7_CheckBox.checked = 0
+    self.coil_1_7_CheckBox.text = "CH 7"
+    self.coil_1_8_CheckBox = qt.QCheckBox()
+    self.coil_1_8_CheckBox.checked = 0
+    self.coil_1_8_CheckBox.text = "CH 8"
 
-    self.coilGroup1Layout = qt.QHBoxLayout()
-    self.coilGroup1Layout.addWidget(self.coil1CheckBox)
-    self.coilGroup1Layout.addWidget(self.coil2CheckBox)
-    self.coilGroup1Layout.addWidget(self.coil3CheckBox)
-    self.coilGroup1Layout.addWidget(self.coil4CheckBox)
-    coilSelectionLayout.addRow("Active Coils:", self.coilGroup1Layout)
+    self.coilGroup11Layout = qt.QHBoxLayout()
+    self.coilGroup11Layout.addWidget(self.coil_1_1_CheckBox)
+    self.coilGroup11Layout.addWidget(self.coil_1_2_CheckBox)
+    self.coilGroup11Layout.addWidget(self.coil_1_3_CheckBox)
+    self.coilGroup11Layout.addWidget(self.coil_1_4_CheckBox)
+    coilSelectionLayout.addRow("Cath 1 Active Coils:", self.coilGroup11Layout)
 
-    self.coilGroup2Layout = qt.QHBoxLayout()
-    self.coilGroup2Layout.addWidget(self.coil5CheckBox)
-    self.coilGroup2Layout.addWidget(self.coil6CheckBox)
-    self.coilGroup2Layout.addWidget(self.coil7CheckBox)
-    self.coilGroup2Layout.addWidget(self.coil8CheckBox)
-    coilSelectionLayout.addRow("", self.coilGroup2Layout)
+    self.coilGroup12Layout = qt.QHBoxLayout()
+    self.coilGroup12Layout.addWidget(self.coil_1_5_CheckBox)
+    self.coilGroup12Layout.addWidget(self.coil_1_6_CheckBox)
+    self.coilGroup12Layout.addWidget(self.coil_1_7_CheckBox)
+    self.coilGroup12Layout.addWidget(self.coil_1_8_CheckBox)
+    coilSelectionLayout.addRow("", self.coilGroup12Layout)
 
+    self.coil_2_1_CheckBox = qt.QCheckBox()
+    self.coil_2_1_CheckBox.checked = 0
+    self.coil_2_1_CheckBox.text = "CH 1"
+    self.coil_2_2_CheckBox = qt.QCheckBox()
+    self.coil_2_2_CheckBox.checked = 0
+    self.coil_2_2_CheckBox.text = "CH 2"
+    self.coil_2_3_CheckBox = qt.QCheckBox()
+    self.coil_2_3_CheckBox.checked = 0
+    self.coil_2_3_CheckBox.text = "CH 3"
+    self.coil_2_4_CheckBox = qt.QCheckBox()
+    self.coil_2_4_CheckBox.checked = 0
+    self.coil_2_4_CheckBox.text = "CH 4"
+    self.coil_2_5_CheckBox = qt.QCheckBox()
+    self.coil_2_5_CheckBox.checked = 1
+    self.coil_2_5_CheckBox.text = "CH 5"
+    self.coil_2_6_CheckBox = qt.QCheckBox()
+    self.coil_2_6_CheckBox.checked = 1
+    self.coil_2_6_CheckBox.text = "CH 6"
+    self.coil_2_7_CheckBox = qt.QCheckBox()
+    self.coil_2_7_CheckBox.checked = 1
+    self.coil_2_7_CheckBox.text = "CH 7"
+    self.coil_2_8_CheckBox = qt.QCheckBox()
+    self.coil_2_8_CheckBox.checked = 1
+    self.coil_2_8_CheckBox.text = "CH 8"
+    
+    self.coilGroup21Layout = qt.QHBoxLayout()
+    self.coilGroup21Layout.addWidget(self.coil_2_1_CheckBox)
+    self.coilGroup21Layout.addWidget(self.coil_2_2_CheckBox)
+    self.coilGroup21Layout.addWidget(self.coil_2_3_CheckBox)
+    self.coilGroup21Layout.addWidget(self.coil_2_4_CheckBox)
+    coilSelectionLayout.addRow("Cath 2 Active Coils:", self.coilGroup21Layout)
+
+    self.coilGroup22Layout = qt.QHBoxLayout()
+    self.coilGroup22Layout.addWidget(self.coil_2_5_CheckBox)
+    self.coilGroup22Layout.addWidget(self.coil_2_6_CheckBox)
+    self.coilGroup22Layout.addWidget(self.coil_2_7_CheckBox)
+    self.coilGroup22Layout.addWidget(self.coil_2_8_CheckBox)
+    coilSelectionLayout.addRow("", self.coilGroup22Layout)
+    
     #
     # Reslice
     #
     resliceCollapsibleButton = ctk.ctkCollapsibleButton()
     resliceCollapsibleButton.text = "Image Reslice"
     self.layout.addWidget(resliceCollapsibleButton)
-    
+
     resliceLayout = qt.QFormLayout(resliceCollapsibleButton)
+    
+    self.resliceCath1RadioButton = qt.QRadioButton("Cath 1")
+    self.resliceCath2RadioButton = qt.QRadioButton("Cath 2")
+    self.resliceCath1RadioButton.checked = 0
+    self.resliceCathBoxLayout = qt.QHBoxLayout()
+    self.resliceCathBoxLayout.addWidget(self.resliceCath1RadioButton)
+    self.resliceCathBoxLayout.addWidget(self.resliceCath2RadioButton)
+
+    self.resliceCathGroup = qt.QButtonGroup()
+    self.resliceCathGroup.addButton(self.resliceCath1RadioButton)
+    self.resliceCathGroup.addButton(self.resliceCath2RadioButton)
+    resliceLayout.addRow("Reslice Catheter:", self.resliceCathBoxLayout)
+    
     self.resliceAxCheckBox = qt.QCheckBox()
     self.resliceAxCheckBox.checked = 0
     self.resliceAxCheckBox.text = "AX"
@@ -257,15 +309,24 @@ class MRTrackingWidget(ScriptedLoadableModuleWidget):
     self.catheterOpacitySliderWidget.connect("valueChanged(double)", self.onCatheterOpacityChanged)
     self.showCoilLabelCheckBox.connect('toggled(bool)', self.onCoilLabelChecked)
     
-    self.coil1CheckBox.connect('toggled(bool)', self.onCoilChecked)
-    self.coil2CheckBox.connect('toggled(bool)', self.onCoilChecked)
-    self.coil3CheckBox.connect('toggled(bool)', self.onCoilChecked)
-    self.coil4CheckBox.connect('toggled(bool)', self.onCoilChecked)
-    self.coil5CheckBox.connect('toggled(bool)', self.onCoilChecked)
-    self.coil6CheckBox.connect('toggled(bool)', self.onCoilChecked)
-    self.coil7CheckBox.connect('toggled(bool)', self.onCoilChecked)
-    self.coil8CheckBox.connect('toggled(bool)', self.onCoilChecked)
+    self.coil_1_1_CheckBox.connect('toggled(bool)', self.onCoilChecked)
+    self.coil_1_2_CheckBox.connect('toggled(bool)', self.onCoilChecked)
+    self.coil_1_3_CheckBox.connect('toggled(bool)', self.onCoilChecked)
+    self.coil_1_4_CheckBox.connect('toggled(bool)', self.onCoilChecked)
+    self.coil_1_5_CheckBox.connect('toggled(bool)', self.onCoilChecked)
+    self.coil_1_6_CheckBox.connect('toggled(bool)', self.onCoilChecked)
+    self.coil_1_7_CheckBox.connect('toggled(bool)', self.onCoilChecked)
+    self.coil_1_8_CheckBox.connect('toggled(bool)', self.onCoilChecked)
 
+    self.coil_2_1_CheckBox.connect('toggled(bool)', self.onCoilChecked)
+    self.coil_2_2_CheckBox.connect('toggled(bool)', self.onCoilChecked)
+    self.coil_2_3_CheckBox.connect('toggled(bool)', self.onCoilChecked)
+    self.coil_2_4_CheckBox.connect('toggled(bool)', self.onCoilChecked)
+    self.coil_2_5_CheckBox.connect('toggled(bool)', self.onCoilChecked)
+    self.coil_2_6_CheckBox.connect('toggled(bool)', self.onCoilChecked)
+    self.coil_2_7_CheckBox.connect('toggled(bool)', self.onCoilChecked)
+    self.coil_2_8_CheckBox.connect('toggled(bool)', self.onCoilChecked)
+    
     self.resliceAxCheckBox.connect('toggled(bool)', self.onResliceChecked)
     self.resliceSagCheckBox.connect('toggled(bool)', self.onResliceChecked)
     self.resliceCorCheckBox.connect('toggled(bool)', self.onResliceChecked)
@@ -325,17 +386,27 @@ class MRTrackingWidget(ScriptedLoadableModuleWidget):
 
 
   def onCoilChecked(self):
-    activeCoils = [
-      self.coil1CheckBox.checked,
-      self.coil2CheckBox.checked,
-      self.coil3CheckBox.checked,
-      self.coil4CheckBox.checked,
-      self.coil5CheckBox.checked,
-      self.coil6CheckBox.checked,
-      self.coil7CheckBox.checked,
-      self.coil8CheckBox.checked
+    activeCoils1 = [
+      self.coil_1_1_CheckBox.checked,
+      self.coil_1_2_CheckBox.checked,
+      self.coil_1_3_CheckBox.checked,
+      self.coil_1_4_CheckBox.checked,
+      self.coil_1_5_CheckBox.checked,
+      self.coil_1_6_CheckBox.checked,
+      self.coil_1_7_CheckBox.checked,
+      self.coil_1_8_CheckBox.checked
     ]
-    self.logic.setActiveCoils(activeCoils)
+    activeCoils2 = [
+      self.coil_2_1_CheckBox.checked,
+      self.coil_2_2_CheckBox.checked,
+      self.coil_2_3_CheckBox.checked,
+      self.coil_2_4_CheckBox.checked,
+      self.coil_2_5_CheckBox.checked,
+      self.coil_2_6_CheckBox.checked,
+      self.coil_2_7_CheckBox.checked,
+      self.coil_2_8_CheckBox.checked
+    ]
+    self.logic.setActiveCoils(activeCoils1, activeCoils2)
 
     
   def onResliceChecked(self):
@@ -398,11 +469,12 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
 
     # Tip model
     self.tipLength = 10.0
-    self.tipModelNode = None
-    self.tipTransformNode = None
-    self.tipPoly = None
+    self.tipModelNode = [None, None]
+    self.tipTransformNode = [None, None]
+    self.tipPoly = [None, None]
     self.showCoilLabel = False
-    self.activeCoils = [True, True, True, True, True, True, True, True]
+    self.activeCoils1 = [False, False, False, False, True, True, True, True]
+    self.activeCoils2 = [True, True, True, True, False, False, False, False]
     self.reslice = [False, False, False]
     self.resliceDriverLogic= slicer.modules.volumereslicedriver.logic()
 
@@ -419,32 +491,39 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
 
   def setTipLength(self, length):
     self.tipLength = length
-    self.updateCatheter()
+    self.updateCatheter(1)
+    self.updateCatheter(2)
 
 
   def setCatheterDiameter(self, diameter):
     self.cmRadius = diameter / 2.0
-    self.updateCatheter()
+    self.updateCatheter(1)
+    self.updateCatheter(2)
 
 
   def setCatheterOpacity(self, opacity):
     self.cmOpacity = opacity
-    self.updateCatheter()
+    self.updateCatheter(1)
+    self.updateCatheter(2)
     
     
   def setShowCoilLabel(self, show):
     self.showCoilLabel = show
-    self.updateCatheter()
+    self.updateCatheter(1)
+    self.updateCatheter(2)
     
 
-  def setActiveCoils(self, coils):
-    self.activeCoils = coils
-    self.updateCatheter()
+  def setActiveCoils(self, coils1, coils2):
+    self.activeCoils1 = coils1
+    self.activeCoils2 = coils2
+    self.updateCatheter(1)
+    self.updateCatheter(2)
 
 
   def setReslice(self, ax, sag, cor):
     self.reslice = [ax, sag, cor]
-    self.updateCatheter()
+    self.updateCatheter(1)
+    self.updateCatheter(2)
 
   def setConnector(self, cnode):
 
@@ -457,48 +536,51 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
         self.deactivateEvent()
       self.connectorNodeID = cnode.GetID()
       self.activateEvent()
+      
+    self.setupFiducials(cnode, 1)
+    self.setupFiducials(cnode, 2)
 
+  def setupFiducials(self, cnode, index):
+    
     # Set up markups fiducial node, if specified in the connector node
-    cmFiducialsID = cnode.GetAttribute('MRTracking.cmFiducials')
+    cmFiducialsID = cnode.GetAttribute('MRTracking.cmFiducials%d' % index)
     if cmFiducialsID != None:
-      self.cmLogic.SourceNode = self.scene.GetNodeByID(cmFiducialsID)
+      self.cmLogic.CurrentSourceNode = self.scene.GetNodeByID(cmFiducialsID)
     else:
-      self.cmLogic.SourceNode = None
+      self.cmLogic.CurrentSourceNode = None
       
     # Set up model node, if specified in the connector node
-    cmModelID = cnode.GetAttribute('MRTracking.cmModel')
+    cmModelID = cnode.GetAttribute('MRTracking.cmModel%d' % index)
     if cmModelID != None:
-      self.cmLogic.DestinationNode = self.scene.GetNodeByID(cmModelID)
-      if self.cmLogic.SourceNode:
-        self.cmLogic.SourceNode.SetAttribute('CurveMaker.CurveModel', self.cmLogic.DestinationNode.GetID())
+      self.cmLogic.CurrentDestinationNode = self.scene.GetNodeByID(cmModelID)
+      if self.cmLogic.CurrentSourceNode:
+        self.cmLogic.CurrentSourceNode.SetAttribute('CurveMaker.CurveModel', self.cmLogic.CurrentDestinationNode.GetID())
     else:
-      self.cmLogic.DestinationNode = None
+      self.cmLogic.CurrentDestinationNode = None
       
-    #if self.cmLogic.SourceNode:
+    #if self.cmLogic.CurrentSourceNode:
     #  cnode.SetAttribute('CoilPositions', cmFiducialsID)
 
     # Set up tip model node, if specified in the connector node
-    tipModelID = cnode.GetAttribute('MRTracking.tipModel')
+    tipModelID = cnode.GetAttribute('MRTracking.tipModel%d' % index)
     if tipModelID != None:
-      self.tipModelNode = self.scene.GetNodeByID(tipModelID)
+      self.tipModelNode[index-1] = self.scene.GetNodeByID(tipModelID)
     else:
-      self.tipModelNode = None
+      self.tipModelNode[index-1] = None
 
-    tipTransformNodeID = cnode.GetAttribute('MRTracking.tipTransform')
+    tipTransformNodeID = cnode.GetAttribute('MRTracking.tipTransform%d' % index)
     if tipTransformNodeID != None:
-      self.tipTransformNode = self.scene.GetNodeByID(tipTransformNodeID)
+      self.tipTransformNode[index-1] = self.scene.GetNodeByID(tipTransformNodeID)
     else:
-      self.tipTransformNode = None
+      self.tipTransformNode[index-1] = None
 
     # Set up incoming node, if specified in the connector node
-    incomingNodeID = cnode.GetAttribute('MRTracking.incomingNode')
+    incomingNodeID = cnode.GetAttribute('MRTracking.incomingNode%d' % index)
     if incomingNodeID != None:
       incomingNode = self.scene.GetNodeByID(incomingNodeID)
       if incomingNode:
           self.eventTag[incomingNodeID] = incomingNode.AddObserver(vtk.vtkCommand.ModifiedEvent, self.onIncomingNodeModifiedEvent)
         
-
-
   def connectToServer(self, addr, port):
 
     if self.connectorNodeID == '':
@@ -562,73 +644,93 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
       return False
 
   def onMessageReceived(self, node):
+    print ('onMessageReceived(self, node):')
 
     #if node.GetName() == 'WWTracker':
     if node.GetClassName() == 'vtkMRMLIGTLTrackingDataBundleNode':
 
-      # Check if the fiducial node exists; if not, create one.
-      cnode = self.scene.GetNodeByID(self.connectorNodeID)
-        
-      fiducialNode = None
+      self.updateCatheterNode(1, node)
+      self.updateCatheterNode(2, node)
 
-      fiducialNodeID = node.GetAttribute('CoilPositions')
-      if fiducialNodeID != None:
-        fiducialNode = self.scene.GetNodeByID(fiducialNodeID)
       
-      if fiducialNode == None:
-        fiducialNode = self.scene.CreateNodeByClass("vtkMRMLMarkupsFiducialNode")
-        fiducialNode.SetLocked(True)
-        fiducialNode.SetName('Coil')
-        self.scene.AddNode(fiducialNode)
-        fiducialNodeID = fiducialNode.GetID()
-        node.SetAttribute('CoilPositions', fiducialNodeID)
-        self.cmLogic.SourceNode = fiducialNode
+  def updateCatheterNode(self, index, node):
+    # node shoud be vtkMRMLIGTLTrackingDataBundleNode
 
-      # Check if the curve model exists; if not, create one.
-      if self.cmLogic.DestinationNode == None:
-        cmModel = self.scene.CreateNodeByClass("vtkMRMLModelNode")
-        cmModel.SetName('Catheter')
-        self.scene.AddNode(cmModel)
-        #self.scene.AddNode(modelDisplayNode)
-        self.cmLogic.DestinationNode = cmModel
+    fiducialNode = None
 
-      if cnode:
-        if self.cmLogic.DestinationNode:
-          cnode.SetAttribute('MRTracking.cmModel', self.cmLogic.DestinationNode.GetID())
-        if self.cmLogic.SourceNode:
-          cnode.SetAttribute('MRTracking.cmFiducials', self.cmLogic.SourceNode.GetID())
-          
-      if self.cmLogic.DestinationNode and self.cmLogic.SourceNode:
-        self.cmLogic.SourceNode.SetAttribute('CurveMaker.CurveModel', self.cmLogic.DestinationNode.GetID())
-                
+    cathName = 'Catheter_%d' % index
+
+    ## Catheter 1
+    fiducialNodeID = node.GetAttribute(cathName)
+    if fiducialNodeID != None:
+      fiducialNode = self.scene.GetNodeByID(fiducialNodeID)
+    
+    if fiducialNode == None:
+      fiducialNode = self.scene.CreateNodeByClass("vtkMRMLMarkupsFiducialNode")
+      fiducialNode.SetLocked(True)
+      fiducialNode.SetName('Coil_%d' % index)
+      self.scene.AddNode(fiducialNode)
+      fiducialNodeID = fiducialNode.GetID()
+      node.SetAttribute(cathName, fiducialNodeID)
+      
+    self.cmLogic.CurrentSourceNode = fiducialNode
+
+    # Check if the curve model exists; if not, create one.
+    destinationNode = None
+    nodeID = self.cmLogic.CurrentSourceNode.GetAttribute('CurveMaker.CurveModel')
+    if nodeID:
+      destinationNode = self.scene.GetNodeByID(nodeID)
+    if destinationNode == None:
+      destinationNode = self.scene.CreateNodeByClass("vtkMRMLModelNode")
+      destinationNode.SetName('Catheter')
+      self.scene.AddNode(destinationNode)
+      #self.scene.AddNode(modelDisplayNode)
+      
+    self.cmLogic.CurrentDestinationNode = destinationNode
+
+    cnode = self.scene.GetNodeByID(self.connectorNodeID)
+
+    if cnode:
+      if self.cmLogic.CurrentDestinationNode:
+        cnode.SetAttribute('MRTracking.cmModel%d' % index, self.cmLogic.CurrentDestinationNode.GetID())
+      if self.cmLogic.CurrentSourceNode:
+        cnode.SetAttribute('MRTracking.cmFiducials%d' % index, self.cmLogic.CurrentSourceNode.GetID())
         
-      # Update coordinates in the fiducial node.
-      nCoils = node.GetNumberOfTransformNodes()
-      mask = self.activeCoils[0:nCoils]
-      nActiveCoils = sum(mask)
-      if fiducialNode.GetNumberOfFiducials() != nActiveCoils:
-        fiducialNode.RemoveAllMarkups()
-        for i in range(nActiveCoils):
-          fiducialNode.AddFiducial(0.0, 0.0, 0.0)
-      j = 0
-      for i in range(nCoils):
-        if self.activeCoils[i]:
-          tnode = node.GetTransformNode(i)
-          trans = tnode.GetTransformToParent()
-          #fiducialNode.SetNthFiducialPositionFromArray(j, trans.GetPosition())
-          v = trans.GetPosition()
-          fiducialNode.SetNthFiducialPosition(j, -v[0], v[1], v[2])
-          j += 1
-        
-      self.updateCatheter()
+    if self.cmLogic.CurrentDestinationNode and self.cmLogic.CurrentSourceNode:
+      self.cmLogic.CurrentSourceNode.SetAttribute('CurveMaker.CurveModel', self.cmLogic.CurrentDestinationNode.GetID())
+              
+    # Update coordinates in the fiducial node.
+    nCoils = node.GetNumberOfTransformNodes()
+    mask = self.activeCoils1[0:nCoils]
+    if index == 2:
+      mask = self.activeCoils2[0:nCoils]
+    nActiveCoils = sum(mask)
+    print('nActiveCoils %d = %d / %d' % (index, nActiveCoils, nCoils))
+    if fiducialNode.GetNumberOfFiducials() != nActiveCoils:
+      fiducialNode.RemoveAllMarkups()
+      for i in range(nActiveCoils):
+        fiducialNode.AddFiducial(0.0, 0.0, 0.0)
+    j = 0
+    for i in range(nCoils):
+      if mask[i]:
+        tnode = node.GetTransformNode(i)
+        trans = tnode.GetTransformToParent()
+        #fiducialNode.SetNthFiducialPositionFromArray(j, trans.GetPosition())
+        v = trans.GetPosition()
+        fiducialNode.SetNthFiducialPosition(j, -v[0], v[1], v[2])
+        j += 1
+      
+    self.updateCatheter(index)
 
 
-  def updateCatheter(self):
+  def updateCatheter(self, index):
 
-    if self.cmLogic.DestinationNode == None:
+    print('updateCatheter(%d)' % index)
+
+    if self.cmLogic.CurrentDestinationNode == None:
       return
     
-    modelDisplayNode = self.cmLogic.DestinationNode.GetDisplayNode()
+    modelDisplayNode = self.cmLogic.CurrentDestinationNode.GetDisplayNode()
     if modelDisplayNode:
       modelDisplayNode.SetColor(self.cmLogic.ModelColor)
       modelDisplayNode.SetOpacity(self.cmOpacity)
@@ -642,11 +744,11 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
     self.cmLogic.updateCurve()
 
     # Skip if the model has not been created. (Don't call this section before self.cmLogic.updateCurve()
-    if self.cmLogic.CurvePoly == None or self.cmLogic.SourceNode == None:
+    if self.cmLogic.CurvePoly == None or self.cmLogic.CurrentSourceNode == None:
       return
 
     # Show/hide fiducials for coils
-    fiducialDisplayNode = self.cmLogic.SourceNode.GetDisplayNode()
+    fiducialDisplayNode = self.cmLogic.CurrentSourceNode.GetDisplayNode()
     if fiducialDisplayNode:
       fiducialDisplayNode.SetVisibility(self.showCoilLabel)
 
@@ -664,35 +766,35 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
       n10 = v10 / numpy.linalg.norm(v10) # Normal vector at the tip
       pe = p0 + n10 * self.tipLength
 
-    if self.tipPoly==None:
-      self.tipPoly = vtk.vtkPolyData()
+    if self.tipPoly[index-1]==None:
+      self.tipPoly[index-1] = vtk.vtkPolyData()
 
-    if self.tipModelNode == None:
-      self.tipModelNode = self.scene.CreateNodeByClass('vtkMRMLModelNode')
-      self.tipModelNode.SetName('Tip')
-      self.scene.AddNode(self.tipModelNode)
+    if self.tipModelNode[index-1] == None:
+      self.tipModelNode[index-1] = self.scene.CreateNodeByClass('vtkMRMLModelNode')
+      self.tipModelNode[index-1].SetName('Tip')
+      self.scene.AddNode(self.tipModelNode[index-1])
       cnode = self.scene.GetNodeByID(self.connectorNodeID)
       if cnode:
-        cnode.SetAttribute('MRTracking.tipModel', self.tipModelNode.GetID())
+        cnode.SetAttribute('MRTracking.tipModel%d' % index, self.tipModelNode[index-1].GetID())
         
-    if self.tipTransformNode == None:
-      self.tipTransformNode = self.scene.CreateNodeByClass('vtkMRMLLinearTransformNode')
-      self.tipTransformNode.SetName('TipTransform')
-      self.scene.AddNode(self.tipTransformNode)
+    if self.tipTransformNode[index-1] == None:
+      self.tipTransformNode[index-1] = self.scene.CreateNodeByClass('vtkMRMLLinearTransformNode')
+      self.tipTransformNode[index-1].SetName('TipTransform')
+      self.scene.AddNode(self.tipTransformNode[index-1])
       cnode = self.scene.GetNodeByID(self.connectorNodeID)
       if cnode:
-        cnode.SetAttribute('MRTracking.tipTransform', self.tipTransformNode.GetID())
+        cnode.SetAttribute('MRTracking.tipTransform%d' % index, self.tipTransformNode[index-1].GetID())
 
     matrix = vtk.vtkMatrix4x4()
     matrix.Identity()
     matrix.SetElement(0, 3, pe[0])
     matrix.SetElement(1, 3, pe[1])
     matrix.SetElement(2, 3, pe[2])
-    self.tipTransformNode.SetMatrixTransformToParent(matrix)
+    self.tipTransformNode[index-1].SetMatrixTransformToParent(matrix)
 
     
     if self.reslice[0]:
-      self.resliceDriverLogic.SetDriverForSlice(self.tipTransformNode.GetID(), self.sliceNodeRed)
+      self.resliceDriverLogic.SetDriverForSlice(self.tipTransformNode[index-1].GetID(), self.sliceNodeRed)
       self.resliceDriverLogic.SetModeForSlice(self.resliceDriverLogic.MODE_AXIAL, self.sliceNodeRed)
     else:
       self.resliceDriverLogic.SetDriverForSlice('', self.sliceNodeRed)
@@ -700,20 +802,20 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
       
       
     if self.reslice[1]:
-      self.resliceDriverLogic.SetDriverForSlice(self.tipTransformNode.GetID(), self.sliceNodeYellow)
+      self.resliceDriverLogic.SetDriverForSlice(self.tipTransformNode[index-1].GetID(), self.sliceNodeYellow)
       self.resliceDriverLogic.SetModeForSlice(self.resliceDriverLogic.MODE_SAGITTAL, self.sliceNodeYellow)
     else:
       self.resliceDriverLogic.SetDriverForSlice('', self.sliceNodeYellow)
       self.resliceDriverLogic.SetModeForSlice(self.resliceDriverLogic.MODE_NONE, self.sliceNodeYellow)
 
     if self.reslice[2]:
-      self.resliceDriverLogic.SetDriverForSlice(self.tipTransformNode.GetID(), self.sliceNodeGreen)
+      self.resliceDriverLogic.SetDriverForSlice(self.tipTransformNode[index-1].GetID(), self.sliceNodeGreen)
       self.resliceDriverLogic.SetModeForSlice(self.resliceDriverLogic.MODE_CORONAL, self.sliceNodeGreen)
     else:
       self.resliceDriverLogic.SetDriverForSlice('', self.sliceNodeGreen)
       self.resliceDriverLogic.SetModeForSlice(self.resliceDriverLogic.MODE_NONE, self.sliceNodeGreen)
 
-    self.updateTipModelNode(self.tipModelNode, self.tipPoly, p0, pe, self.cmRadius, self.cmLogic.ModelColor, self.cmOpacity)
+    self.updateTipModelNode(self.tipModelNode[index-1], self.tipPoly[index-1], p0, pe, self.cmRadius, self.cmLogic.ModelColor, self.cmOpacity)
 
 
   def onConnectedEvent(self, caller, event):
