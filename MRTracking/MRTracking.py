@@ -330,6 +330,9 @@ class MRTrackingWidget(ScriptedLoadableModuleWidget):
     self.resliceAxCheckBox.connect('toggled(bool)', self.onResliceChecked)
     self.resliceSagCheckBox.connect('toggled(bool)', self.onResliceChecked)
     self.resliceCorCheckBox.connect('toggled(bool)', self.onResliceChecked)
+
+    self.resliceCath1RadioButton.connect('clicked(bool)', self.onSelectResliceCath)
+    self.resliceCath2RadioButton.connect('clicked(bool)', self.onSelectResliceCath)
     
     # Add vertical spacer
     self.layout.addStretch(1)
@@ -416,6 +419,13 @@ class MRTrackingWidget(ScriptedLoadableModuleWidget):
 
     self.logic.setReslice(ax, sag, cor)
 
+  def onSelectResliceCath(self):
+
+    if self.resliceCath1RadioButton.checked:
+      self.logic.setResliceCath(1)
+    else:
+      self.logic.setResliceCath(2)
+      
     
   def onReload(self, moduleName="MRTracking"):
     # Generic reload method for any scripted module.
@@ -466,6 +476,7 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
     self.cmLogic = CurveMaker.CurveMakerLogic()
     self.cmOpacity = 1.0
     self.cmRadius = 0.5
+    self.cmModelColor = [[0.0, 0.0, 1.0], [1.0, 0.359375, 0.0]]
 
     # Tip model
     self.tipLength = 10.0
@@ -483,6 +494,7 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
     self.sliceNodeGreen = slicer.app.layoutManager().sliceWidget('Green').mrmlSliceNode()
 
     self.incomingNode = None
+    self.resliceCath = 1
 
     
   def setWidget(self, widget):
@@ -524,6 +536,10 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
     self.reslice = [ax, sag, cor]
     self.updateCatheter(1)
     self.updateCatheter(2)
+
+  def setResliceCath(self, index):
+    self.resliceCath = index
+  
 
   def setConnector(self, cnode):
 
@@ -644,9 +660,7 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
       return False
 
   def onMessageReceived(self, node):
-    print ('onMessageReceived(self, node):')
 
-    #if node.GetName() == 'WWTracker':
     if node.GetClassName() == 'vtkMRMLIGTLTrackingDataBundleNode':
 
       self.updateCatheterNode(1, node)
@@ -705,7 +719,6 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
     if index == 2:
       mask = self.activeCoils2[0:nCoils]
     nActiveCoils = sum(mask)
-    print('nActiveCoils %d = %d / %d' % (index, nActiveCoils, nCoils))
     if fiducialNode.GetNumberOfFiducials() != nActiveCoils:
       fiducialNode.RemoveAllMarkups()
       for i in range(nActiveCoils):
@@ -725,36 +738,54 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
 
   def updateCatheter(self, index):
 
-    print('updateCatheter(%d)' % index)
+    cnode = self.scene.GetNodeByID(self.connectorNodeID)
+    if cnode == None:
+      return
+    cmFiducialsID = cnode.GetAttribute('MRTracking.cmFiducials%d' % index)
+    if cmFiducialsID == None:
+      return
 
-    if self.cmLogic.CurrentDestinationNode == None:
+    sourceNode = self.scene.GetNodeByID(cmFiducialsID)
+
+    if sourceNode == None:
+      return
+
+    cmModelID = sourceNode.GetAttribute('CurveMaker.CurveModel')
+    if cmModelID == None:
       return
     
-    modelDisplayNode = self.cmLogic.CurrentDestinationNode.GetDisplayNode()
+    destinationNode = self.scene.GetNodeByID(cmModelID)
+    
+    modelDisplayNode = destinationNode.GetDisplayNode()
     if modelDisplayNode:
-      modelDisplayNode.SetColor(self.cmLogic.ModelColor)
+      modelDisplayNode.SetColor(self.cmModelColor[index-1])
       modelDisplayNode.SetOpacity(self.cmOpacity)
       modelDisplayNode.SliceIntersectionVisibilityOn()
       modelDisplayNode.SetSliceDisplayModeToIntersection()
 
     # Update catheter using the CurveMaker module
-    self.cmLogic.setTubeRadius(self.cmRadius)
-    self.cmLogic.enableAutomaticUpdate(1)
-    self.cmLogic.setInterpolationMethod(1)
+    self.cmLogic.setTubeRadius(self.cmRadius, sourceNode)
+    self.cmLogic.enableAutomaticUpdate(1, sourceNode)
+    self.cmLogic.setInterpolationMethod('cardinal', sourceNode)
     self.cmLogic.updateCurve()
 
     # Skip if the model has not been created. (Don't call this section before self.cmLogic.updateCurve()
-    if self.cmLogic.CurvePoly == None or self.cmLogic.CurrentSourceNode == None:
+    if not (sourceNode.GetID() in self.cmLogic.CurvePoly) or (self.cmLogic.CurvePoly[sourceNode.GetID()] == None):
       return
-
+    
     # Show/hide fiducials for coils
-    fiducialDisplayNode = self.cmLogic.CurrentSourceNode.GetDisplayNode()
+    fiducialDisplayNode = sourceNode.GetDisplayNode()
     if fiducialDisplayNode:
       fiducialDisplayNode.SetVisibility(self.showCoilLabel)
 
     # Add a extended tip
-    lines = self.cmLogic.CurvePoly.GetLines()
-    points = self.cmLogic.CurvePoly.GetPoints()
+    ## make sure that there is more than one points
+    if sourceNode.GetNumberOfFiducials() < 2:
+      return
+    
+    curvePoly = self.cmLogic.CurvePoly[sourceNode.GetID()]
+    lines = curvePoly.GetLines()
+    points = curvePoly.GetPoints()
     pts = vtk.vtkIdList()
     
     lines.GetCell(0, pts)
@@ -792,30 +823,30 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
     matrix.SetElement(2, 3, pe[2])
     self.tipTransformNode[index-1].SetMatrixTransformToParent(matrix)
 
-    
-    if self.reslice[0]:
-      self.resliceDriverLogic.SetDriverForSlice(self.tipTransformNode[index-1].GetID(), self.sliceNodeRed)
-      self.resliceDriverLogic.SetModeForSlice(self.resliceDriverLogic.MODE_AXIAL, self.sliceNodeRed)
-    else:
-      self.resliceDriverLogic.SetDriverForSlice('', self.sliceNodeRed)
-      self.resliceDriverLogic.SetModeForSlice(self.resliceDriverLogic.MODE_NONE, self.sliceNodeRed)
-      
-      
-    if self.reslice[1]:
-      self.resliceDriverLogic.SetDriverForSlice(self.tipTransformNode[index-1].GetID(), self.sliceNodeYellow)
-      self.resliceDriverLogic.SetModeForSlice(self.resliceDriverLogic.MODE_SAGITTAL, self.sliceNodeYellow)
-    else:
-      self.resliceDriverLogic.SetDriverForSlice('', self.sliceNodeYellow)
-      self.resliceDriverLogic.SetModeForSlice(self.resliceDriverLogic.MODE_NONE, self.sliceNodeYellow)
 
-    if self.reslice[2]:
-      self.resliceDriverLogic.SetDriverForSlice(self.tipTransformNode[index-1].GetID(), self.sliceNodeGreen)
-      self.resliceDriverLogic.SetModeForSlice(self.resliceDriverLogic.MODE_CORONAL, self.sliceNodeGreen)
-    else:
-      self.resliceDriverLogic.SetDriverForSlice('', self.sliceNodeGreen)
-      self.resliceDriverLogic.SetModeForSlice(self.resliceDriverLogic.MODE_NONE, self.sliceNodeGreen)
+    if self.resliceCath == index:
+      if self.reslice[0]:
+        self.resliceDriverLogic.SetDriverForSlice(self.tipTransformNode[index-1].GetID(), self.sliceNodeRed)
+        self.resliceDriverLogic.SetModeForSlice(self.resliceDriverLogic.MODE_AXIAL, self.sliceNodeRed)
+      else:
+        self.resliceDriverLogic.SetDriverForSlice('', self.sliceNodeRed)
+        self.resliceDriverLogic.SetModeForSlice(self.resliceDriverLogic.MODE_NONE, self.sliceNodeRed)
+        
+      if self.reslice[1]:
+        self.resliceDriverLogic.SetDriverForSlice(self.tipTransformNode[index-1].GetID(), self.sliceNodeYellow)
+        self.resliceDriverLogic.SetModeForSlice(self.resliceDriverLogic.MODE_SAGITTAL, self.sliceNodeYellow)
+      else:
+        self.resliceDriverLogic.SetDriverForSlice('', self.sliceNodeYellow)
+        self.resliceDriverLogic.SetModeForSlice(self.resliceDriverLogic.MODE_NONE, self.sliceNodeYellow)
+      
+      if self.reslice[2]:
+        self.resliceDriverLogic.SetDriverForSlice(self.tipTransformNode[index-1].GetID(), self.sliceNodeGreen)
+        self.resliceDriverLogic.SetModeForSlice(self.resliceDriverLogic.MODE_CORONAL, self.sliceNodeGreen)
+      else:
+        self.resliceDriverLogic.SetDriverForSlice('', self.sliceNodeGreen)
+        self.resliceDriverLogic.SetModeForSlice(self.resliceDriverLogic.MODE_NONE, self.sliceNodeGreen)
 
-    self.updateTipModelNode(self.tipModelNode[index-1], self.tipPoly[index-1], p0, pe, self.cmRadius, self.cmLogic.ModelColor, self.cmOpacity)
+    self.updateTipModelNode(self.tipModelNode[index-1], self.tipPoly[index-1], p0, pe, self.cmRadius, self.cmModelColor[index-1], self.cmOpacity)
 
 
   def onConnectedEvent(self, caller, event):
@@ -841,17 +872,6 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
       if cnode.GetAttribute('MRTracking.incomingNode') != node.GetID():
         cnode.SetAttribute('MRTracking.incomingNode', node.GetID())
         
-#        if node.GetNodeTagName() == 'IGTLTrackingDataSplitter':
-#          n = node.GetNumberOfTransformNodes()
-#          for id in range (n):
-#            tnode = node.GetTransformNode(id)
-#            if tnode and tnode.GetAttribute('MRTracking') == None:
-#              needleModelID = self.createNeedleModelNode("Needle_%s" % tnode.GetName())
-#              needleModel = self.scene.GetNodeByID(needleModelID)
-#              needleModel.SetAndObserveTransformNodeID(tnode.GetID())
-#              needleModel.InvokeEvent(slicer.vtkMRMLTransformableNode.TransformModifiedEvent)
-#              tnode.SetAttribute('MRTracking', needleModelID)
-
 
   def updateTipModelNode(self, tipModelNode, poly, p0, pe, radius, color, opacity):
     #tipModel = self.scene.CreateNodeByClass('vtkMRMLModelNode')
@@ -911,80 +931,6 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
     tipDispNode.SliceIntersectionVisibilityOn()
     tipDispNode.SetSliceDisplayModeToIntersection()
     
-
-  def createNeedleModel(self, node):
-    if node and node.GetClassName() == 'vtkMRMLIGTLTrackingDataBundleNode':
-      n = node.GetNumberOfTransformNodes()
-      for id in range (n):
-        tnode = node.GetTransformNode(id)
-        if tnode:
-          needleModelID = self.createNeedleModelNode("Needle_%s" % tnode.GetName())
-          needleModel = self.scene.GetNodeByID(needleModelID)
-          needleModel.SetAndObserveTransformNodeID(tnode.GetID())
-          needleModel.InvokeEvent(slicer.vtkMRMLTransformableNode.TransformModifiedEvent)
-
-        
-  def createNeedleModelNode(self, name):
-
-    locatorModel = self.scene.CreateNodeByClass('vtkMRMLModelNode')
-    
-    # Cylinder represents the locator stick
-    cylinder = vtk.vtkCylinderSource()
-    cylinder.SetRadius(1.5)
-    cylinder.SetHeight(100)
-    cylinder.SetCenter(0, 0, 0)
-    cylinder.Update()
-
-    # Rotate cylinder
-    tfilter = vtk.vtkTransformPolyDataFilter()
-    trans =   vtk.vtkTransform()
-    trans.RotateX(90.0)
-    trans.Translate(0.0, -50.0, 0.0)
-    trans.Update()
-    if vtk.VTK_MAJOR_VERSION <= 5:
-      tfilter.SetInput(cylinder.GetOutput())
-    else:
-      tfilter.SetInputConnection(cylinder.GetOutputPort())
-    tfilter.SetTransform(trans)
-    tfilter.Update()
-
-    # Sphere represents the locator tip
-    sphere = vtk.vtkSphereSource()
-    sphere.SetRadius(3.0)
-    sphere.SetCenter(0, 0, 0)
-    sphere.Update()
-
-    apd = vtk.vtkAppendPolyData()
-
-    if vtk.VTK_MAJOR_VERSION <= 5:
-      apd.AddInput(sphere.GetOutput())
-      apd.AddInput(tfilter.GetOutput())
-    else:
-      apd.AddInputConnection(sphere.GetOutputPort())
-      apd.AddInputConnection(tfilter.GetOutputPort())
-    apd.Update()
-    
-    locatorModel.SetAndObservePolyData(apd.GetOutput());
-
-    self.scene.AddNode(locatorModel)
-    locatorModel.SetScene(self.scene);
-    locatorModel.SetName(name)
-    
-    locatorDisp = locatorModel.GetDisplayNodeID()
-    if locatorDisp == None:
-      locatorDisp = self.scene.CreateNodeByClass('vtkMRMLModelDisplayNode')
-      self.scene.AddNode(locatorDisp)
-      locatorDisp.SetScene(self.scene)
-      locatorModel.SetAndObserveDisplayNodeID(locatorDisp.GetID());
-      
-    color = [0, 0, 0]
-    color[0] = 0.5
-    color[1] = 0.5
-    color[2] = 1.0
-    locatorDisp.SetColor(color)
-    
-    return locatorModel.GetID()
-
 
   def onIncomingNodeModifiedEvent(self, caller, event):
     self.onMessageReceived(caller)
