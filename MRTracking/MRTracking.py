@@ -132,38 +132,72 @@ class MRTrackingWidget(ScriptedLoadableModuleWidget):
     selectionFormLayout = qt.QFormLayout(selectionCollapsibleButton)
 
     #
-    # Tip Length (legnth between the catheter tip and the first coil)
+    # Catheter #1 Tip Length (legnth between the catheter tip and the first coil)
     #
-    self.tipLengthSliderWidget = ctk.ctkSliderWidget()
-    self.tipLengthSliderWidget.singleStep = 0.5
-    self.tipLengthSliderWidget.minimum = 0.0
-    self.tipLengthSliderWidget.maximum = 100.0
-    self.tipLengthSliderWidget.value = 10.0
-    self.tipLengthSliderWidget.setToolTip("Set the length of the catheter tip.")
-    selectionFormLayout.addRow("Tip Length (mm): ", self.tipLengthSliderWidget)
+    self.tipLength1SliderWidget = ctk.ctkSliderWidget()
+    self.tipLength1SliderWidget.singleStep = 0.5
+    self.tipLength1SliderWidget.minimum = 0.0
+    self.tipLength1SliderWidget.maximum = 100.0
+    self.tipLength1SliderWidget.value = 10.0
+    self.tipLength1SliderWidget.setToolTip("Set the length of the catheter tip.")
+    selectionFormLayout.addRow("Cath 1 Tip Length (mm): ", self.tipLength1SliderWidget)
     
     #
-    # Catheter diameter
+    # Catheter #1 Catheter diameter
     #
-    self.catheterDiameterSliderWidget = ctk.ctkSliderWidget()
-    self.catheterDiameterSliderWidget.singleStep = 0.1
-    self.catheterDiameterSliderWidget.minimum = 0.1
-    self.catheterDiameterSliderWidget.maximum = 10.0
-    self.catheterDiameterSliderWidget.value = 1.0
-    self.catheterDiameterSliderWidget.setToolTip("Set the diameter of the catheter")
-    selectionFormLayout.addRow("Diameter (mm): ", self.catheterDiameterSliderWidget)
+    self.catheter1DiameterSliderWidget = ctk.ctkSliderWidget()
+    self.catheter1DiameterSliderWidget.singleStep = 0.1
+    self.catheter1DiameterSliderWidget.minimum = 0.1
+    self.catheter1DiameterSliderWidget.maximum = 10.0
+    self.catheter1DiameterSliderWidget.value = 1.0
+    self.catheter1DiameterSliderWidget.setToolTip("Set the diameter of the catheter")
+    selectionFormLayout.addRow("Cath 1 Diameter (mm): ", self.catheter1DiameterSliderWidget)
 
     #
-    # Catheter opacity
+    # Catheter #1 Catheter opacity
     #
-    self.catheterOpacitySliderWidget = ctk.ctkSliderWidget()
-    self.catheterOpacitySliderWidget.singleStep = 0.1
-    self.catheterOpacitySliderWidget.minimum = 0.0
-    self.catheterOpacitySliderWidget.maximum = 1.0
-    self.catheterOpacitySliderWidget.value = 1.0
-    self.catheterOpacitySliderWidget.setToolTip("Set the opacity of the catheter")
-    selectionFormLayout.addRow("Opacity: ", self.catheterOpacitySliderWidget)
+    self.catheter1OpacitySliderWidget = ctk.ctkSliderWidget()
+    self.catheter1OpacitySliderWidget.singleStep = 0.1
+    self.catheter1OpacitySliderWidget.minimum = 0.0
+    self.catheter1OpacitySliderWidget.maximum = 1.0
+    self.catheter1OpacitySliderWidget.value = 1.0
+    self.catheter1OpacitySliderWidget.setToolTip("Set the opacity of the catheter")
+    selectionFormLayout.addRow("Cath 1 Opacity: ", self.catheter1OpacitySliderWidget)
+
+
+    #
+    # Catheter #2 Tip Length (legnth between the catheter tip and the first coil)
+    #
+    self.tipLength2SliderWidget = ctk.ctkSliderWidget()
+    self.tipLength2SliderWidget.singleStep = 0.5
+    self.tipLength2SliderWidget.minimum = 0.0
+    self.tipLength2SliderWidget.maximum = 100.0
+    self.tipLength2SliderWidget.value = 10.0
+    self.tipLength2SliderWidget.setToolTip("Set the length of the catheter tip.")
+    selectionFormLayout.addRow("Cath 2 Tip Length (mm): ", self.tipLength2SliderWidget)
     
+    #
+    # Catheter #2 diameter
+    #
+    self.catheter2DiameterSliderWidget = ctk.ctkSliderWidget()
+    self.catheter2DiameterSliderWidget.singleStep = 0.1
+    self.catheter2DiameterSliderWidget.minimum = 0.1
+    self.catheter2DiameterSliderWidget.maximum = 10.0
+    self.catheter2DiameterSliderWidget.value = 1.0
+    self.catheter2DiameterSliderWidget.setToolTip("Set the diameter of the catheter")
+    selectionFormLayout.addRow("Cath 2 Diameter (mm): ", self.catheter2DiameterSliderWidget)
+
+    #
+    # Catheter #2 opacity
+    #
+    self.catheter2OpacitySliderWidget = ctk.ctkSliderWidget()
+    self.catheter2OpacitySliderWidget.singleStep = 0.1
+    self.catheter2OpacitySliderWidget.minimum = 0.0
+    self.catheter2OpacitySliderWidget.maximum = 1.0
+    self.catheter2OpacitySliderWidget.value = 1.0
+    self.catheter2OpacitySliderWidget.setToolTip("Set the opacity of the catheter")
+    selectionFormLayout.addRow("Cath 2 Opacity: ", self.catheter2OpacitySliderWidget)
+
     #
     # Coil Selection Aare
     #
@@ -304,9 +338,12 @@ class MRTrackingWidget(ScriptedLoadableModuleWidget):
     #
     self.connectorSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onConnectorSelected)
     self.activeCheckBox.connect('toggled(bool)', self.onActive)
-    self.tipLengthSliderWidget.connect("valueChanged(double)", self.onTipLengthChanged)
-    self.catheterDiameterSliderWidget.connect("valueChanged(double)", self.onCatheterDiameterChanged)
-    self.catheterOpacitySliderWidget.connect("valueChanged(double)", self.onCatheterOpacityChanged)
+    self.tipLength1SliderWidget.connect("valueChanged(double)", self.onTipLength1Changed)
+    self.catheter1DiameterSliderWidget.connect("valueChanged(double)", self.onCatheter1DiameterChanged)
+    self.catheter1OpacitySliderWidget.connect("valueChanged(double)", self.onCatheter1OpacityChanged)
+    self.tipLength2SliderWidget.connect("valueChanged(double)", self.onTipLength2Changed)
+    self.catheter2DiameterSliderWidget.connect("valueChanged(double)", self.onCatheter2DiameterChanged)
+    self.catheter2OpacitySliderWidget.connect("valueChanged(double)", self.onCatheter2OpacityChanged)
     self.showCoilLabelCheckBox.connect('toggled(bool)', self.onCoilLabelChecked)
     
     self.coil_1_1_CheckBox.connect('toggled(bool)', self.onCoilChecked)
@@ -372,16 +409,26 @@ class MRTrackingWidget(ScriptedLoadableModuleWidget):
     self.logic.acceptNewMatrix(self, False)
 
     
-  def onTipLengthChanged(self):
-    self.logic.setTipLength(self.tipLengthSliderWidget.value)
+  def onTipLength1Changed(self):
+    self.logic.setTipLength(self.tipLength1SliderWidget.value, 1)
 
     
-  def onCatheterDiameterChanged(self):
-    self.logic.setCatheterDiameter(self.catheterDiameterSliderWidget.value)
+  def onCatheter1DiameterChanged(self):
+    self.logic.setCatheterDiameter(self.catheter1DiameterSliderWidget.value, 1)
     
 
-  def onCatheterOpacityChanged(self):
-    self.logic.setCatheterOpacity(self.catheterOpacitySliderWidget.value)
+  def onCatheter1OpacityChanged(self):
+    self.logic.setCatheterOpacity(self.catheter1OpacitySliderWidget.value, 1)
+    
+  def onTipLength2Changed(self):
+    self.logic.setTipLength(self.tipLength2SliderWidget.value, 2)
+
+  def onCatheter2DiameterChanged(self):
+    self.logic.setCatheterDiameter(self.catheter2DiameterSliderWidget.value, 2)
+    
+
+  def onCatheter2OpacityChanged(self):
+    self.logic.setCatheterOpacity(self.catheter2OpacitySliderWidget.value, 2)
     
     
   def onCoilLabelChecked(self):
@@ -474,12 +521,12 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
 
     # CurveMaker
     self.cmLogic = CurveMaker.CurveMakerLogic()
-    self.cmOpacity = 1.0
-    self.cmRadius = 0.5
+    self.cmOpacity = [1.0, 1.0]
+    self.cmRadius = [0.5, 0.5]
     self.cmModelColor = [[0.0, 0.0, 1.0], [1.0, 0.359375, 0.0]]
 
     # Tip model
-    self.tipLength = 10.0
+    self.tipLength = [10.0, 10.0]
     self.tipModelNode = [None, None]
     self.tipTransformNode = [None, None]
     self.tipPoly = [None, None]
@@ -501,22 +548,19 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
     self.widget = widget
 
 
-  def setTipLength(self, length):
-    self.tipLength = length
-    self.updateCatheter(1)
-    self.updateCatheter(2)
+  def setTipLength(self, length, index):
+    self.tipLength[index-1] = length
+    self.updateCatheter(index)
 
 
-  def setCatheterDiameter(self, diameter):
-    self.cmRadius = diameter / 2.0
-    self.updateCatheter(1)
-    self.updateCatheter(2)
+  def setCatheterDiameter(self, diameter, index):
+    self.cmRadius[index-1] = diameter / 2.0
+    self.updateCatheter(index)
+    
 
-
-  def setCatheterOpacity(self, opacity):
-    self.cmOpacity = opacity
-    self.updateCatheter(1)
-    self.updateCatheter(2)
+  def setCatheterOpacity(self, opacity, index):
+    self.cmOpacity[index-1] = opacity
+    self.updateCatheter(index)
     
     
   def setShowCoilLabel(self, show):
@@ -759,12 +803,12 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
     modelDisplayNode = destinationNode.GetDisplayNode()
     if modelDisplayNode:
       modelDisplayNode.SetColor(self.cmModelColor[index-1])
-      modelDisplayNode.SetOpacity(self.cmOpacity)
+      modelDisplayNode.SetOpacity(self.cmOpacity[index-1])
       modelDisplayNode.SliceIntersectionVisibilityOn()
       modelDisplayNode.SetSliceDisplayModeToIntersection()
 
     # Update catheter using the CurveMaker module
-    self.cmLogic.setTubeRadius(self.cmRadius, sourceNode)
+    self.cmLogic.setTubeRadius(self.cmRadius[index-1], sourceNode)
     self.cmLogic.enableAutomaticUpdate(1, sourceNode)
     self.cmLogic.setInterpolationMethod('cardinal', sourceNode)
     self.cmLogic.updateCurve()
@@ -795,7 +839,7 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
       p1 = numpy.array(points.GetPoint(pts.GetId(1)))
       v10 = p0 - p1
       n10 = v10 / numpy.linalg.norm(v10) # Normal vector at the tip
-      pe = p0 + n10 * self.tipLength
+      pe = p0 + n10 * self.tipLength[index-1]
 
     if self.tipPoly[index-1]==None:
       self.tipPoly[index-1] = vtk.vtkPolyData()
@@ -846,7 +890,7 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
         self.resliceDriverLogic.SetDriverForSlice('', self.sliceNodeGreen)
         self.resliceDriverLogic.SetModeForSlice(self.resliceDriverLogic.MODE_NONE, self.sliceNodeGreen)
 
-    self.updateTipModelNode(self.tipModelNode[index-1], self.tipPoly[index-1], p0, pe, self.cmRadius, self.cmModelColor[index-1], self.cmOpacity)
+    self.updateTipModelNode(self.tipModelNode[index-1], self.tipPoly[index-1], p0, pe, self.cmRadius[index-1], self.cmModelColor[index-1], self.cmOpacity[index-1])
 
 
   def onConnectedEvent(self, caller, event):
