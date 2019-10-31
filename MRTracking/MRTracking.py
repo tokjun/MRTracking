@@ -774,7 +774,7 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
         trans = tnode.GetTransformToParent()
         #fiducialNode.SetNthFiducialPositionFromArray(j, trans.GetPosition())
         v = trans.GetPosition()
-        fiducialNode.SetNthFiducialPosition(j, -v[0], v[1], v[2])
+        fiducialNode.SetNthFiducialPosition(j, -v[0], v[1], -v[2])
         j += 1
       
     self.updateCatheter(index)
