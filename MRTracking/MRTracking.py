@@ -98,14 +98,6 @@ class MRTrackingWidget(ScriptedLoadableModuleWidget):
     self.connectorSelector.setToolTip( "Establish a connection with the server" )
     connectionFormLayout.addRow("Connector: ", self.connectorSelector)
     
-    #self.connectorAddressLineEdit = qt.QLineEdit()
-    #self.connectorAddressLineEdit.text = "localhost"
-    #self.connectorAddressLineEdit.readOnly = False
-    #self.connectorAddressLineEdit.frame = True
-    #self.connectorAddressLineEdit.styleSheet = "QLineEdit { background:transparent; }"
-    #self.connectorAddressLineEdit.cursor = qt.QCursor(qt.Qt.IBeamCursor)
-    #connectionFormLayout.addRow("Address: ", self.connectorAddressLineEdit)
-
     self.connectorPort = qt.QSpinBox()
     self.connectorPort.objectName = 'PortSpinBox'
     self.connectorPort.setMaximum(64000)
@@ -334,6 +326,49 @@ class MRTrackingWidget(ScriptedLoadableModuleWidget):
     resliceLayout.addRow("Reslice Plane:", self.resliceBoxLayout)
 
     #
+    # Coordinate System
+    #
+    coordinateCollapsibleButton = ctk.ctkCollapsibleButton()
+    coordinateCollapsibleButton.text = "Coordinate System"
+    self.layout.addWidget(coordinateCollapsibleButton)
+
+    coordinateLayout = qt.QFormLayout(coordinateCollapsibleButton)
+    
+    self.coordinateRPlusRadioButton = qt.QRadioButton("+X")
+    self.coordinateRMinusRadioButton = qt.QRadioButton("-X")
+    self.coordinateRPlusRadioButton.checked = 1
+    self.coordinateRBoxLayout = qt.QHBoxLayout()
+    self.coordinateRBoxLayout.addWidget(self.coordinateRPlusRadioButton)
+    self.coordinateRBoxLayout.addWidget(self.coordinateRMinusRadioButton)
+    self.coordinateRGroup = qt.QButtonGroup()
+    self.coordinateRGroup.addButton(self.coordinateRPlusRadioButton)
+    self.coordinateRGroup.addButton(self.coordinateRMinusRadioButton)
+    coordinateLayout.addRow("Right:", self.coordinateRBoxLayout)
+
+    self.coordinateAPlusRadioButton = qt.QRadioButton("+Y")
+    self.coordinateAMinusRadioButton = qt.QRadioButton("-Y")
+    self.coordinateAPlusRadioButton.checked = 1
+    self.coordinateABoxLayout = qt.QHBoxLayout()
+    self.coordinateABoxLayout.addWidget(self.coordinateAPlusRadioButton)
+    self.coordinateABoxLayout.addWidget(self.coordinateAMinusRadioButton)
+    self.coordinateAGroup = qt.QButtonGroup()
+    self.coordinateAGroup.addButton(self.coordinateAPlusRadioButton)
+    self.coordinateAGroup.addButton(self.coordinateAMinusRadioButton)
+    coordinateLayout.addRow("Anterior:", self.coordinateABoxLayout)
+
+    self.coordinateSPlusRadioButton = qt.QRadioButton("+Z")
+    self.coordinateSMinusRadioButton = qt.QRadioButton("-Z")
+    self.coordinateSPlusRadioButton.checked = 1
+    self.coordinateSBoxLayout = qt.QHBoxLayout()
+    self.coordinateSBoxLayout.addWidget(self.coordinateSPlusRadioButton)
+    self.coordinateSBoxLayout.addWidget(self.coordinateSMinusRadioButton)
+    self.coordinateSGroup = qt.QButtonGroup()
+    self.coordinateSGroup.addButton(self.coordinateSPlusRadioButton)
+    self.coordinateSGroup.addButton(self.coordinateSMinusRadioButton)
+    coordinateLayout.addRow("Superior:", self.coordinateSBoxLayout)
+
+
+    #
     # Connections
     #
     self.connectorSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onConnectorSelected)
@@ -370,6 +405,14 @@ class MRTrackingWidget(ScriptedLoadableModuleWidget):
 
     self.resliceCath1RadioButton.connect('clicked(bool)', self.onSelectResliceCath)
     self.resliceCath2RadioButton.connect('clicked(bool)', self.onSelectResliceCath)
+
+    self.coordinateRPlusRadioButton.connect('clicked(bool)', self.onSelectCoordinate)
+    self.coordinateRMinusRadioButton.connect('clicked(bool)', self.onSelectCoordinate)
+    self.coordinateAPlusRadioButton.connect('clicked(bool)', self.onSelectCoordinate)
+    self.coordinateAMinusRadioButton.connect('clicked(bool)', self.onSelectCoordinate)
+    self.coordinateSPlusRadioButton.connect('clicked(bool)', self.onSelectCoordinate)
+    self.coordinateSMinusRadioButton.connect('clicked(bool)', self.onSelectCoordinate)
+
     
     # Add vertical spacer
     self.layout.addStretch(1)
@@ -460,18 +503,30 @@ class MRTrackingWidget(ScriptedLoadableModuleWidget):
 
     
   def onResliceChecked(self):
+    
     ax  = self.resliceAxCheckBox.checked
     sag = self.resliceSagCheckBox.checked
     cor = self.resliceCorCheckBox.checked
 
     self.logic.setReslice(ax, sag, cor)
 
+    
   def onSelectResliceCath(self):
 
     if self.resliceCath1RadioButton.checked:
       self.logic.setResliceCath(1)
     else:
       self.logic.setResliceCath(2)
+
+      
+  def onSelectCoordinate(self):
+
+    rPositive = self.coordinateRPlusRadioButton.checked
+    aPositive = self.coordinateAPlusRadioButton.checked
+    sPositive = self.coordinateSPlusRadioButton.checked
+    
+    self.logic.setAxisDirections(rPositive, aPositive, sPositive)
+    
       
     
   def onReload(self, moduleName="MRTracking"):
@@ -543,6 +598,8 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
     self.incomingNode = None
     self.resliceCath = 1
 
+    self.axisDirection = [1.0, 1.0, 1.0]
+
     
   def setWidget(self, widget):
     self.widget = widget
@@ -580,11 +637,30 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
     self.reslice = [ax, sag, cor]
     self.updateCatheter(1)
     self.updateCatheter(2)
+   
 
   def setResliceCath(self, index):
     self.resliceCath = index
-  
 
+    
+  def setAxisDirections(self, rPositive, aPositive, sPositive):
+    
+    if rPositive:
+      self.axisDirection[0] = 1.0
+    else:
+      self.axisDirection[0] = -1.0
+      
+    if aPositive:
+      self.axisDirection[1] = 1.0
+    else:
+      self.axisDirection[1] = -1.0
+      
+    if aPositive:
+      self.axisDirection[2] = 1.0
+    else:
+      self.axisDirection[2] = -1.0
+    
+    
   def setConnector(self, cnode):
 
     if cnode == None:
@@ -682,7 +758,8 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
     if cnode == None:
       return False
       
-    if cnode.GetState() == slicer.vtkMRMLIGTLConnectorNode.STATE_WAIT_CONNECTION or cnode.GetState() == slicer.vtkMRMLIGTLConnectorNode.STATE_CONNECTED:
+    #if cnode.GetState() == slicer.vtkMRMLIGTLConnectorNode.STATE_WAIT_CONNECTION or cnode.GetState() == slicer.vtkMRMLIGTLConnectorNode.STATE_CONNECTED:
+    if cnode.GetState() == slicer.vtkMRMLIGTLConnectorNode.StateWaitConnection or cnode.GetState() == slicer.vtkMRMLIGTLConnectorNode.StateConnected:
       return True
     else:
       return False
@@ -698,13 +775,15 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
     if cnode == None:
       return False
       
-    if cnode.GetState() == slicer.vtkMRMLIGTLConnectorNode.STATE_CONNECTED:
+    #if cnode.GetState() == slicer.vtkMRMLIGTLConnectorNode.STATE_CONNECTED:
+    if cnode.GetState() == slicer.vtkMRMLIGTLConnectorNode.StateConnected:
       return True
     else:
       return False
 
   def onMessageReceived(self, node):
 
+    print ("onMessageReceived(self, node)")
     if node.GetClassName() == 'vtkMRMLIGTLTrackingDataBundleNode':
 
       self.updateCatheterNode(1, node)
@@ -774,7 +853,7 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
         trans = tnode.GetTransformToParent()
         #fiducialNode.SetNthFiducialPositionFromArray(j, trans.GetPosition())
         v = trans.GetPosition()
-        fiducialNode.SetNthFiducialPosition(j, -v[0], v[1], -v[2])
+        fiducialNode.SetNthFiducialPosition(j, v[0] * self.axisDirection[0], v[1] * self.axisDirection[1], v[2] * self.axisDirection[2])
         j += 1
       
     self.updateCatheter(index)
