@@ -84,7 +84,7 @@ class MRTrackingWidget(ScriptedLoadableModuleWidget):
     connectionFormLayout = qt.QFormLayout(connectionCollapsibleButton)
 
     #
-    # input volume selector
+    # connector selector
     #
     self.connectorSelector = slicer.qMRMLNodeComboBox()
     self.connectorSelector.nodeTypes = ( ("vtkMRMLIGTLConnectorNode"), "" )
@@ -113,6 +113,22 @@ class MRTrackingWidget(ScriptedLoadableModuleWidget):
     self.activeCheckBox.enabled = 0
     self.activeCheckBox.setToolTip("Activate OpenIGTLink connection")
     connectionFormLayout.addRow("Active: ", self.activeCheckBox)
+
+
+    #
+    # Tracking node selector
+    #
+    self.trackingDataSelector = slicer.qMRMLNodeComboBox()
+    self.trackingDataSelector.nodeTypes = ( ("vtkMRMLIGTLTrackingDataBundleNode"), "" )
+    self.trackingDataSelector.selectNodeUponCreation = True
+    self.trackingDataSelector.addEnabled = True
+    self.trackingDataSelector.removeEnabled = False
+    self.trackingDataSelector.noneEnabled = False
+    self.trackingDataSelector.showHidden = True
+    self.trackingDataSelector.showChildNodeTypes = False
+    self.trackingDataSelector.setMRMLScene( slicer.mrmlScene )
+    self.trackingDataSelector.setToolTip( "Incoming tracking data" )
+    connectionFormLayout.addRow("TrackingData: ", self.trackingDataSelector)
 
     #
     # Configuration Selection Area
@@ -372,6 +388,7 @@ class MRTrackingWidget(ScriptedLoadableModuleWidget):
     # Connections
     #
     self.connectorSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onConnectorSelected)
+    self.trackingDataSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onTrackingDataSelected)
     self.activeCheckBox.connect('toggled(bool)', self.onActive)
     self.tipLength1SliderWidget.connect("valueChanged(double)", self.onTipLength1Changed)
     self.catheter1DiameterSliderWidget.connect("valueChanged(double)", self.onCatheter1DiameterChanged)
@@ -445,6 +462,12 @@ class MRTrackingWidget(ScriptedLoadableModuleWidget):
   def onConnectorSelected(self):
     cnode = self.connectorSelector.currentNode()    
     self.logic.setConnector(cnode)
+    self.updateGUI()
+
+    
+  def onTrackingDataSelected(self):
+    cnode = self.trackingDataSelector.currentNode()    
+    self.logic.setTrackingData(cnode)
     self.updateGUI()
 
 
@@ -572,6 +595,8 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
     # IGTL Conenctor Node ID
     self.connectorNodeID = ''
 
+    self.activeTrackingDataNodeID = ''
+
     self.count = 0
 
     # CurveMaker
@@ -676,6 +701,18 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
     self.setupFiducials(cnode, 1)
     self.setupFiducials(cnode, 2)
 
+    
+  def setTrackingData(self, node):
+
+    ## TODO: The folloing event is not working in 3.11.x
+    #if not node.GetID() in self.eventTag:
+    #  self.eventTag[node.GetID()] = node.AddObserver(vtk.vtkCommand.ModifiedEvent, self.onIncomingNodeModifiedEvent)
+
+    cnode = slicer.mrmlScene.GetNodeByID(self.connectorNodeID)
+    if cnode:
+      cnode.SetAttribute('MRTracking.incomingNode', node.GetID())
+
+    
   def setupFiducials(self, cnode, index):
     
     # Set up markups fiducial node, if specified in the connector node
@@ -783,11 +820,15 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
 
   def onMessageReceived(self, node):
 
-    print ("onMessageReceived(self, node)")
-    if node.GetClassName() == 'vtkMRMLIGTLTrackingDataBundleNode':
-
-      self.updateCatheterNode(1, node)
-      self.updateCatheterNode(2, node)
+    print ("onMessageReceived(self, %s)" % node.GetID())
+    #if node.GetClassName() == 'vtkMRMLIGTLTrackingDataBundleNode':
+    if node.GetID() == self.connectorNodeID:
+      tdNodeID = node.GetAttribute('MRTracking.incomingNode')
+      if tdNodeID:
+        tdnode = slicer.mrmlScene.GetNodeByID(tdNodeID)
+        if tdnode:
+          self.updateCatheterNode(1, tdnode)
+          self.updateCatheterNode(2, tdnode)
 
       
   def updateCatheterNode(self, index, node):
@@ -983,17 +1024,20 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
     #  self.widget.updateGUI()
     pass
 
-
-  def onNewDeviceEvent(self, caller, event, obj=None):
-
-    cnode = self.scene.GetNodeByID(self.connectorNodeID)
-    nInNode = cnode.GetNumberOfIncomingMRMLNodes()
-    for i in range (nInNode):
-      node = cnode.GetIncomingMRMLNode(i)
-      if not node.GetID() in self.eventTag:
-        self.eventTag[node.GetID()] = node.AddObserver(vtk.vtkCommand.ModifiedEvent, self.onIncomingNodeModifiedEvent)
-      if cnode.GetAttribute('MRTracking.incomingNode') != node.GetID():
-        cnode.SetAttribute('MRTracking.incomingNode', node.GetID())
+  # TODO: The following event handler doesn't seem working in 4.11.x
+  #
+  #def onNewDeviceEvent(self, caller, event, obj=None):
+  #
+  #  # If a new incoming node is created by the connector node, and if there is no active incoming node,
+  #  # register it as an incoming node.
+  #  cnode = self.scene.GetNodeByID(self.connectorNodeID)
+  #  nInNode = cnode.GetNumberOfIncomingMRMLNodes()
+  #  for i in range (nInNode):
+  #    node = cnode.GetIncomingMRMLNode(i)
+  #    if not node.GetID() in self.eventTag:
+  #      self.eventTag[node.GetID()] = node.AddObserver(vtk.vtkCommand.ModifiedEvent, self.onIncomingNodeModifiedEvent)
+  #    if cnode.GetAttribute('MRTracking.incomingNode') == None:
+  #      cnode.SetAttribute('MRTracking.incomingNode', node.GetID())
         
 
   def updateTipModelNode(self, tipModelNode, poly, p0, pe, radius, color, opacity):
@@ -1077,8 +1121,8 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
     if cnode != None:
       self.tagConnected = cnode.AddObserver(slicer.vtkMRMLIGTLConnectorNode.ConnectedEvent, self.onConnectedEvent)
       self.tagDisconnected = cnode.AddObserver(slicer.vtkMRMLIGTLConnectorNode.DisconnectedEvent, self.onDisconnectedEvent)
-      self.tagNewDevice = cnode.AddObserver(slicer.vtkMRMLIGTLConnectorNode.NewDeviceEvent, self.onNewDeviceEvent)
-
+      #self.tagNewDevice = cnode.AddObserver(slicer.vtkMRMLIGTLConnectorNode.NewDeviceEvent, self.onNewDeviceEvent)
+      self.tagDeviceModified = cnode.AddObserver(slicer.vtkMRMLIGTLConnectorNode.DeviceModifiedEvent, self.onIncomingNodeModifiedEvent)
 
   def deactivateEvent(self):
     cnode = self.scene.GetNodeByID(self.connectorNodeID)
@@ -1086,5 +1130,6 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
       cnode.RemoveObserver(self.tagConnected)
       cnode.RemoveObserver(self.tagDisconnected)
       cnode.RemoveObserver(self.tagNewDevice)
+      cnode.RemoveObserver(self.tagDeviceModified)
 
       
