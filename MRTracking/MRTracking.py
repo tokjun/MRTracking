@@ -581,9 +581,9 @@ class MRTrackingWidget(ScriptedLoadableModuleWidget):
     self.tipLength1SliderWidget.value = tdata.tipLength[0]
     self.catheter1DiameterSliderWidget.value = tdata.cmRadius[0] * 2
     self.catheter1OpacitySliderWidget.value = tdata.cmOpacity[0]
-    self.tipLength2SliderWidget.value = tdata.tipLength[0]
-    self.catheter2DiameterSliderWidget.value = tdata.cmRadius[0] * 2
-    self.catheter2OpacitySliderWidget.value = tdata.cmOpacity[0]
+    self.tipLength2SliderWidget.value = tdata.tipLength[1]
+    self.catheter2DiameterSliderWidget.value = tdata.cmRadius[1] * 2
+    self.catheter2OpacitySliderWidget.value = tdata.cmOpacity[1]
     
     self.showCoilLabelCheckBox.checked = tdata.showCoilLabel
     
@@ -1127,28 +1127,28 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
     matrix.SetElement(1, 3, pe[1])
     matrix.SetElement(2, 3, pe[2])
     td.tipTransformNode[index-1].SetMatrixTransformToParent(matrix)
-
-    if self.resliceCath == index:
-      if self.reslice[0]:
-        self.resliceDriverLogic.SetDriverForSlice(td.tipTransformNode[index-1].GetID(), self.sliceNodeRed)
-        self.resliceDriverLogic.SetModeForSlice(self.resliceDriverLogic.MODE_AXIAL, self.sliceNodeRed)
-      else:
-        self.resliceDriverLogic.SetDriverForSlice('', self.sliceNodeRed)
-        self.resliceDriverLogic.SetModeForSlice(self.resliceDriverLogic.MODE_NONE, self.sliceNodeRed)
+    
+    # if the tracking data is current:
+    if self.currentTrackingDataNodeID == tdnode.GetID() and self.resliceCath == index:
+        if self.reslice[0]:
+          self.resliceDriverLogic.SetDriverForSlice(td.tipTransformNode[index-1].GetID(), self.sliceNodeRed)
+          self.resliceDriverLogic.SetModeForSlice(self.resliceDriverLogic.MODE_AXIAL, self.sliceNodeRed)
+        else:
+          self.resliceDriverLogic.SetDriverForSlice('', self.sliceNodeRed)
+          self.resliceDriverLogic.SetModeForSlice(self.resliceDriverLogic.MODE_NONE, self.sliceNodeRed)
+        if self.reslice[1]:
+          self.resliceDriverLogic.SetDriverForSlice(td.tipTransformNode[index-1].GetID(), self.sliceNodeYellow)
+          self.resliceDriverLogic.SetModeForSlice(self.resliceDriverLogic.MODE_SAGITTAL, self.sliceNodeYellow)
+        else:
+          self.resliceDriverLogic.SetDriverForSlice('', self.sliceNodeYellow)
+          self.resliceDriverLogic.SetModeForSlice(self.resliceDriverLogic.MODE_NONE, self.sliceNodeYellow)
         
-      if self.reslice[1]:
-        self.resliceDriverLogic.SetDriverForSlice(td.tipTransformNode[index-1].GetID(), self.sliceNodeYellow)
-        self.resliceDriverLogic.SetModeForSlice(self.resliceDriverLogic.MODE_SAGITTAL, self.sliceNodeYellow)
-      else:
-        self.resliceDriverLogic.SetDriverForSlice('', self.sliceNodeYellow)
-        self.resliceDriverLogic.SetModeForSlice(self.resliceDriverLogic.MODE_NONE, self.sliceNodeYellow)
-      
-      if self.reslice[2]:
-        self.resliceDriverLogic.SetDriverForSlice(td.tipTransformNode[index-1].GetID(), self.sliceNodeGreen)
-        self.resliceDriverLogic.SetModeForSlice(self.resliceDriverLogic.MODE_CORONAL, self.sliceNodeGreen)
-      else:
-        self.resliceDriverLogic.SetDriverForSlice('', self.sliceNodeGreen)
-        self.resliceDriverLogic.SetModeForSlice(self.resliceDriverLogic.MODE_NONE, self.sliceNodeGreen)
+        if self.reslice[2]:
+          self.resliceDriverLogic.SetDriverForSlice(td.tipTransformNode[index-1].GetID(), self.sliceNodeGreen)
+          self.resliceDriverLogic.SetModeForSlice(self.resliceDriverLogic.MODE_CORONAL, self.sliceNodeGreen)
+        else:
+          self.resliceDriverLogic.SetDriverForSlice('', self.sliceNodeGreen)
+          self.resliceDriverLogic.SetModeForSlice(self.resliceDriverLogic.MODE_NONE, self.sliceNodeGreen)
 
     self.updateTipModelNode(td.tipModelNode[index-1], td.tipPoly[index-1], p0, pe, td.cmRadius[index-1], td.cmModelColor[index-1], td.cmOpacity[index-1])
 
