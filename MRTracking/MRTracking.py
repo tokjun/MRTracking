@@ -265,6 +265,18 @@ class MRTrackingWidget(ScriptedLoadableModuleWidget):
     self.coilGroup12Layout.addWidget(self.coil_1_8_CheckBox)
     coilSelectionLayout.addRow("", self.coilGroup12Layout)
 
+    self.coilOrder1DistalRadioButton = qt.QRadioButton("Distal First")
+    self.coilOrder1DistalRadioButton.checked = 1
+    self.coilOrder1ProximalRadioButton = qt.QRadioButton("Proximal First")
+    self.coilOrder1ProximalRadioButton.checked = 0
+    self.coilOrder1ButtonGroup = qt.QButtonGroup()
+    self.coilOrder1ButtonGroup.addButton(self.coilOrder1DistalRadioButton)
+    self.coilOrder1ButtonGroup.addButton(self.coilOrder1ProximalRadioButton)
+    self.coilOrder1GroupLayout = qt.QHBoxLayout()
+    self.coilOrder1GroupLayout.addWidget(self.coilOrder1DistalRadioButton)
+    self.coilOrder1GroupLayout.addWidget(self.coilOrder1ProximalRadioButton)
+    coilSelectionLayout.addRow("Cath 1 Coil Order:", self.coilOrder1GroupLayout)
+    
     self.coil_2_1_CheckBox = qt.QCheckBox()
     self.coil_2_1_CheckBox.checked = 0
     self.coil_2_1_CheckBox.text = "CH 1"
@@ -304,6 +316,18 @@ class MRTrackingWidget(ScriptedLoadableModuleWidget):
     self.coilGroup22Layout.addWidget(self.coil_2_8_CheckBox)
     coilSelectionLayout.addRow("", self.coilGroup22Layout)
     
+    self.coilOrder2DistalRadioButton = qt.QRadioButton("Distal First")
+    self.coilOrder2DistalRadioButton.checked = 1
+    self.coilOrder2ProximalRadioButton = qt.QRadioButton("Proximal First")
+    self.coilOrder2ProximalRadioButton.checked = 0
+    self.coilOrder2ButtonGroup = qt.QButtonGroup()
+    self.coilOrder2ButtonGroup.addButton(self.coilOrder2DistalRadioButton)
+    self.coilOrder2ButtonGroup.addButton(self.coilOrder2ProximalRadioButton)
+    self.coilOrder2GroupLayout = qt.QHBoxLayout()
+    self.coilOrder2GroupLayout.addWidget(self.coilOrder2DistalRadioButton)
+    self.coilOrder2GroupLayout.addWidget(self.coilOrder2ProximalRadioButton)
+    coilSelectionLayout.addRow("Cath 2 Coil Order:", self.coilOrder2GroupLayout)
+
     #
     # Coordinate System
     #
@@ -415,6 +439,11 @@ class MRTrackingWidget(ScriptedLoadableModuleWidget):
     self.coil_2_7_CheckBox.connect('toggled(bool)', self.onCoilChecked)
     self.coil_2_8_CheckBox.connect('toggled(bool)', self.onCoilChecked)
     
+    self.coilOrder1DistalRadioButton.connect('clicked(bool)', self.onCoilChecked)
+    self.coilOrder1ProximalRadioButton.connect('clicked(bool)', self.onCoilChecked)
+    self.coilOrder2DistalRadioButton.connect('clicked(bool)', self.onCoilChecked)
+    self.coilOrder2ProximalRadioButton.connect('clicked(bool)', self.onCoilChecked)
+    
     self.resliceAxCheckBox.connect('toggled(bool)', self.onResliceChecked)
     self.resliceSagCheckBox.connect('toggled(bool)', self.onResliceChecked)
     self.resliceCorCheckBox.connect('toggled(bool)', self.onResliceChecked)
@@ -522,8 +551,15 @@ class MRTrackingWidget(ScriptedLoadableModuleWidget):
       self.coil_2_7_CheckBox.checked,
       self.coil_2_8_CheckBox.checked
     ]
-    self.logic.setActiveCoils(activeCoils1, activeCoils2)
 
+    coilOrder1 = 'distal'
+    if self.coilOrder1ProximalRadioButton.checked:
+      coilOrder1 = 'proximal'
+    coilOrder2 = 'distal'
+    if self.coilOrder2ProximalRadioButton.checked:
+      coilOrder2 = 'proximal'
+
+    self.logic.setActiveCoils(activeCoils1, activeCoils2, coilOrder1, coilOrder2)
     
   def onResliceChecked(self):
     
@@ -652,6 +688,10 @@ class MRTrackingData:
     self.activeCoils1 = [False, False, False, False, True, True, True, True]
     self.activeCoils2 = [True, True, True, True, False, False, False, False]
 
+    # Coil order (True if Distal -> Proximal)
+    self.coilOrder1 = True
+    self.coilOrder2 = True
+    
     self.axisDirection = [1.0, 1.0, 1.0]
 
     
@@ -759,8 +799,8 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
         td.cmOpacity[index-1] = opacity
         tnode = slicer.mrmlScene.GetNodeByID(nodeID)
         self.updateCatheter(tnode, index)
-    
-    
+
+        
   def setShowCoilLabel(self, show):
     nodeID = self.currentTrackingDataNodeID
     if nodeID:
@@ -770,18 +810,38 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
         tnode = slicer.mrmlScene.GetNodeByID(nodeID)
         self.updateCatheter(tnode, 1)
         self.updateCatheter(tnode, 2)
-    
 
-  def setActiveCoils(self, coils1, coils2):
+        
+  def isStringInteger(self, s):
+    try:
+        int(s)
+        return True
+    except ValueError:
+        return False
+
+
+  def setActiveCoils(self, coils1, coils2, coilOrder1, coilOrder2):
+    print("setActiveCoils(self, coils1, coils2, coilOrder1, coilOrder2)")
     nodeID = self.currentTrackingDataNodeID
     if nodeID:
       td = self.TrackingData[nodeID]
       if td:
         td.activeCoils1 = coils1
         td.activeCoils2 = coils2
+        if coilOrder1 == 'distal':
+          td.coilOrder1 = True
+        else:
+          td.coilOrder1 = False
+        if coilOrder2 == 'distal':
+          td.coilOrder2 = True
+        else:
+          td.coilOrder2 = False
+
         tnode = slicer.mrmlScene.GetNodeByID(nodeID)
         self.updateCatheter(tnode, 1)
         self.updateCatheter(tnode, 2)
+        
+    return True
 
 
   def setReslice(self, ax, sag, cor):
@@ -1037,7 +1097,12 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
         trans = tnode.GetTransformToParent()
         #fiducialNode.SetNthFiducialPositionFromArray(j, trans.GetPosition())
         v = trans.GetPosition()
-        fiducialNode.SetNthFiducialPosition(j, v[0] * td.axisDirection[0], v[1] * td.axisDirection[1], v[2] * td.axisDirection[2])
+        coilID = j
+        if index == 1 and td.coilOrder1 == False:
+          coilID = nCoils - j - 1
+        if index == 2 and td.coilOrder2 == False:
+          coilID = nCoils - j - 1
+        fiducialNode.SetNthFiducialPosition(coilID, v[0] * td.axisDirection[0], v[1] * td.axisDirection[1], v[2] * td.axisDirection[2])
         j += 1
       
     self.updateCatheter(tdnode, index)
