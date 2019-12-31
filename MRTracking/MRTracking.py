@@ -3,6 +3,7 @@ import unittest
 import time
 from __main__ import vtk, qt, ctk, slicer
 from slicer.ScriptedLoadableModule import *
+from TrackingData import *
 import numpy
 
 import CurveMaker
@@ -659,45 +660,6 @@ class MRTrackingWidget(ScriptedLoadableModuleWidget):
       
 #------------------------------------------------------------
 #
-# TrakcingData
-#
-
-class MRTrackingData:
-
-  def __init__(self):
-    
-    #slicer.mrmlScene.AddObserver(slicer.vtkMRMLScene.NodeRemovedEvent, self.onNodeRemovedEvent)
-    self.widget = None
-    self.eventTag = ''
-
-    self.activeTrackingDataNodeID = ''
-
-    # CurveMaker
-    self.cmLogic = None
-    
-    self.cmOpacity = [1.0, 1.0]
-    self.cmRadius = [0.5, 0.5]
-    self.cmModelColor = [[0.0, 0.0, 1.0], [1.0, 0.359375, 0.0]]
-
-    # Tip model
-    self.tipLength = [10.0, 10.0]
-    self.tipModelNode = [None, None]
-    self.tipTransformNode = [None, None]
-    self.tipPoly = [None, None]
-    self.showCoilLabel = False
-    self.activeCoils1 = [False, False, False, False, True, True, True, True]
-    self.activeCoils2 = [True, True, True, True, False, False, False, False]
-
-    # Coil order (True if Distal -> Proximal)
-    self.coilOrder1 = True
-    self.coilOrder2 = True
-    
-    self.axisDirection = [1.0, 1.0, 1.0]
-
-    
-  
-#------------------------------------------------------------
-#
 # MRTrackingLogic
 #
 class MRTrackingLogic(ScriptedLoadableModuleLogic):
@@ -749,7 +711,7 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
     if tdnode.GetID() in self.TrackingData:
       print('TrackingData "%s" has already been registered.' % tdnode.GetID())
     else:
-      td = MRTrackingData()
+      td = TrackingData()
       td.cmLogic = self.cmLogic
       self.TrackingData[tdnode.GetID()] = td
       
