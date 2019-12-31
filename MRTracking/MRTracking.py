@@ -1133,6 +1133,17 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
       n10 = v10 / numpy.linalg.norm(v10) # Normal vector at the tip
       pe = p0 + n10 * td.tipLength[index-1]
 
+      ## Calculate rotation matrix
+      ## Check if <n10> is not parallel to <s>=(0.0, 1.0, 0.0)
+      s = numpy.array([0.0, 1.0, 0.0])
+      t = numpy.array([1.0, 0.0, 0.0])
+      if n10[1] < 0.95:
+        t = numpy.cross(s, n10)
+        s = numpy.cross(n10, t)
+      else:
+        s = numpy.cross(n10, t)
+        t = numpy.cross(s, n10)
+
     if td.tipPoly[index-1]==None:
       td.tipPoly[index-1] = vtk.vtkPolyData()
 
@@ -1149,7 +1160,15 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
       tdnode.SetAttribute('MRTracking.tipTransform%d' % index, td.tipTransformNode[index-1].GetID())
 
     matrix = vtk.vtkMatrix4x4()
-    matrix.Identity()
+    matrix.SetElement(0, 0, t[0])
+    matrix.SetElement(1, 0, t[1])
+    matrix.SetElement(2, 0, t[2])
+    matrix.SetElement(0, 1, s[0])
+    matrix.SetElement(1, 1, s[1])
+    matrix.SetElement(2, 1, s[2])
+    matrix.SetElement(0, 2, n10[0])
+    matrix.SetElement(1, 2, n10[1])
+    matrix.SetElement(2, 2, n10[2])
     matrix.SetElement(0, 3, pe[0])
     matrix.SetElement(1, 3, pe[1])
     matrix.SetElement(2, 3, pe[2])
