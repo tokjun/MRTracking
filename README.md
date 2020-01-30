@@ -107,7 +107,10 @@ On Windows,
 > TrackingDataClient localhost 18944 5 <path to the test tracking data>\TestTracking.log
 ~~~~
 
-
+TODOs
+-----
+- Monitor TrackingData even if the data is coming from different IGTLConnector.
+- Collect ponits for registration
 
 
 
