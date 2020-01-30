@@ -11,7 +11,7 @@ class TrackingData:
     self.widget = None
     self.eventTag = ''
 
-    self.activeTrackingDataNodeID = ''
+    # self.activeTrackingDataNodeID = ''
 
     # CurveMaker
     self.cmLogic = None
@@ -36,4 +36,11 @@ class TrackingData:
     self.axisDirection = [1.0, 1.0, 1.0]
 
 
+  def isActive(self):
+    if self.eventTag == '':
+      return False
+    else:
+      return True
 
+    
+      
