@@ -242,107 +242,42 @@ class MRTrackingWidget(ScriptedLoadableModuleWidget):
     #
     # Coil seleciton check boxes
     #
-    self.coil_1_1_CheckBox = qt.QCheckBox()
-    self.coil_1_1_CheckBox.checked = 1
-    self.coil_1_1_CheckBox.text = "CH 1"
-    self.coil_1_2_CheckBox = qt.QCheckBox()
-    self.coil_1_2_CheckBox.checked = 1
-    self.coil_1_2_CheckBox.text = "CH 2"
-    self.coil_1_3_CheckBox = qt.QCheckBox()
-    self.coil_1_3_CheckBox.checked = 1
-    self.coil_1_3_CheckBox.text = "CH 3"
-    self.coil_1_4_CheckBox = qt.QCheckBox()
-    self.coil_1_4_CheckBox.checked = 1
-    self.coil_1_4_CheckBox.text = "CH 4"
-    self.coil_1_5_CheckBox = qt.QCheckBox()
-    self.coil_1_5_CheckBox.checked = 0
-    self.coil_1_5_CheckBox.text = "CH 5"
-    self.coil_1_6_CheckBox = qt.QCheckBox()
-    self.coil_1_6_CheckBox.checked = 0
-    self.coil_1_6_CheckBox.text = "CH 6"
-    self.coil_1_7_CheckBox = qt.QCheckBox()
-    self.coil_1_7_CheckBox.checked = 0
-    self.coil_1_7_CheckBox.text = "CH 7"
-    self.coil_1_8_CheckBox = qt.QCheckBox()
-    self.coil_1_8_CheckBox.checked = 0
-    self.coil_1_8_CheckBox.text = "CH 8"
-
-    self.coilGroup11Layout = qt.QHBoxLayout()
-    self.coilGroup11Layout.addWidget(self.coil_1_1_CheckBox)
-    self.coilGroup11Layout.addWidget(self.coil_1_2_CheckBox)
-    self.coilGroup11Layout.addWidget(self.coil_1_3_CheckBox)
-    self.coilGroup11Layout.addWidget(self.coil_1_4_CheckBox)
-    coilSelectionLayout.addRow("Cath 1 Active Coils:", self.coilGroup11Layout)
-
-    self.coilGroup12Layout = qt.QHBoxLayout()
-    self.coilGroup12Layout.addWidget(self.coil_1_5_CheckBox)
-    self.coilGroup12Layout.addWidget(self.coil_1_6_CheckBox)
-    self.coilGroup12Layout.addWidget(self.coil_1_7_CheckBox)
-    self.coilGroup12Layout.addWidget(self.coil_1_8_CheckBox)
-    coilSelectionLayout.addRow("", self.coilGroup12Layout)
-
-    self.coilOrder1DistalRadioButton = qt.QRadioButton("Distal First")
-    self.coilOrder1DistalRadioButton.checked = 1
-    self.coilOrder1ProximalRadioButton = qt.QRadioButton("Proximal First")
-    self.coilOrder1ProximalRadioButton.checked = 0
-    self.coilOrder1ButtonGroup = qt.QButtonGroup()
-    self.coilOrder1ButtonGroup.addButton(self.coilOrder1DistalRadioButton)
-    self.coilOrder1ButtonGroup.addButton(self.coilOrder1ProximalRadioButton)
-    self.coilOrder1GroupLayout = qt.QHBoxLayout()
-    self.coilOrder1GroupLayout.addWidget(self.coilOrder1DistalRadioButton)
-    self.coilOrder1GroupLayout.addWidget(self.coilOrder1ProximalRadioButton)
-    coilSelectionLayout.addRow("Cath 1 Coil Order:", self.coilOrder1GroupLayout)
+    self.nChannel = 8   # Number of channels / catheter
+    self.nCath = 2 # Number of catheters
+    self.coilCheckBox = [[None for i in range(self.nChannel)] for j in range(self.nCath)]
+    self.coilOrderDistalRadioButton = [None]*self.nCath
+    self.coilOrderProximalRadioButton = [None]*self.nCath
     
-    self.coil_2_1_CheckBox = qt.QCheckBox()
-    self.coil_2_1_CheckBox.checked = 0
-    self.coil_2_1_CheckBox.text = "CH 1"
-    self.coil_2_2_CheckBox = qt.QCheckBox()
-    self.coil_2_2_CheckBox.checked = 0
-    self.coil_2_2_CheckBox.text = "CH 2"
-    self.coil_2_3_CheckBox = qt.QCheckBox()
-    self.coil_2_3_CheckBox.checked = 0
-    self.coil_2_3_CheckBox.text = "CH 3"
-    self.coil_2_4_CheckBox = qt.QCheckBox()
-    self.coil_2_4_CheckBox.checked = 0
-    self.coil_2_4_CheckBox.text = "CH 4"
-    self.coil_2_5_CheckBox = qt.QCheckBox()
-    self.coil_2_5_CheckBox.checked = 1
-    self.coil_2_5_CheckBox.text = "CH 5"
-    self.coil_2_6_CheckBox = qt.QCheckBox()
-    self.coil_2_6_CheckBox.checked = 1
-    self.coil_2_6_CheckBox.text = "CH 6"
-    self.coil_2_7_CheckBox = qt.QCheckBox()
-    self.coil_2_7_CheckBox.checked = 1
-    self.coil_2_7_CheckBox.text = "CH 7"
-    self.coil_2_8_CheckBox = qt.QCheckBox()
-    self.coil_2_8_CheckBox.checked = 1
-    self.coil_2_8_CheckBox.text = "CH 8"
-    
-    self.coilGroup21Layout = qt.QHBoxLayout()
-    self.coilGroup21Layout.addWidget(self.coil_2_1_CheckBox)
-    self.coilGroup21Layout.addWidget(self.coil_2_2_CheckBox)
-    self.coilGroup21Layout.addWidget(self.coil_2_3_CheckBox)
-    self.coilGroup21Layout.addWidget(self.coil_2_4_CheckBox)
-    coilSelectionLayout.addRow("Cath 2 Active Coils:", self.coilGroup21Layout)
+    for cath in range(self.nCath):
+      for ch in range(self.nChannel):
+        self.coilCheckBox[cath][ch] = qt.QCheckBox()
+        self.coilCheckBox[cath][ch].checked = 1
+        self.coilCheckBox[cath][ch].text = "CH %d" % (ch + 1)
 
-    self.coilGroup22Layout = qt.QHBoxLayout()
-    self.coilGroup22Layout.addWidget(self.coil_2_5_CheckBox)
-    self.coilGroup22Layout.addWidget(self.coil_2_6_CheckBox)
-    self.coilGroup22Layout.addWidget(self.coil_2_7_CheckBox)
-    self.coilGroup22Layout.addWidget(self.coil_2_8_CheckBox)
-    coilSelectionLayout.addRow("", self.coilGroup22Layout)
-    
-    self.coilOrder2DistalRadioButton = qt.QRadioButton("Distal First")
-    self.coilOrder2DistalRadioButton.checked = 1
-    self.coilOrder2ProximalRadioButton = qt.QRadioButton("Proximal First")
-    self.coilOrder2ProximalRadioButton.checked = 0
-    self.coilOrder2ButtonGroup = qt.QButtonGroup()
-    self.coilOrder2ButtonGroup.addButton(self.coilOrder2DistalRadioButton)
-    self.coilOrder2ButtonGroup.addButton(self.coilOrder2ProximalRadioButton)
-    self.coilOrder2GroupLayout = qt.QHBoxLayout()
-    self.coilOrder2GroupLayout.addWidget(self.coilOrder2DistalRadioButton)
-    self.coilOrder2GroupLayout.addWidget(self.coilOrder2ProximalRadioButton)
-    coilSelectionLayout.addRow("Cath 2 Coil Order:", self.coilOrder2GroupLayout)
+      nChannelHalf = int(self.nChannel/2)
+
+      coilGroup1Layout = qt.QHBoxLayout()
+      for ch in range(nChannelHalf):
+        coilGroup1Layout.addWidget(self.coilCheckBox[cath][ch])
+      coilSelectionLayout.addRow("Cath %d Active Coils:" % cath, coilGroup1Layout)
+      
+      coilGroup2Layout = qt.QHBoxLayout()
+      for ch in range(nChannelHalf):
+        coilGroup2Layout.addWidget(self.coilCheckBox[cath][ch+nChannelHalf])
+      coilSelectionLayout.addRow("", coilGroup2Layout)
+        
+      self.coilOrderDistalRadioButton[cath] = qt.QRadioButton("Distal First")
+      self.coilOrderDistalRadioButton[cath].checked = 1
+      self.coilOrderProximalRadioButton[cath] = qt.QRadioButton("Proximal First")
+      self.coilOrderProximalRadioButton[cath].checked = 0
+      coilOrderButtonGroup = qt.QButtonGroup()
+      coilOrderButtonGroup.addButton(self.coilOrderDistalRadioButton[cath])
+      coilOrderButtonGroup.addButton(self.coilOrderProximalRadioButton[cath])
+      coilOrderGroupLayout = qt.QHBoxLayout()
+      coilOrderGroupLayout.addWidget(self.coilOrderDistalRadioButton[cath])
+      coilOrderGroupLayout.addWidget(self.coilOrderProximalRadioButton[cath])
+      coilSelectionLayout.addRow("Cath %d Coil Order:" % cath, coilOrderGroupLayout)
+
 
     #
     # Coordinate System
@@ -471,29 +406,14 @@ class MRTrackingWidget(ScriptedLoadableModuleWidget):
     self.catheter2DiameterSliderWidget.connect("valueChanged(double)", self.onCatheter2DiameterChanged)
     self.catheter2OpacitySliderWidget.connect("valueChanged(double)", self.onCatheter2OpacityChanged)
     self.showCoilLabelCheckBox.connect('toggled(bool)', self.onCoilLabelChecked)
-    
-    self.coil_1_1_CheckBox.connect('toggled(bool)', self.onCoilChecked)
-    self.coil_1_2_CheckBox.connect('toggled(bool)', self.onCoilChecked)
-    self.coil_1_3_CheckBox.connect('toggled(bool)', self.onCoilChecked)
-    self.coil_1_4_CheckBox.connect('toggled(bool)', self.onCoilChecked)
-    self.coil_1_5_CheckBox.connect('toggled(bool)', self.onCoilChecked)
-    self.coil_1_6_CheckBox.connect('toggled(bool)', self.onCoilChecked)
-    self.coil_1_7_CheckBox.connect('toggled(bool)', self.onCoilChecked)
-    self.coil_1_8_CheckBox.connect('toggled(bool)', self.onCoilChecked)
 
-    self.coil_2_1_CheckBox.connect('toggled(bool)', self.onCoilChecked)
-    self.coil_2_2_CheckBox.connect('toggled(bool)', self.onCoilChecked)
-    self.coil_2_3_CheckBox.connect('toggled(bool)', self.onCoilChecked)
-    self.coil_2_4_CheckBox.connect('toggled(bool)', self.onCoilChecked)
-    self.coil_2_5_CheckBox.connect('toggled(bool)', self.onCoilChecked)
-    self.coil_2_6_CheckBox.connect('toggled(bool)', self.onCoilChecked)
-    self.coil_2_7_CheckBox.connect('toggled(bool)', self.onCoilChecked)
-    self.coil_2_8_CheckBox.connect('toggled(bool)', self.onCoilChecked)
+    for cath in range(self.nCath):
+      for ch in range(self.nChannel):
+        self.coilCheckBox[cath][ch].connect('toggled(bool)', self.onCoilChecked)
     
-    self.coilOrder1DistalRadioButton.connect('clicked(bool)', self.onCoilChecked)
-    self.coilOrder1ProximalRadioButton.connect('clicked(bool)', self.onCoilChecked)
-    self.coilOrder2DistalRadioButton.connect('clicked(bool)', self.onCoilChecked)
-    self.coilOrder2ProximalRadioButton.connect('clicked(bool)', self.onCoilChecked)
+    for cath in range(self.nCath):
+      self.coilOrderDistalRadioButton[cath].connect('clicked(bool)', self.onCoilChecked)
+      self.coilOrderProximalRadioButton[cath].connect('clicked(bool)', self.onCoilChecked)
     
     self.resliceAxCheckBox.connect('toggled(bool)', self.onResliceChecked)
     self.resliceSagCheckBox.connect('toggled(bool)', self.onResliceChecked)
@@ -668,32 +588,18 @@ class MRTrackingWidget(ScriptedLoadableModuleWidget):
 
 
   def onCoilChecked(self):
-    activeCoils1 = [
-      self.coil_1_1_CheckBox.checked,
-      self.coil_1_2_CheckBox.checked,
-      self.coil_1_3_CheckBox.checked,
-      self.coil_1_4_CheckBox.checked,
-      self.coil_1_5_CheckBox.checked,
-      self.coil_1_6_CheckBox.checked,
-      self.coil_1_7_CheckBox.checked,
-      self.coil_1_8_CheckBox.checked
-    ]
-    activeCoils2 = [
-      self.coil_2_1_CheckBox.checked,
-      self.coil_2_2_CheckBox.checked,
-      self.coil_2_3_CheckBox.checked,
-      self.coil_2_4_CheckBox.checked,
-      self.coil_2_5_CheckBox.checked,
-      self.coil_2_6_CheckBox.checked,
-      self.coil_2_7_CheckBox.checked,
-      self.coil_2_8_CheckBox.checked
-    ]
+    
+    activeCoils1 = [0] * self.nChannel
+    activeCoils2 = [0] * self.nChannel
+    for ch in range(self.nChannel):
+      activeCoils1[ch] = self.coilCheckBox[0][ch].checked
+      activeCoils2[ch] = self.coilCheckBox[1][ch].checked
 
     coilOrder1 = 'distal'
-    if self.coilOrder1ProximalRadioButton.checked:
+    if self.coilOrderProximalRadioButton[0].checked:
       coilOrder1 = 'proximal'
     coilOrder2 = 'distal'
-    if self.coilOrder2ProximalRadioButton.checked:
+    if self.coilOrderProximalRadioButton[1].checked:
       coilOrder2 = 'proximal'
 
     self.logic.setActiveCoils(activeCoils1, activeCoils2, coilOrder1, coilOrder2)
@@ -762,25 +668,11 @@ class MRTrackingWidget(ScriptedLoadableModuleWidget):
     self.catheter2OpacitySliderWidget.value = tdata.cmOpacity[1]
     
     self.showCoilLabelCheckBox.checked = tdata.showCoilLabel
-    
-    self.coil_1_1_CheckBox.checked = tdata.activeCoils1[0]
-    self.coil_1_2_CheckBox.checked = tdata.activeCoils1[1]
-    self.coil_1_3_CheckBox.checked = tdata.activeCoils1[2]
-    self.coil_1_4_CheckBox.checked = tdata.activeCoils1[3]
-    self.coil_1_5_CheckBox.checked = tdata.activeCoils1[4]
-    self.coil_1_6_CheckBox.checked = tdata.activeCoils1[5]
-    self.coil_1_7_CheckBox.checked = tdata.activeCoils1[6]
-    self.coil_1_8_CheckBox.checked = tdata.activeCoils1[7]
-    
-    self.coil_2_1_CheckBox.checked = tdata.activeCoils2[0]
-    self.coil_2_2_CheckBox.checked = tdata.activeCoils2[1]
-    self.coil_2_3_CheckBox.checked = tdata.activeCoils2[2]
-    self.coil_2_4_CheckBox.checked = tdata.activeCoils2[3]
-    self.coil_2_5_CheckBox.checked = tdata.activeCoils2[4]
-    self.coil_2_6_CheckBox.checked = tdata.activeCoils2[5]
-    self.coil_2_7_CheckBox.checked = tdata.activeCoils2[6]
-    self.coil_2_8_CheckBox.checked = tdata.activeCoils2[7]
 
+    for ch in range(self.nChannel):
+      self.coilCheckBox[0][ch].checked = tdata.activeCoils1[ch]
+      self.coilCheckBox[1][ch].checked = tdata.activeCoils2[ch]
+    
     if tdata.axisDirection[0] > 0.0:
       self.coordinateRPlusRadioButton.checked = 1
     else:
@@ -1049,7 +941,6 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
     tdnode = slicer.mrmlScene.GetNodeByID(parentID)
     
     if tdnode and tdnode.GetClassName() == 'vtkMRMLIGTLTrackingDataBundleNode':
-      print("updateCatheter")
       self.updateCatheterNode(tdnode, 1)
       self.updateCatheterNode(tdnode, 2)
 
