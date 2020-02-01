@@ -5,6 +5,7 @@ from __main__ import vtk, qt, ctk, slicer
 from slicer.ScriptedLoadableModule import *
 from TrackingData import *
 import numpy
+import functools
 
 import CurveMaker
     
@@ -70,6 +71,8 @@ class MRTrackingWidget(ScriptedLoadableModuleWidget):
     #
     #--------------------------------------------------
 
+    self.nChannel = 8   # Number of channels / catheter
+    self.nCath = 2 # Number of catheters
 
     #--------------------------------------------------
     # GUI components
@@ -155,72 +158,44 @@ class MRTrackingWidget(ScriptedLoadableModuleWidget):
 
     selectionFormLayout = qt.QFormLayout(selectionCollapsibleButton)
 
-    #
-    # Catheter #1 Tip Length (legnth between the catheter tip and the first coil)
-    #
-    self.tipLength1SliderWidget = ctk.ctkSliderWidget()
-    self.tipLength1SliderWidget.singleStep = 0.5
-    self.tipLength1SliderWidget.minimum = 0.0
-    self.tipLength1SliderWidget.maximum = 100.0
-    self.tipLength1SliderWidget.value = 10.0
-    self.tipLength1SliderWidget.setToolTip("Set the length of the catheter tip.")
-    selectionFormLayout.addRow("Cath 1 Tip Length (mm): ", self.tipLength1SliderWidget)
+    self.tipLengthSliderWidget = [None] * self.nCath
+    self.catheterDiameterSliderWidget = [None] * self.nCath
+    self.catheterOpacitySliderWidget = [None] * self.nCath
     
-    #
-    # Catheter #1 Catheter diameter
-    #
-    self.catheter1DiameterSliderWidget = ctk.ctkSliderWidget()
-    self.catheter1DiameterSliderWidget.singleStep = 0.1
-    self.catheter1DiameterSliderWidget.minimum = 0.1
-    self.catheter1DiameterSliderWidget.maximum = 10.0
-    self.catheter1DiameterSliderWidget.value = 1.0
-    self.catheter1DiameterSliderWidget.setToolTip("Set the diameter of the catheter")
-    selectionFormLayout.addRow("Cath 1 Diameter (mm): ", self.catheter1DiameterSliderWidget)
-
-    #
-    # Catheter #1 Catheter opacity
-    #
-    self.catheter1OpacitySliderWidget = ctk.ctkSliderWidget()
-    self.catheter1OpacitySliderWidget.singleStep = 0.1
-    self.catheter1OpacitySliderWidget.minimum = 0.0
-    self.catheter1OpacitySliderWidget.maximum = 1.0
-    self.catheter1OpacitySliderWidget.value = 1.0
-    self.catheter1OpacitySliderWidget.setToolTip("Set the opacity of the catheter")
-    selectionFormLayout.addRow("Cath 1 Opacity: ", self.catheter1OpacitySliderWidget)
-
-
-    #
-    # Catheter #2 Tip Length (legnth between the catheter tip and the first coil)
-    #
-    self.tipLength2SliderWidget = ctk.ctkSliderWidget()
-    self.tipLength2SliderWidget.singleStep = 0.5
-    self.tipLength2SliderWidget.minimum = 0.0
-    self.tipLength2SliderWidget.maximum = 100.0
-    self.tipLength2SliderWidget.value = 10.0
-    self.tipLength2SliderWidget.setToolTip("Set the length of the catheter tip.")
-    selectionFormLayout.addRow("Cath 2 Tip Length (mm): ", self.tipLength2SliderWidget)
-    
-    #
-    # Catheter #2 diameter
-    #
-    self.catheter2DiameterSliderWidget = ctk.ctkSliderWidget()
-    self.catheter2DiameterSliderWidget.singleStep = 0.1
-    self.catheter2DiameterSliderWidget.minimum = 0.1
-    self.catheter2DiameterSliderWidget.maximum = 10.0
-    self.catheter2DiameterSliderWidget.value = 1.0
-    self.catheter2DiameterSliderWidget.setToolTip("Set the diameter of the catheter")
-    selectionFormLayout.addRow("Cath 2 Diameter (mm): ", self.catheter2DiameterSliderWidget)
-
-    #
-    # Catheter #2 opacity
-    #
-    self.catheter2OpacitySliderWidget = ctk.ctkSliderWidget()
-    self.catheter2OpacitySliderWidget.singleStep = 0.1
-    self.catheter2OpacitySliderWidget.minimum = 0.0
-    self.catheter2OpacitySliderWidget.maximum = 1.0
-    self.catheter2OpacitySliderWidget.value = 1.0
-    self.catheter2OpacitySliderWidget.setToolTip("Set the opacity of the catheter")
-    selectionFormLayout.addRow("Cath 2 Opacity: ", self.catheter2OpacitySliderWidget)
+    for cath in range(self.nCath):
+      
+      #
+      # Tip Length (legnth between the catheter tip and the first coil)
+      #
+      self.tipLengthSliderWidget[cath] = ctk.ctkSliderWidget()
+      self.tipLengthSliderWidget[cath].singleStep = 0.5
+      self.tipLengthSliderWidget[cath].minimum = 0.0
+      self.tipLengthSliderWidget[cath].maximum = 100.0
+      self.tipLengthSliderWidget[cath].value = 10.0
+      self.tipLengthSliderWidget[cath].setToolTip("Set the length of the catheter tip.")
+      selectionFormLayout.addRow("Cath %d Tip Length (mm): " % cath, self.tipLengthSliderWidget[cath])
+      
+      #
+      # Catheter #1 Catheter diameter
+      #
+      self.catheterDiameterSliderWidget[cath] = ctk.ctkSliderWidget()
+      self.catheterDiameterSliderWidget[cath].singleStep = 0.1
+      self.catheterDiameterSliderWidget[cath].minimum = 0.1
+      self.catheterDiameterSliderWidget[cath].maximum = 10.0
+      self.catheterDiameterSliderWidget[cath].value = 1.0
+      self.catheterDiameterSliderWidget[cath].setToolTip("Set the diameter of the catheter")
+      selectionFormLayout.addRow("Cath %d Diameter (mm): " % cath, self.catheterDiameterSliderWidget[cath])
+      
+      #
+      # Catheter #1 Catheter opacity
+      #
+      self.catheterOpacitySliderWidget[cath] = ctk.ctkSliderWidget()
+      self.catheterOpacitySliderWidget[cath].singleStep = 0.1
+      self.catheterOpacitySliderWidget[cath].minimum = 0.0
+      self.catheterOpacitySliderWidget[cath].maximum = 1.0
+      self.catheterOpacitySliderWidget[cath].value = 1.0
+      self.catheterOpacitySliderWidget[cath].setToolTip("Set the opacity of the catheter")
+      selectionFormLayout.addRow("Cath %d Opacity: " % cath, self.catheterOpacitySliderWidget[cath])
 
     #
     # Coil Selection Aare
@@ -242,8 +217,6 @@ class MRTrackingWidget(ScriptedLoadableModuleWidget):
     #
     # Coil seleciton check boxes
     #
-    self.nChannel = 8   # Number of channels / catheter
-    self.nCath = 2 # Number of catheters
     self.coilCheckBox = [[None for i in range(self.nChannel)] for j in range(self.nCath)]
     self.coilOrderDistalRadioButton = [None]*self.nCath
     self.coilOrderProximalRadioButton = [None]*self.nCath
@@ -399,12 +372,12 @@ class MRTrackingWidget(ScriptedLoadableModuleWidget):
     self.trackingDataSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onTrackingDataSelected)
     self.activeConnectionCheckBox.connect('toggled(bool)', self.onActiveConnection)
     self.activeTrackingCheckBox.connect('toggled(bool)', self.onActiveTracking)
-    self.tipLength1SliderWidget.connect("valueChanged(double)", self.onTipLength1Changed)
-    self.catheter1DiameterSliderWidget.connect("valueChanged(double)", self.onCatheter1DiameterChanged)
-    self.catheter1OpacitySliderWidget.connect("valueChanged(double)", self.onCatheter1OpacityChanged)
-    self.tipLength2SliderWidget.connect("valueChanged(double)", self.onTipLength2Changed)
-    self.catheter2DiameterSliderWidget.connect("valueChanged(double)", self.onCatheter2DiameterChanged)
-    self.catheter2OpacitySliderWidget.connect("valueChanged(double)", self.onCatheter2OpacityChanged)
+
+    for cath in range(self.nCath):
+      self.tipLengthSliderWidget[cath].connect("valueChanged(double)", functools.partial(self.onTipLengthChanged, cath))
+      self.catheterDiameterSliderWidget[cath].connect("valueChanged(double)", functools.partial(self.onCatheterDiameterChanged, cath))
+      self.catheterOpacitySliderWidget[cath].connect("valueChanged(double)", functools.partial(self.onCatheterOpacityChanged, cath))
+
     self.showCoilLabelCheckBox.connect('toggled(bool)', self.onCoilLabelChecked)
 
     for cath in range(self.nCath):
@@ -560,29 +533,19 @@ class MRTrackingWidget(ScriptedLoadableModuleWidget):
   def onRejectRegistration(self):
     self.logic.acceptNewMatrix(self, False)
 
-    
-  def onTipLength1Changed(self):
-    self.logic.setTipLength(self.tipLength1SliderWidget.value, 1)
 
+  def onTipLengthChanged(self, cath, checked):
+    print("onTipLengthChanged(%d)" % cath)
+    self.logic.setTipLength(self.tipLengthSliderWidget[cath].value, cath)
+  
     
-  def onCatheter1DiameterChanged(self):
-    self.logic.setCatheterDiameter(self.catheter1DiameterSliderWidget.value, 1)
+  def onCatheterDiameterChanged(self, cath, checked):
+    self.logic.setCatheterDiameter(self.catheterDiameterSliderWidget[cath].value, cath)
     
+  
+  def onCatheterOpacityChanged(self, cath, checked):
+    self.logic.setCatheterOpacity(self.catheterOpacitySliderWidget[cath].value, cath)
 
-  def onCatheter1OpacityChanged(self):
-    self.logic.setCatheterOpacity(self.catheter1OpacitySliderWidget.value, 1)
-    
-  def onTipLength2Changed(self):
-    self.logic.setTipLength(self.tipLength2SliderWidget.value, 2)
-
-  def onCatheter2DiameterChanged(self):
-    self.logic.setCatheterDiameter(self.catheter2DiameterSliderWidget.value, 2)
-    
-
-  def onCatheter2OpacityChanged(self):
-    self.logic.setCatheterOpacity(self.catheter2OpacitySliderWidget.value, 2)
-    
-    
   def onCoilLabelChecked(self):
     self.logic.setShowCoilLabel(self.showCoilLabelCheckBox.checked)
 
@@ -659,14 +622,13 @@ class MRTrackingWidget(ScriptedLoadableModuleWidget):
       self.activeTrackingCheckBox.checked = True
     else:
       self.activeTrackingCheckBox.checked = False
-    
-    self.tipLength1SliderWidget.value = tdata.tipLength[0]
-    self.catheter1DiameterSliderWidget.value = tdata.cmRadius[0] * 2
-    self.catheter1OpacitySliderWidget.value = tdata.cmOpacity[0]
-    self.tipLength2SliderWidget.value = tdata.tipLength[1]
-    self.catheter2DiameterSliderWidget.value = tdata.cmRadius[1] * 2
-    self.catheter2OpacitySliderWidget.value = tdata.cmOpacity[1]
-    
+
+
+    for cath in range(self.nCath):
+      self.tipLengthSliderWidget[cath].value = tdata.tipLength[cath]
+      self.catheterDiameterSliderWidget[cath].value = tdata.cmRadius[cath] * 2
+      self.catheterOpacitySliderWidget[cath].value = tdata.cmOpacity[cath]
+      
     self.showCoilLabelCheckBox.checked = tdata.showCoilLabel
 
     for ch in range(self.nChannel):
@@ -746,8 +708,8 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
       td.cmLogic = self.cmLogic
       self.TrackingData[tdnode.GetID()] = td
       
+      self.setupFiducials(tdnode, 0)
       self.setupFiducials(tdnode, 1)
-      self.setupFiducials(tdnode, 2)
 
   def switchCurrentTrackingData(self, tdnode):
     if not tdnode:
@@ -773,7 +735,7 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
     if nodeID:
       td = self.TrackingData[nodeID]
       if td:
-        td.tipLength[index-1] = length
+        td.tipLength[index] = length
         tnode = slicer.mrmlScene.GetNodeByID(nodeID)
         self.updateCatheter(tnode, index)
 
@@ -783,7 +745,7 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
     if nodeID:
       td = self.TrackingData[nodeID]
       if td:
-        td.cmRadius[index-1] = diameter / 2.0
+        td.cmRadius[index] = diameter / 2.0
         tnode = slicer.mrmlScene.GetNodeByID(nodeID)
         self.updateCatheter(tnode, index)
     
@@ -793,7 +755,7 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
     if nodeID:
       td = self.TrackingData[nodeID]
       if td:
-        td.cmOpacity[index-1] = opacity
+        td.cmOpacity[index] = opacity
         tnode = slicer.mrmlScene.GetNodeByID(nodeID)
         self.updateCatheter(tnode, index)
 
@@ -805,8 +767,8 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
       if td:
         td.showCoilLabel = show
         tnode = slicer.mrmlScene.GetNodeByID(nodeID)
+        self.updateCatheter(tnode, 0)
         self.updateCatheter(tnode, 1)
-        self.updateCatheter(tnode, 2)
 
         
   def isStringInteger(self, s):
@@ -818,7 +780,7 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
 
 
   def setActiveCoils(self, coils1, coils2, coilOrder1, coilOrder2):
-    print("setActiveCoils(self, coils1, coils2, coilOrder1, coilOrder2)")
+    #print("setActiveCoils(self, coils1, coils2, coilOrder1, coilOrder2)")
     nodeID = self.currentTrackingDataNodeID
     if nodeID:
       td = self.TrackingData[nodeID]
@@ -835,8 +797,8 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
           td.coilOrder2 = False
 
         tnode = slicer.mrmlScene.GetNodeByID(nodeID)
+        self.updateCatheter(tnode, 0)
         self.updateCatheter(tnode, 1)
-        self.updateCatheter(tnode, 2)
         
     return True
 
@@ -845,8 +807,8 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
     self.reslice = [ax, sag, cor]
     for nodeID in self.TrackingData:
       tnode = slicer.mrmlScene.GetNodeByID(nodeID)
+      self.updateCatheter(tnode, 0)
       self.updateCatheter(tnode, 1)
-      self.updateCatheter(tnode, 2)
    
 
   def setResliceCath(self, index):
@@ -875,8 +837,8 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
           td.axisDirection[2] = -1.0
 
         tnode = slicer.mrmlScene.GetNodeByID(nodeID)
+        self.updateCatheter(tnode, 0)
         self.updateCatheter(tnode, 1)
-        self.updateCatheter(tnode, 2)
    
     
   def setupFiducials(self, tdnode, index):
@@ -908,15 +870,15 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
     # Set up tip model node, if specified in the connector node
     tipModelID = tdnode.GetAttribute('MRTracking.tipModel%d' % index)
     if tipModelID != None:
-      td.tipModelNode[index-1] = self.scene.GetNodeByID(tipModelID)
+      td.tipModelNode[index] = self.scene.GetNodeByID(tipModelID)
     else:
-      td.tipModelNode[index-1] = None
+      td.tipModelNode[index] = None
 
     tipTransformNodeID = tdnode.GetAttribute('MRTracking.tipTransform%d' % index)
     if tipTransformNodeID != None:
-      td.tipTransformNode[index-1] = self.scene.GetNodeByID(tipTransformNodeID)
+      td.tipTransformNode[index] = self.scene.GetNodeByID(tipTransformNodeID)
     else:
-      td.tipTransformNode[index-1] = None
+      td.tipTransformNode[index] = None
 
     ## Set up incoming node, if specified in the connector node
     #incomingNodeID = tdnode.GetAttribute('MRTracking.incomingNode%d' % index)
@@ -926,14 +888,15 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
     #      self.eventTag[incomingNodeID] = incomingNode.AddObserver(vtk.vtkCommand.ModifiedEvent, self.onIncomingNodeModifiedEvent)
     #tdnode.eventTag = incomingNode.AddObserver(vtk.vtkCommand.ModifiedEvent, self.onIncomingNodeModifiedEvent)
     
-        
-  def onMessageReceived(self, node):
+
+  def onIncomingNodeModifiedEvent(self, caller, event):
+  #def onMessageReceived(self, node):
     #print ("onMessageReceived(self, %s)" % node.GetID())
     #if node.GetID() == self.connectorNodeID:
     #  for tdNodeID in self.TrackingData:
         #print (" updating %s" % tdNodeID)
-    print("onMessageReceived(self, node) %s" % node.GetClassName())
-    parentID = node.GetAttribute('MRTracking.parent')
+
+    parentID = caller.GetAttribute('MRTracking.parent')
     
     if parentID == '':
       return
@@ -941,8 +904,8 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
     tdnode = slicer.mrmlScene.GetNodeByID(parentID)
     
     if tdnode and tdnode.GetClassName() == 'vtkMRMLIGTLTrackingDataBundleNode':
+      self.updateCatheterNode(tdnode, 0)
       self.updateCatheterNode(tdnode, 1)
-      self.updateCatheterNode(tdnode, 2)
 
       
   def updateCatheterNode(self, tdnode, index):
@@ -993,7 +956,7 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
     nCoils = tdnode.GetNumberOfTransformNodes()
     td = self.TrackingData[tdnode.GetID()]
     mask = td.activeCoils1[0:nCoils]
-    if index == 2:
+    if index == 1:
       mask = td.activeCoils2[0:nCoils]
     nActiveCoils = sum(mask)
     if fiducialNode.GetNumberOfFiducials() != nActiveCoils:
@@ -1013,9 +976,9 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
         #fiducialNode.SetNthFiducialPositionFromArray(j, trans.GetPosition())
         v = trans.GetPosition()
         coilID = j
-        if index == 1 and td.coilOrder1 == False:
+        if index == 0 and td.coilOrder1 == False:
           coilID = nCoils - j - 1
-        if index == 2 and td.coilOrder2 == False:
+        if index == 1 and td.coilOrder2 == False:
           coilID = nCoils - j - 1
         fiducialNode.SetNthFiducialPosition(coilID, v[0] * td.axisDirection[0], v[1] * td.axisDirection[1], v[2] * td.axisDirection[2])
         j += 1
@@ -1047,13 +1010,13 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
     
     modelDisplayNode = destinationNode.GetDisplayNode()
     if modelDisplayNode:
-      modelDisplayNode.SetColor(td.cmModelColor[index-1])
-      modelDisplayNode.SetOpacity(td.cmOpacity[index-1])
+      modelDisplayNode.SetColor(td.cmModelColor[index])
+      modelDisplayNode.SetOpacity(td.cmOpacity[index])
       modelDisplayNode.SliceIntersectionVisibilityOn()
       modelDisplayNode.SetSliceDisplayModeToIntersection()
 
     # Update catheter using the CurveMaker module
-    self.cmLogic.setTubeRadius(td.cmRadius[index-1], sourceNode)
+    self.cmLogic.setTubeRadius(td.cmRadius[index], sourceNode)
     self.cmLogic.enableAutomaticUpdate(1, sourceNode)
     self.cmLogic.setInterpolationMethod('cardinal', sourceNode)
     self.cmLogic.updateCurve()
@@ -1084,7 +1047,7 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
       p1 = numpy.array(points.GetPoint(pts.GetId(1)))
       v10 = p0 - p1
       n10 = v10 / numpy.linalg.norm(v10) # Normal vector at the tip
-      pe = p0 + n10 * td.tipLength[index-1]
+      pe = p0 + n10 * td.tipLength[index]
 
       ## Calculate rotation matrix
       ## Check if <n10> is not parallel to <s>=(0.0, 1.0, 0.0)
@@ -1097,20 +1060,20 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
         s = numpy.cross(n10, t)
         t = numpy.cross(s, n10)
 
-    if td.tipPoly[index-1]==None:
-      td.tipPoly[index-1] = vtk.vtkPolyData()
+    if td.tipPoly[index]==None:
+      td.tipPoly[index] = vtk.vtkPolyData()
 
-    if td.tipModelNode[index-1] == None:
-      td.tipModelNode[index-1] = self.scene.CreateNodeByClass('vtkMRMLModelNode')
-      td.tipModelNode[index-1].SetName('Tip')
-      self.scene.AddNode(td.tipModelNode[index-1])
-      tdnode.SetAttribute('MRTracking.tipModel%d' % index, td.tipModelNode[index-1].GetID())
+    if td.tipModelNode[index] == None:
+      td.tipModelNode[index] = self.scene.CreateNodeByClass('vtkMRMLModelNode')
+      td.tipModelNode[index].SetName('Tip')
+      self.scene.AddNode(td.tipModelNode[index])
+      tdnode.SetAttribute('MRTracking.tipModel%d' % index, td.tipModelNode[index].GetID())
         
-    if td.tipTransformNode[index-1] == None:
-      td.tipTransformNode[index-1] = self.scene.CreateNodeByClass('vtkMRMLLinearTransformNode')
-      td.tipTransformNode[index-1].SetName('TipTransform')
-      self.scene.AddNode(td.tipTransformNode[index-1])
-      tdnode.SetAttribute('MRTracking.tipTransform%d' % index, td.tipTransformNode[index-1].GetID())
+    if td.tipTransformNode[index] == None:
+      td.tipTransformNode[index] = self.scene.CreateNodeByClass('vtkMRMLLinearTransformNode')
+      td.tipTransformNode[index].SetName('TipTransform')
+      self.scene.AddNode(td.tipTransformNode[index])
+      tdnode.SetAttribute('MRTracking.tipTransform%d' % index, td.tipTransformNode[index].GetID())
 
     matrix = vtk.vtkMatrix4x4()
     matrix.SetElement(0, 0, t[0])
@@ -1125,31 +1088,31 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
     matrix.SetElement(0, 3, pe[0])
     matrix.SetElement(1, 3, pe[1])
     matrix.SetElement(2, 3, pe[2])
-    td.tipTransformNode[index-1].SetMatrixTransformToParent(matrix)
+    td.tipTransformNode[index].SetMatrixTransformToParent(matrix)
     
     # if the tracking data is current:
     if self.currentTrackingDataNodeID == tdnode.GetID() and self.resliceCath == index:
         if self.reslice[0]:
-          self.resliceDriverLogic.SetDriverForSlice(td.tipTransformNode[index-1].GetID(), self.sliceNodeRed)
+          self.resliceDriverLogic.SetDriverForSlice(td.tipTransformNode[index].GetID(), self.sliceNodeRed)
           self.resliceDriverLogic.SetModeForSlice(self.resliceDriverLogic.MODE_AXIAL, self.sliceNodeRed)
         else:
           self.resliceDriverLogic.SetDriverForSlice('', self.sliceNodeRed)
           self.resliceDriverLogic.SetModeForSlice(self.resliceDriverLogic.MODE_NONE, self.sliceNodeRed)
         if self.reslice[1]:
-          self.resliceDriverLogic.SetDriverForSlice(td.tipTransformNode[index-1].GetID(), self.sliceNodeYellow)
+          self.resliceDriverLogic.SetDriverForSlice(td.tipTransformNode[index].GetID(), self.sliceNodeYellow)
           self.resliceDriverLogic.SetModeForSlice(self.resliceDriverLogic.MODE_SAGITTAL, self.sliceNodeYellow)
         else:
           self.resliceDriverLogic.SetDriverForSlice('', self.sliceNodeYellow)
           self.resliceDriverLogic.SetModeForSlice(self.resliceDriverLogic.MODE_NONE, self.sliceNodeYellow)
         
         if self.reslice[2]:
-          self.resliceDriverLogic.SetDriverForSlice(td.tipTransformNode[index-1].GetID(), self.sliceNodeGreen)
+          self.resliceDriverLogic.SetDriverForSlice(td.tipTransformNode[index].GetID(), self.sliceNodeGreen)
           self.resliceDriverLogic.SetModeForSlice(self.resliceDriverLogic.MODE_CORONAL, self.sliceNodeGreen)
         else:
           self.resliceDriverLogic.SetDriverForSlice('', self.sliceNodeGreen)
           self.resliceDriverLogic.SetModeForSlice(self.resliceDriverLogic.MODE_NONE, self.sliceNodeGreen)
 
-    self.updateTipModelNode(td.tipModelNode[index-1], td.tipPoly[index-1], p0, pe, td.cmRadius[index-1], td.cmModelColor[index-1], td.cmOpacity[index-1])
+    self.updateTipModelNode(td.tipModelNode[index], td.tipPoly[index], p0, pe, td.cmRadius[index], td.cmModelColor[index], td.cmOpacity[index])
 
 
   def onConnectedEvent(self, caller, event):
@@ -1222,9 +1185,8 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
     tipDispNode.SetSliceDisplayModeToIntersection()
     
 
-  def onIncomingNodeModifiedEvent(self, caller, event):
-    print("onIncomingNodeModifiedEvent(self, caller, event)")
-    self.onMessageReceived(caller)
+  #def onIncomingNodeModifiedEvent(self, caller, event):
+  #  self.onMessageReceived(caller)
 
 
   def onNodeRemovedEvent(self, caller, event, obj=None):
