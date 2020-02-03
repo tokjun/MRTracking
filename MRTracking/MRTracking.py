@@ -87,9 +87,10 @@ class MRTrackingWidget(ScriptedLoadableModuleWidget):
     # Layout within the dummy collapsible button
     connectionFormLayout = qt.QFormLayout(connectionCollapsibleButton)
 
-    #
-    # connector selector
-    #
+    #--------------------------------------------------
+    # Connector Selector
+    #--------------------------------------------------
+
     self.connectorSelector = slicer.qMRMLNodeComboBox()
     self.connectorSelector.nodeTypes = ( ("vtkMRMLIGTLConnectorNode"), "" )
     self.connectorSelector.selectNodeUponCreation = True
@@ -109,25 +110,31 @@ class MRTrackingWidget(ScriptedLoadableModuleWidget):
     self.connectorPort.setToolTip("Port number of the server")
     connectionFormLayout.addRow("Port: ", self.connectorPort)
 
-    #
     # check box to trigger transform conversion
-    #
     self.activeConnectionCheckBox = qt.QCheckBox()
     self.activeConnectionCheckBox.checked = 0
     self.activeConnectionCheckBox.enabled = 0
     self.activeConnectionCheckBox.setToolTip("Activate OpenIGTLink connection")
     connectionFormLayout.addRow("Active: ", self.activeConnectionCheckBox)
 
+    #--------------------------------------------------
+    # Catheter
+    #--------------------------------------------------
 
-    #
+    catheterCollapsibleButton = ctk.ctkCollapsibleButton()
+    catheterCollapsibleButton.text = "Tracking Node"
+    self.layout.addWidget(catheterCollapsibleButton)
+
+    catheterFormLayout = qt.QFormLayout(catheterCollapsibleButton)
+
+    #--------------------------------------------------
     # Tracking node selector
-    #
-    trackingNodeCollapsibleButton = ctk.ctkCollapsibleButton()
-    trackingNodeCollapsibleButton.text = "Tracking Node"
-    self.layout.addWidget(trackingNodeCollapsibleButton)
 
-    trackingNodeFormLayout = qt.QFormLayout(trackingNodeCollapsibleButton)
-
+    trackingNodeGroupBox = ctk.ctkCollapsibleGroupBox()
+    trackingNodeGroupBox.title = "Tracking Node"
+    catheterFormLayout.addWidget(trackingNodeGroupBox)
+    trackingNodeFormLayout = qt.QFormLayout(trackingNodeGroupBox)
+    
     self.trackingDataSelector = slicer.qMRMLNodeComboBox()
     self.trackingDataSelector.nodeTypes = ( ("vtkMRMLIGTLTrackingDataBundleNode"), "" )
     self.trackingDataSelector.selectNodeUponCreation = True
@@ -149,14 +156,16 @@ class MRTrackingWidget(ScriptedLoadableModuleWidget):
     self.activeTrackingCheckBox.setToolTip("Activate Tracking")
     trackingNodeFormLayout.addRow("Active: ", self.activeTrackingCheckBox)
     
-    #
-    # Configuration Selection Area
-    #
-    selectionCollapsibleButton = ctk.ctkCollapsibleButton()
-    selectionCollapsibleButton.text = "Catheter Configuration"
-    self.layout.addWidget(selectionCollapsibleButton)
+    #--------------------------------------------------
+    # Catheter Configuration
 
-    selectionFormLayout = qt.QFormLayout(selectionCollapsibleButton)
+    configGroupBox = ctk.ctkCollapsibleGroupBox()
+    configGroupBox.title = "Catheter Configuration"
+    configGroupBox.collapsed = True
+
+    catheterFormLayout.addWidget(configGroupBox)
+    configFormLayout = qt.QFormLayout(configGroupBox)
+
 
     self.tipLengthSliderWidget = [None] * self.nCath
     self.catheterDiameterSliderWidget = [None] * self.nCath
@@ -173,7 +182,7 @@ class MRTrackingWidget(ScriptedLoadableModuleWidget):
       self.tipLengthSliderWidget[cath].maximum = 100.0
       self.tipLengthSliderWidget[cath].value = 10.0
       self.tipLengthSliderWidget[cath].setToolTip("Set the length of the catheter tip.")
-      selectionFormLayout.addRow("Cath %d Tip Length (mm): " % cath, self.tipLengthSliderWidget[cath])
+      configFormLayout.addRow("Cath %d Tip Length (mm): " % cath, self.tipLengthSliderWidget[cath])
       
       #
       # Catheter #1 Catheter diameter
@@ -184,7 +193,7 @@ class MRTrackingWidget(ScriptedLoadableModuleWidget):
       self.catheterDiameterSliderWidget[cath].maximum = 10.0
       self.catheterDiameterSliderWidget[cath].value = 1.0
       self.catheterDiameterSliderWidget[cath].setToolTip("Set the diameter of the catheter")
-      selectionFormLayout.addRow("Cath %d Diameter (mm): " % cath, self.catheterDiameterSliderWidget[cath])
+      configFormLayout.addRow("Cath %d Diameter (mm): " % cath, self.catheterDiameterSliderWidget[cath])
       
       #
       # Catheter #1 Catheter opacity
@@ -195,17 +204,18 @@ class MRTrackingWidget(ScriptedLoadableModuleWidget):
       self.catheterOpacitySliderWidget[cath].maximum = 1.0
       self.catheterOpacitySliderWidget[cath].value = 1.0
       self.catheterOpacitySliderWidget[cath].setToolTip("Set the opacity of the catheter")
-      selectionFormLayout.addRow("Cath %d Opacity: " % cath, self.catheterOpacitySliderWidget[cath])
+      configFormLayout.addRow("Cath %d Opacity: " % cath, self.catheterOpacitySliderWidget[cath])
 
-    #
+    #--------------------------------------------------
     # Coil Selection Aare
     #
-    coilCollapsibleButton = ctk.ctkCollapsibleButton()
-    coilCollapsibleButton.text = "Coil Selection"
-    self.layout.addWidget(coilCollapsibleButton)
+    coilGroupBox = ctk.ctkCollapsibleGroupBox()
+    coilGroupBox.title = "Coil Selection"
+    coilGroupBox.collapsed = True
     
-    coilSelectionLayout = qt.QFormLayout(coilCollapsibleButton)
-    
+    catheterFormLayout.addWidget(coilGroupBox)
+    coilSelectionLayout = qt.QFormLayout(coilGroupBox)
+
     #
     # Check box to show/hide coil labels 
     #
@@ -251,15 +261,15 @@ class MRTrackingWidget(ScriptedLoadableModuleWidget):
       coilOrderGroupLayout.addWidget(self.coilOrderProximalRadioButton[cath])
       coilSelectionLayout.addRow("Cath %d Coil Order:" % cath, coilOrderGroupLayout)
 
-
-    #
+    #--------------------------------------------------
     # Coordinate System
     #
-    coordinateCollapsibleButton = ctk.ctkCollapsibleButton()
-    coordinateCollapsibleButton.text = "Coordinate System"
-    self.layout.addWidget(coordinateCollapsibleButton)
-
-    coordinateLayout = qt.QFormLayout(coordinateCollapsibleButton)
+    coordinateGroupBox = ctk.ctkCollapsibleGroupBox()
+    coordinateGroupBox.title = "Coordinate System"
+    coordinateGroupBox.collapsed = True
+    
+    catheterFormLayout.addWidget(coordinateGroupBox)
+    coordinateLayout = qt.QFormLayout(coordinateGroupBox)
     
     self.coordinateRPlusRadioButton = qt.QRadioButton("+X")
     self.coordinateRMinusRadioButton = qt.QRadioButton("-X")
@@ -294,7 +304,7 @@ class MRTrackingWidget(ScriptedLoadableModuleWidget):
     self.coordinateSGroup.addButton(self.coordinateSMinusRadioButton)
     coordinateLayout.addRow("Superior:", self.coordinateSBoxLayout)
 
-    #
+    #--------------------------------------------------
     # Reslice
     #
     resliceCollapsibleButton = ctk.ctkCollapsibleButton()
@@ -331,7 +341,7 @@ class MRTrackingWidget(ScriptedLoadableModuleWidget):
     self.resliceBoxLayout.addWidget(self.resliceCorCheckBox)
     resliceLayout.addRow("Reslice Plane:", self.resliceBoxLayout)
 
-    #
+    #--------------------------------------------------
     # Point-to-Point registration
     #
     registrationCollapsibleButton = ctk.ctkCollapsibleButton()
@@ -365,9 +375,9 @@ class MRTrackingWidget(ScriptedLoadableModuleWidget):
     registrationLayout.addRow("TrackingData 2: ", self.reg2TrackingDataSelector)
 
     
-    #
+    #--------------------------------------------------
     # Connections
-    #
+    #--------------------------------------------------
     self.connectorSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onConnectorSelected)
     self.trackingDataSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onTrackingDataSelected)
     self.activeConnectionCheckBox.connect('toggled(bool)', self.onActiveConnection)
