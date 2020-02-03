@@ -224,7 +224,7 @@ class MRTrackingWidget(ScriptedLoadableModuleWidget):
     for cath in range(self.nCath):
       for ch in range(self.nChannel):
         self.coilCheckBox[cath][ch] = qt.QCheckBox()
-        self.coilCheckBox[cath][ch].checked = 1
+        self.coilCheckBox[cath][ch].checked = 0
         self.coilCheckBox[cath][ch].text = "CH %d" % (ch + 1)
 
       nChannelHalf = int(self.nChannel/2)
