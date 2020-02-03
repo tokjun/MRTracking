@@ -14,8 +14,8 @@ import CurveMaker
 # MRTracking
 #
 class MRTracking(ScriptedLoadableModule):
-  """Uses ScriptedLoadableModule base class, available at:
-  https://github.com/Slicer/Slicer/blob/master/Base/Python/slicer/ScriptedLoadableModule.py
+  """MRTrakcing module is available at:
+  https://github.com/tokjun/MRTracking
   """
 
   def __init__(self, parent):
@@ -23,14 +23,13 @@ class MRTracking(ScriptedLoadableModule):
     self.parent.title = "MRTracking" # TODO make this more human readable by adding spaces
     self.parent.categories = ["IGT"]
     self.parent.dependencies = []
-    self.parent.contributors = ["Junichi Tokuda, Wei Wang, Ehud Schmidt (BWH)"]
+    self.parent.contributors = ["Junichi Tokuda (BWH), Wei Wang (BWH), Ehud Schmidt (BWH, JHU)"]
     self.parent.helpText = """
     Visualization of MR-tracked catheter. 
     """
     self.parent.acknowledgementText = """
     This work is supported by NIH (P41EB015898, R01EB020667).
     """ 
-    # replace with organization, grant and thanks.
 
 
 #------------------------------------------------------------
@@ -38,10 +37,7 @@ class MRTracking(ScriptedLoadableModule):
 # MRTrackingWidget
 #
 class MRTrackingWidget(ScriptedLoadableModuleWidget):
-  """Uses ScriptedLoadableModuleWidget base class, available at:
-  https://github.com/Slicer/Slicer/blob/master/Base/Python/slicer/ScriptedLoadableModule.py
-  """
-
+  
   def setup(self):
     ScriptedLoadableModuleWidget.setup(self)
     # Instantiate and connect widgets ...
@@ -518,7 +514,6 @@ class MRTrackingWidget(ScriptedLoadableModuleWidget):
 
   def onConnectorSelected(self):
     cnode = self.connectorSelector.currentNode()    
-    # self.logic.setConnector(cnode)
     self.updateConnectorGUI()
 
   def onActiveTracking(self):
@@ -530,7 +525,6 @@ class MRTrackingWidget(ScriptedLoadableModuleWidget):
     
   def onTrackingDataSelected(self):
     tdnode = self.trackingDataSelector.currentNode()    
-    #self.logic.setTrackingData(cnode)
     tdata = self.logic.switchCurrentTrackingData(tdnode)
     self.updateTrackingDataGUI(tdata)
 
@@ -677,21 +671,9 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
 
     self.eventTag = {}
 
-    # IGTL Conenctor Node ID
-    # self.connectorNodeID = ''
-    
     # CurveMaker
     self.cmLogic = CurveMaker.CurveMakerLogic()
 
-    # Tip model
-    #self.tipLength = [10.0, 10.0]
-    #self.tipModelNode = [None, None]
-    #self.tipTransformNode = [None, None]
-    #self.tipPoly = [None, None]
-    #self.showCoilLabel = False
-    #self.activeCoils1 = [False, False, False, False, True, True, True, True]
-    #self.activeCoils2 = [True, True, True, True, False, False, False, False]
-    
     self.reslice = [False, False, False]
     self.resliceDriverLogic= slicer.modules.volumereslicedriver.logic()
 
@@ -700,8 +682,6 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
     self.sliceNodeGreen = slicer.app.layoutManager().sliceWidget('Green').mrmlSliceNode()
 
     self.resliceCath = 1
-
-    #self.axisDirection = [1.0, 1.0, 1.0]
 
     self.currentTrackingDataNodeID = ''
     self.TrackingData = {}
@@ -900,12 +880,7 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
     
 
   def onIncomingNodeModifiedEvent(self, caller, event):
-  #def onMessageReceived(self, node):
-    #print ("onMessageReceived(self, %s)" % node.GetID())
-    #if node.GetID() == self.connectorNodeID:
-    #  for tdNodeID in self.TrackingData:
-        #print (" updating %s" % tdNodeID)
-
+    
     parentID = caller.GetAttribute('MRTracking.parent')
     
     if parentID == '':
@@ -1194,10 +1169,6 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
     tipDispNode.SliceIntersectionVisibilityOn()
     tipDispNode.SetSliceDisplayModeToIntersection()
     
-
-  #def onIncomingNodeModifiedEvent(self, caller, event):
-  #  self.onMessageReceived(caller)
-
 
   def onNodeRemovedEvent(self, caller, event, obj=None):
     delkey = ''
