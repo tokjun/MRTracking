@@ -4,10 +4,10 @@ import slicer
 
 #------------------------------------------------------------
 #
-# IGTLConnector class
+# MRTrackingIGTLConnector class
 #
 
-class IGTLConnector():
+class MRTrackingIGTLConnector():
 
   def __init__(self, cname="Connector"):
 
@@ -64,7 +64,7 @@ class IGTLConnector():
 
 
   #--------------------------------------------------
-  # GUI Call Back functions
+  # GUI Slots
   #
 
   def onActiveConnection(self):
@@ -178,3 +178,16 @@ class IGTLConnector():
 
     cnode.Stop()
 
+
+  #def onConnectedEvent(self, caller, event):
+  #  #if self.widget != None:
+  #  #  self.widget.updateGUI()
+  #  pass
+
+
+  #def onDisconnectedEvent(self, caller, event):
+  #  #if self.widget != None:
+  #  #  self.widget.updateGUI()
+  #  pass
+
+    

@@ -3,8 +3,9 @@ import unittest
 import time
 from __main__ import vtk, qt, ctk, slicer
 from slicer.ScriptedLoadableModule import *
-from TrackingData import *
-from IGTLConnector import *
+from MRTrackingUtils.trackingdata import *
+from MRTrackingUtils.connector import *
+from MRTrackingUtils.reslice import *
 import numpy
 import functools
 
@@ -88,11 +89,11 @@ class MRTrackingWidget(ScriptedLoadableModuleWidget):
     # Connector Selector
     #--------------------------------------------------
 
-    self.igtlConnector1 = IGTLConnector("Connector 1 (MRI)")
+    self.igtlConnector1 = MRTrackingIGTLConnector("Connector 1 (MRI)")
     self.igtlConnector1.port = 18944
     self.igtlConnector1.buildGUI(connectionFormLayout)
 
-    self.igtlConnector2 = IGTLConnector("Connector 2 (NavX)")
+    self.igtlConnector2 = MRTrackingIGTLConnector("Connector 2 (NavX)")
     self.igtlConnector2.port = 18945
     self.igtlConnector2.buildGUI(connectionFormLayout)
     
@@ -292,48 +293,10 @@ class MRTrackingWidget(ScriptedLoadableModuleWidget):
 
     resliceLayout = qt.QFormLayout(resliceCollapsibleButton)
 
-    # Tracking node selector
-    self.resliceTrackingDataSelector = slicer.qMRMLNodeComboBox()
-    self.resliceTrackingDataSelector.nodeTypes = ( ("vtkMRMLIGTLTrackingDataBundleNode"), "" )
-    self.resliceTrackingDataSelector.selectNodeUponCreation = True
-    self.resliceTrackingDataSelector.addEnabled = True
-    self.resliceTrackingDataSelector.removeEnabled = False
-    self.resliceTrackingDataSelector.noneEnabled = False
-    self.resliceTrackingDataSelector.showHidden = True
-    self.resliceTrackingDataSelector.showChildNodeTypes = False
-    self.resliceTrackingDataSelector.setMRMLScene( slicer.mrmlScene )
-    self.resliceTrackingDataSelector.setToolTip( "Tracking Data for Reslicing" )
-    resliceLayout.addRow("Tracking Data: ", self.resliceTrackingDataSelector)
-
+    self.reslice = MRTrackingReslice("Image Reslice")
+    self.reslice.nCath = self.nCath
+    self.reslice.buildGUI(resliceLayout)
     
-    self.resliceCath1RadioButton = qt.QRadioButton("Cath 1")
-    self.resliceCath2RadioButton = qt.QRadioButton("Cath 2")
-    self.resliceCath1RadioButton.checked = 0
-    self.resliceCathBoxLayout = qt.QHBoxLayout()
-    self.resliceCathBoxLayout.addWidget(self.resliceCath1RadioButton)
-    self.resliceCathBoxLayout.addWidget(self.resliceCath2RadioButton)
-
-    self.resliceCathGroup = qt.QButtonGroup()
-    self.resliceCathGroup.addButton(self.resliceCath1RadioButton)
-    self.resliceCathGroup.addButton(self.resliceCath2RadioButton)
-    resliceLayout.addRow("Catheter:", self.resliceCathBoxLayout)
-    
-    self.resliceAxCheckBox = qt.QCheckBox()
-    self.resliceAxCheckBox.checked = 0
-    self.resliceAxCheckBox.text = "AX"
-    self.resliceSagCheckBox = qt.QCheckBox()
-    self.resliceSagCheckBox.checked = 0
-    self.resliceSagCheckBox.text = "SAG"
-    self.resliceCorCheckBox = qt.QCheckBox()
-    self.resliceCorCheckBox.checked = 0
-    self.resliceCorCheckBox.text = "COR"
-
-    self.resliceBoxLayout = qt.QHBoxLayout()
-    self.resliceBoxLayout.addWidget(self.resliceAxCheckBox)
-    self.resliceBoxLayout.addWidget(self.resliceSagCheckBox)
-    self.resliceBoxLayout.addWidget(self.resliceCorCheckBox)
-    resliceLayout.addRow("Plane:", self.resliceBoxLayout)
-
     #--------------------------------------------------
     # Point-to-Point registration
     #
@@ -371,9 +334,7 @@ class MRTrackingWidget(ScriptedLoadableModuleWidget):
     #--------------------------------------------------
     # Connections
     #--------------------------------------------------
-    #self.connectorSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onConnectorSelected)
     self.trackingDataSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onTrackingDataSelected)
-    #self.activeConnectionCheckBox.connect('toggled(bool)', self.onActiveConnection)
     self.activeTrackingCheckBox.connect('toggled(bool)', self.onActiveTracking)
 
     for cath in range(self.nCath):
@@ -391,13 +352,6 @@ class MRTrackingWidget(ScriptedLoadableModuleWidget):
       self.coilOrderDistalRadioButton[cath].connect('clicked(bool)', self.onCoilChecked)
       self.coilOrderProximalRadioButton[cath].connect('clicked(bool)', self.onCoilChecked)
     
-    self.resliceAxCheckBox.connect('toggled(bool)', self.onResliceChecked)
-    self.resliceSagCheckBox.connect('toggled(bool)', self.onResliceChecked)
-    self.resliceCorCheckBox.connect('toggled(bool)', self.onResliceChecked)
-
-    self.resliceCath1RadioButton.connect('clicked(bool)', self.onSelectResliceCath)
-    self.resliceCath2RadioButton.connect('clicked(bool)', self.onSelectResliceCath)
-
     self.coordinateRPlusRadioButton.connect('clicked(bool)', self.onSelectCoordinate)
     self.coordinateRMinusRadioButton.connect('clicked(bool)', self.onSelectCoordinate)
     self.coordinateAPlusRadioButton.connect('clicked(bool)', self.onSelectCoordinate)
@@ -467,24 +421,8 @@ class MRTrackingWidget(ScriptedLoadableModuleWidget):
       coilOrder2 = 'proximal'
 
     self.logic.setActiveCoils(activeCoils1, activeCoils2, coilOrder1, coilOrder2)
-    
-  def onResliceChecked(self):
-    
-    ax  = self.resliceAxCheckBox.checked
-    sag = self.resliceSagCheckBox.checked
-    cor = self.resliceCorCheckBox.checked
-
-    self.logic.setReslice(ax, sag, cor)
 
     
-  def onSelectResliceCath(self):
-
-    if self.resliceCath1RadioButton.checked:
-      self.logic.setResliceCath(1)
-    else:
-      self.logic.setResliceCath(2)
-
-      
   def onSelectCoordinate(self):
 
     rPositive = self.coordinateRPlusRadioButton.checked
@@ -556,15 +494,6 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
     # CurveMaker
     self.cmLogic = CurveMaker.CurveMakerLogic()
 
-    self.reslice = [False, False, False]
-    self.resliceDriverLogic= slicer.modules.volumereslicedriver.logic()
-
-    self.sliceNodeRed = slicer.app.layoutManager().sliceWidget('Red').mrmlSliceNode()
-    self.sliceNodeYellow = slicer.app.layoutManager().sliceWidget('Yellow').mrmlSliceNode()
-    self.sliceNodeGreen = slicer.app.layoutManager().sliceWidget('Green').mrmlSliceNode()
-
-    self.resliceCath = 1
-
     self.currentTrackingDataNodeID = ''
     self.TrackingData = {}
 
@@ -583,6 +512,7 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
       self.setupFiducials(tdnode, 0)
       self.setupFiducials(tdnode, 1)
 
+      
   def switchCurrentTrackingData(self, tdnode):
     if not tdnode:
       return
@@ -675,18 +605,6 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
     return True
 
 
-  def setReslice(self, ax, sag, cor):
-    self.reslice = [ax, sag, cor]
-    for nodeID in self.TrackingData:
-      tnode = slicer.mrmlScene.GetNodeByID(nodeID)
-      self.updateCatheter(tnode, 0)
-      self.updateCatheter(tnode, 1)
-   
-
-  def setResliceCath(self, index):
-    self.resliceCath = index
-
-    
   def setAxisDirections(self, rPositive, aPositive, sPositive):
     
     nodeID = self.currentTrackingDataNodeID
@@ -739,7 +657,7 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
 
     td = self.TrackingData[tdnode.GetID()]
     
-    # Set up tip model node, if specified in the connector node
+    # Set up tip model node
     tipModelID = tdnode.GetAttribute('MRTracking.tipModel%d' % index)
     if tipModelID != None:
       td.tipModelNode[index] = self.scene.GetNodeByID(tipModelID)
@@ -957,41 +875,8 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
     matrix.SetElement(2, 3, pe[2])
     td.tipTransformNode[index].SetMatrixTransformToParent(matrix)
     
-    # if the tracking data is current:
-    if self.currentTrackingDataNodeID == tdnode.GetID() and self.resliceCath == index:
-        if self.reslice[0]:
-          self.resliceDriverLogic.SetDriverForSlice(td.tipTransformNode[index].GetID(), self.sliceNodeRed)
-          self.resliceDriverLogic.SetModeForSlice(self.resliceDriverLogic.MODE_AXIAL, self.sliceNodeRed)
-        else:
-          self.resliceDriverLogic.SetDriverForSlice('', self.sliceNodeRed)
-          self.resliceDriverLogic.SetModeForSlice(self.resliceDriverLogic.MODE_NONE, self.sliceNodeRed)
-        if self.reslice[1]:
-          self.resliceDriverLogic.SetDriverForSlice(td.tipTransformNode[index].GetID(), self.sliceNodeYellow)
-          self.resliceDriverLogic.SetModeForSlice(self.resliceDriverLogic.MODE_SAGITTAL, self.sliceNodeYellow)
-        else:
-          self.resliceDriverLogic.SetDriverForSlice('', self.sliceNodeYellow)
-          self.resliceDriverLogic.SetModeForSlice(self.resliceDriverLogic.MODE_NONE, self.sliceNodeYellow)
-        
-        if self.reslice[2]:
-          self.resliceDriverLogic.SetDriverForSlice(td.tipTransformNode[index].GetID(), self.sliceNodeGreen)
-          self.resliceDriverLogic.SetModeForSlice(self.resliceDriverLogic.MODE_CORONAL, self.sliceNodeGreen)
-        else:
-          self.resliceDriverLogic.SetDriverForSlice('', self.sliceNodeGreen)
-          self.resliceDriverLogic.SetModeForSlice(self.resliceDriverLogic.MODE_NONE, self.sliceNodeGreen)
-
     self.updateTipModelNode(td.tipModelNode[index], td.tipPoly[index], p0, pe, td.cmRadius[index], td.cmModelColor[index], td.cmOpacity[index])
 
-
-  def onConnectedEvent(self, caller, event):
-    #if self.widget != None:
-    #  self.widget.updateGUI()
-    pass
-
-
-  def onDisconnectedEvent(self, caller, event):
-    #if self.widget != None:
-    #  self.widget.updateGUI()
-    pass
 
   def updateTipModelNode(self, tipModelNode, poly, p0, pe, radius, color, opacity):
     #tipModel = self.scene.CreateNodeByClass('vtkMRMLModelNode')
