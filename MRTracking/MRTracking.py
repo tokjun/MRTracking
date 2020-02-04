@@ -4,6 +4,7 @@ import time
 from __main__ import vtk, qt, ctk, slicer
 from slicer.ScriptedLoadableModule import *
 from TrackingData import *
+from IGTLConnector import *
 import numpy
 import functools
 
@@ -87,32 +88,14 @@ class MRTrackingWidget(ScriptedLoadableModuleWidget):
     # Connector Selector
     #--------------------------------------------------
 
-    self.connectorSelector = slicer.qMRMLNodeComboBox()
-    self.connectorSelector.nodeTypes = ( ("vtkMRMLIGTLConnectorNode"), "" )
-    self.connectorSelector.selectNodeUponCreation = True
-    self.connectorSelector.addEnabled = True
-    self.connectorSelector.removeEnabled = False
-    self.connectorSelector.noneEnabled = False
-    self.connectorSelector.showHidden = False
-    self.connectorSelector.showChildNodeTypes = False
-    self.connectorSelector.setMRMLScene( slicer.mrmlScene )
-    self.connectorSelector.setToolTip( "Establish a connection with the server" )
-    connectionFormLayout.addRow("Connector: ", self.connectorSelector)
+    self.igtlConnector1 = IGTLConnector("Connector 1 (MRI)")
+    self.igtlConnector1.port = 18944
+    self.igtlConnector1.buildGUI(connectionFormLayout)
+
+    self.igtlConnector2 = IGTLConnector("Connector 2 (NavX)")
+    self.igtlConnector2.port = 18945
+    self.igtlConnector2.buildGUI(connectionFormLayout)
     
-    self.connectorPort = qt.QSpinBox()
-    self.connectorPort.objectName = 'PortSpinBox'
-    self.connectorPort.setMaximum(64000)
-    self.connectorPort.setValue(18944)
-    self.connectorPort.setToolTip("Port number of the server")
-    connectionFormLayout.addRow("Port: ", self.connectorPort)
-
-    # check box to trigger transform conversion
-    self.activeConnectionCheckBox = qt.QCheckBox()
-    self.activeConnectionCheckBox.checked = 0
-    self.activeConnectionCheckBox.enabled = 0
-    self.activeConnectionCheckBox.setToolTip("Activate OpenIGTLink connection")
-    connectionFormLayout.addRow("Active: ", self.activeConnectionCheckBox)
-
     #--------------------------------------------------
     # Catheter
     #--------------------------------------------------
@@ -308,6 +291,20 @@ class MRTrackingWidget(ScriptedLoadableModuleWidget):
     self.layout.addWidget(resliceCollapsibleButton)
 
     resliceLayout = qt.QFormLayout(resliceCollapsibleButton)
+
+    # Tracking node selector
+    self.resliceTrackingDataSelector = slicer.qMRMLNodeComboBox()
+    self.resliceTrackingDataSelector.nodeTypes = ( ("vtkMRMLIGTLTrackingDataBundleNode"), "" )
+    self.resliceTrackingDataSelector.selectNodeUponCreation = True
+    self.resliceTrackingDataSelector.addEnabled = True
+    self.resliceTrackingDataSelector.removeEnabled = False
+    self.resliceTrackingDataSelector.noneEnabled = False
+    self.resliceTrackingDataSelector.showHidden = True
+    self.resliceTrackingDataSelector.showChildNodeTypes = False
+    self.resliceTrackingDataSelector.setMRMLScene( slicer.mrmlScene )
+    self.resliceTrackingDataSelector.setToolTip( "Tracking Data for Reslicing" )
+    resliceLayout.addRow("Tracking Data: ", self.resliceTrackingDataSelector)
+
     
     self.resliceCath1RadioButton = qt.QRadioButton("Cath 1")
     self.resliceCath2RadioButton = qt.QRadioButton("Cath 2")
@@ -319,7 +316,7 @@ class MRTrackingWidget(ScriptedLoadableModuleWidget):
     self.resliceCathGroup = qt.QButtonGroup()
     self.resliceCathGroup.addButton(self.resliceCath1RadioButton)
     self.resliceCathGroup.addButton(self.resliceCath2RadioButton)
-    resliceLayout.addRow("Reslice Catheter:", self.resliceCathBoxLayout)
+    resliceLayout.addRow("Catheter:", self.resliceCathBoxLayout)
     
     self.resliceAxCheckBox = qt.QCheckBox()
     self.resliceAxCheckBox.checked = 0
@@ -335,7 +332,7 @@ class MRTrackingWidget(ScriptedLoadableModuleWidget):
     self.resliceBoxLayout.addWidget(self.resliceAxCheckBox)
     self.resliceBoxLayout.addWidget(self.resliceSagCheckBox)
     self.resliceBoxLayout.addWidget(self.resliceCorCheckBox)
-    resliceLayout.addRow("Reslice Plane:", self.resliceBoxLayout)
+    resliceLayout.addRow("Plane:", self.resliceBoxLayout)
 
     #--------------------------------------------------
     # Point-to-Point registration
@@ -374,9 +371,9 @@ class MRTrackingWidget(ScriptedLoadableModuleWidget):
     #--------------------------------------------------
     # Connections
     #--------------------------------------------------
-    self.connectorSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onConnectorSelected)
+    #self.connectorSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onConnectorSelected)
     self.trackingDataSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onTrackingDataSelected)
-    self.activeConnectionCheckBox.connect('toggled(bool)', self.onActiveConnection)
+    #self.activeConnectionCheckBox.connect('toggled(bool)', self.onActiveConnection)
     self.activeTrackingCheckBox.connect('toggled(bool)', self.onActiveTracking)
 
     for cath in range(self.nCath):
@@ -415,106 +412,6 @@ class MRTrackingWidget(ScriptedLoadableModuleWidget):
 
   def cleanup(self):
     pass
-
-
-  #--------------------------------------------------
-  # OpenIGTLink
-  #
-  def connectToServer(self, addr, port):
-
-    if self.connectorSelector.currentNode() == None:
-      return
-
-    cnode = self.connectorSelector.currentNode()
-
-    cnode.SetTypeClient(addr, port)
-    cnode.Start()
-
-
-  def waitForClient(self, port):
-  
-    if self.connectorSelector.currentNode() == None:
-      return
-
-    cnode = self.connectorSelector.currentNode()
-
-    cnode.SetTypeServer(port)
-    cnode.Start()
-
-    
-  def disconnect(self):
-
-    if self.connectorSelector.currentNode() == None:
-      return
-
-    cnode = self.connectorSelector.currentNode()
-    
-    if cnode == None:
-      return False
-
-    cnode.Stop()
-
-    
-  def active(self):
-    # Check the activation status.
-    # Return True, if the connector is connected to the server
-
-    if self.connectorSelector.currentNode() == None:
-      return
-
-    cnode = self.connectorSelector.currentNode()
-    
-    if cnode == None:
-      return False
-      
-    #if cnode.GetState() == slicer.vtkMRMLIGTLConnectorNode.STATE_WAIT_CONNECTION or cnode.GetState() == slicer.vtkMRMLIGTLConnectorNode.STATE_CONNECTED:
-    if cnode.GetState() == slicer.vtkMRMLIGTLConnectorNode.StateWaitConnection or cnode.GetState() == slicer.vtkMRMLIGTLConnectorNode.StateConnected:
-      return True
-    else:
-      return False
-    
-    
-  def connected(self):
-    # Check the connection status.
-    # Return True, if the connector is connected to the server
-
-    if self.connectorSelector.currentNode() == None:
-      return
-
-    cnode = self.connectorSelector.currentNode()
-
-    if cnode == None:
-      return False
-      
-    #if cnode.GetState() == slicer.vtkMRMLIGTLConnectorNode.STATE_CONNECTED:
-    if cnode.GetState() == slicer.vtkMRMLIGTLConnectorNode.StateConnected:
-      return True
-    else:
-      return False
-
-    
-  #--------------------------------------------------
-  # GUI Call Back functions
-  #
-
-  def onActiveConnection(self):
-    
-    if self.connectorSelector.currentNode() == None:
-      return
-
-    if self.activeConnectionCheckBox.checked == True:
-      if self.connected() != True:
-        port  = self.connectorPort.value
-        self.waitForClient(port)
-    else:
-      self.disconnect()
-
-    #time.sleep(1)
-    #self.updateGUI()
-
-  def onConnectorSelected(self):
-    cnode = self.connectorSelector.currentNode()    
-    self.updateConnectorGUI()
 
   def onActiveTracking(self):
     if self.activeTrackingCheckBox.checked == True:
@@ -602,21 +499,6 @@ class MRTrackingWidget(ScriptedLoadableModuleWidget):
     # ModuleWizard will subsitute correct default moduleName.
 
     globals()[moduleName] = slicer.util.reloadScriptedModule(moduleName)
-
-
-  def updateConnectorGUI(self):
-
-    #if self.logic.connected():
-    if self.active():
-      self.activeConnectionCheckBox.setChecked(True)
-    else:
-      self.activeConnectionCheckBox.setChecked(False)
-
-    # Enable/disable 'Active' checkbox 
-    if self.connectorSelector.currentNode():
-      self.activeConnectionCheckBox.setEnabled(True)
-    else:
-      self.activeConnectionCheckBox.setEnabled(False)
 
 
   def updateTrackingDataGUI(self, tdata):
