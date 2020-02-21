@@ -6,6 +6,7 @@ from slicer.ScriptedLoadableModule import *
 from MRTrackingUtils.trackingdata import *
 from MRTrackingUtils.connector import *
 from MRTrackingUtils.reslice import *
+from MRTrackingUtils.registration import *
 import numpy
 import functools
 
@@ -291,11 +292,11 @@ class MRTrackingWidget(ScriptedLoadableModuleWidget):
     resliceCollapsibleButton.text = "Image Reslice"
     self.layout.addWidget(resliceCollapsibleButton)
 
-    resliceLayout = qt.QFormLayout(resliceCollapsibleButton)
+    #resliceLayout = qt.QFormLayout(resliceCollapsibleButton)
 
     self.reslice = MRTrackingReslice("Image Reslice")
     self.reslice.nCath = self.nCath
-    self.reslice.buildGUI(resliceLayout)
+    self.reslice.buildGUI(resliceCollapsibleButton)
     
     #--------------------------------------------------
     # Point-to-Point registration
@@ -303,32 +304,35 @@ class MRTrackingWidget(ScriptedLoadableModuleWidget):
     registrationCollapsibleButton = ctk.ctkCollapsibleButton()
     registrationCollapsibleButton.text = "Point-to-Point Registration"
     self.layout.addWidget(registrationCollapsibleButton)
+
+    self.registration =  MRTrackingFiducialRegistration()
+    self.registration.buildGUI(registrationCollapsibleButton)
     
-    registrationLayout = qt.QFormLayout(registrationCollapsibleButton)
-
-    self.reg1TrackingDataSelector = slicer.qMRMLNodeComboBox()
-    self.reg1TrackingDataSelector.nodeTypes = ( ("vtkMRMLIGTLTrackingDataBundleNode"), "" )
-    self.reg1TrackingDataSelector.selectNodeUponCreation = True
-    self.reg1TrackingDataSelector.addEnabled = True
-    self.reg1TrackingDataSelector.removeEnabled = False
-    self.reg1TrackingDataSelector.noneEnabled = False
-    self.reg1TrackingDataSelector.showHidden = True
-    self.reg1TrackingDataSelector.showChildNodeTypes = False
-    self.reg1TrackingDataSelector.setMRMLScene( slicer.mrmlScene )
-    self.reg1TrackingDataSelector.setToolTip( "Tracking data 1" )
-    registrationLayout.addRow("TrackingData 1: ", self.reg1TrackingDataSelector)
-
-    self.reg2TrackingDataSelector = slicer.qMRMLNodeComboBox()
-    self.reg2TrackingDataSelector.nodeTypes = ( ("vtkMRMLIGTLTrackingDataBundleNode"), "" )
-    self.reg2TrackingDataSelector.selectNodeUponCreation = True
-    self.reg2TrackingDataSelector.addEnabled = True
-    self.reg2TrackingDataSelector.removeEnabled = False
-    self.reg2TrackingDataSelector.noneEnabled = False
-    self.reg2TrackingDataSelector.showHidden = True
-    self.reg2TrackingDataSelector.showChildNodeTypes = False
-    self.reg2TrackingDataSelector.setMRMLScene( slicer.mrmlScene )
-    self.reg2TrackingDataSelector.setToolTip( "Tracking data 2" )
-    registrationLayout.addRow("TrackingData 2: ", self.reg2TrackingDataSelector)
+    #registrationLayout = qt.QFormLayout(registrationCollapsibleButton)
+    #
+    #self.reg1TrackingDataSelector = slicer.qMRMLNodeComboBox()
+    #self.reg1TrackingDataSelector.nodeTypes = ( ("vtkMRMLIGTLTrackingDataBundleNode"), "" )
+    #self.reg1TrackingDataSelector.selectNodeUponCreation = True
+    #self.reg1TrackingDataSelector.addEnabled = True
+    #self.reg1TrackingDataSelector.removeEnabled = False
+    #self.reg1TrackingDataSelector.noneEnabled = False
+    #self.reg1TrackingDataSelector.showHidden = True
+    #self.reg1TrackingDataSelector.showChildNodeTypes = False
+    #self.reg1TrackingDataSelector.setMRMLScene( slicer.mrmlScene )
+    #self.reg1TrackingDataSelector.setToolTip( "Tracking data 1" )
+    #registrationLayout.addRow("TrackingData 1: ", self.reg1TrackingDataSelector)
+    #
+    #self.reg2TrackingDataSelector = slicer.qMRMLNodeComboBox()
+    #self.reg2TrackingDataSelector.nodeTypes = ( ("vtkMRMLIGTLTrackingDataBundleNode"), "" )
+    #self.reg2TrackingDataSelector.selectNodeUponCreation = True
+    #self.reg2TrackingDataSelector.addEnabled = True
+    #self.reg2TrackingDataSelector.removeEnabled = False
+    #self.reg2TrackingDataSelector.noneEnabled = False
+    #self.reg2TrackingDataSelector.showHidden = True
+    #self.reg2TrackingDataSelector.showChildNodeTypes = False
+    #self.reg2TrackingDataSelector.setMRMLScene( slicer.mrmlScene )
+    #self.reg2TrackingDataSelector.setToolTip( "Tracking data 2" )
+    #registrationLayout.addRow("TrackingData 2: ", self.reg2TrackingDataSelector)
 
     
     #--------------------------------------------------

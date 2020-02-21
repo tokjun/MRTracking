@@ -27,10 +27,10 @@ class MRTrackingReslice():
     
   def buildGUI(self, parent):
 
-    resliceGroupBox = ctk.ctkCollapsibleGroupBox()
-    resliceGroupBox.title = self.label
-    parent.addWidget(resliceGroupBox)
-    resliceLayout = qt.QFormLayout(resliceGroupBox)
+    #resliceGroupBox = ctk.ctkCollapsibleGroupBox()
+    #resliceGroupBox.title = self.label
+    #parent.addWidget(resliceGroupBox)
+    resliceLayout = qt.QFormLayout(parent)
 
     # Tracking node selector
     self.resliceTrackingDataSelector = slicer.qMRMLNodeComboBox()
