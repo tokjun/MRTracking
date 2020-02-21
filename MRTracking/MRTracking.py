@@ -961,7 +961,7 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
       print("Observer added.")
       # Since TrackingDataBundle does not invoke ModifiedEvent, obtain the first child node
       if tdnode.GetNumberOfTransformNodes() > 0:
-        childNode = tdnode.GetTransformNode(1)
+        childNode = tdnode.GetTransformNode(0)
         childNode.SetAttribute('MRTracking.parent', tdnode.GetID())
         td.eventTag = childNode.AddObserver(vtk.vtkCommand.ModifiedEvent, self.onIncomingNodeModifiedEvent)
         return True
@@ -973,9 +973,9 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
     td = self.TrackingData[self.currentTrackingDataNodeID]
     tdnode = slicer.mrmlScene.GetNodeByID(self.currentTrackingDataNodeID)
     if tdnode:
-      if tdnode.GetNumberOfTransformNodes() > 0:
-        childNode = tdnode.GetTransformNode(1)
-        td.eventTag = childNode.RemoveObserver(td.eventTag)
+      if tdnode.GetNumberOfTransformNodes() > 0 and td.eventTag != '':
+        childNode = tdnode.GetTransformNode(0)
+        childNode.RemoveObserver(td.eventTag)
         td.eventTag = ''
         return True
       else:
