@@ -308,33 +308,6 @@ class MRTrackingWidget(ScriptedLoadableModuleWidget):
     self.registration =  MRTrackingFiducialRegistration()
     self.registration.buildGUI(registrationCollapsibleButton)
     
-    #registrationLayout = qt.QFormLayout(registrationCollapsibleButton)
-    #
-    #self.reg1TrackingDataSelector = slicer.qMRMLNodeComboBox()
-    #self.reg1TrackingDataSelector.nodeTypes = ( ("vtkMRMLIGTLTrackingDataBundleNode"), "" )
-    #self.reg1TrackingDataSelector.selectNodeUponCreation = True
-    #self.reg1TrackingDataSelector.addEnabled = True
-    #self.reg1TrackingDataSelector.removeEnabled = False
-    #self.reg1TrackingDataSelector.noneEnabled = False
-    #self.reg1TrackingDataSelector.showHidden = True
-    #self.reg1TrackingDataSelector.showChildNodeTypes = False
-    #self.reg1TrackingDataSelector.setMRMLScene( slicer.mrmlScene )
-    #self.reg1TrackingDataSelector.setToolTip( "Tracking data 1" )
-    #registrationLayout.addRow("TrackingData 1: ", self.reg1TrackingDataSelector)
-    #
-    #self.reg2TrackingDataSelector = slicer.qMRMLNodeComboBox()
-    #self.reg2TrackingDataSelector.nodeTypes = ( ("vtkMRMLIGTLTrackingDataBundleNode"), "" )
-    #self.reg2TrackingDataSelector.selectNodeUponCreation = True
-    #self.reg2TrackingDataSelector.addEnabled = True
-    #self.reg2TrackingDataSelector.removeEnabled = False
-    #self.reg2TrackingDataSelector.noneEnabled = False
-    #self.reg2TrackingDataSelector.showHidden = True
-    #self.reg2TrackingDataSelector.showChildNodeTypes = False
-    #self.reg2TrackingDataSelector.setMRMLScene( slicer.mrmlScene )
-    #self.reg2TrackingDataSelector.setToolTip( "Tracking data 2" )
-    #registrationLayout.addRow("TrackingData 2: ", self.reg2TrackingDataSelector)
-
-    
     #--------------------------------------------------
     # Connections
     #--------------------------------------------------
@@ -362,7 +335,6 @@ class MRTrackingWidget(ScriptedLoadableModuleWidget):
     self.coordinateAMinusRadioButton.connect('clicked(bool)', self.onSelectCoordinate)
     self.coordinateSPlusRadioButton.connect('clicked(bool)', self.onSelectCoordinate)
     self.coordinateSMinusRadioButton.connect('clicked(bool)', self.onSelectCoordinate)
-
     
     # Add vertical spacer
     self.layout.addStretch(1)
@@ -711,10 +683,9 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
       fiducialNode = self.scene.GetNodeByID(fiducialNodeID)
     
     if fiducialNode == None:
-      fiducialNode = self.scene.CreateNodeByClass("vtkMRMLMarkupsFiducialNode")
+      fiducialNode = self.scene.AddNewNodeByClass("vtkMRMLMarkupsFiducialNode")
       fiducialNode.SetLocked(True)
       fiducialNode.SetName('CoilGroup_%d' % index)
-      self.scene.AddNode(fiducialNode)
       fiducialNodeID = fiducialNode.GetID()
       tdnode.SetAttribute(cathName, fiducialNodeID)
       
@@ -726,10 +697,8 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
     if nodeID:
       destinationNode = self.scene.GetNodeByID(nodeID)
     if destinationNode == None:
-      destinationNode = self.scene.CreateNodeByClass("vtkMRMLModelNode")
+      destinationNode = self.scene.AddNewNodeByClass("vtkMRMLModelNode")
       destinationNode.SetName('Catheter')
-      self.scene.AddNode(destinationNode)
-      #self.scene.AddNode(modelDisplayNode)
       
     self.cmLogic.CurrentDestinationNode = destinationNode
 
@@ -774,7 +743,7 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
       
     self.updateCatheter(tdnode, index)
 
-
+    
   def updateCatheter(self, tdnode, index):
 
     if tdnode == None:
@@ -853,15 +822,13 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
       td.tipPoly[index] = vtk.vtkPolyData()
 
     if td.tipModelNode[index] == None:
-      td.tipModelNode[index] = self.scene.CreateNodeByClass('vtkMRMLModelNode')
+      td.tipModelNode[index] = self.scene.AddNewNodeByClass('vtkMRMLModelNode')
       td.tipModelNode[index].SetName('Tip')
-      self.scene.AddNode(td.tipModelNode[index])
       tdnode.SetAttribute('MRTracking.tipModel%d' % index, td.tipModelNode[index].GetID())
         
     if td.tipTransformNode[index] == None:
-      td.tipTransformNode[index] = self.scene.CreateNodeByClass('vtkMRMLLinearTransformNode')
+      td.tipTransformNode[index] = self.scene.AddNewNodeByClass('vtkMRMLLinearTransformNode')
       td.tipTransformNode[index].SetName('TipTransform')
-      self.scene.AddNode(td.tipTransformNode[index])
       tdnode.SetAttribute('MRTracking.tipTransform%d' % index, td.tipTransformNode[index].GetID())
 
     matrix = vtk.vtkMatrix4x4()
@@ -927,8 +894,7 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
 
     tipDispID = tipModelNode.GetDisplayNodeID()
     if tipDispID == None:
-      tipDispNode = self.scene.CreateNodeByClass('vtkMRMLModelDisplayNode')
-      self.scene.AddNode(tipDispNode)
+      tipDispNode = self.scene.AddNewNodeByClass('vtkMRMLModelDisplayNode')
       tipDispNode.SetScene(self.scene)
       tipModelNode.SetAndObserveDisplayNodeID(tipDispNode.GetID());
       tipDispID = tipModelNode.GetDisplayNodeID()
