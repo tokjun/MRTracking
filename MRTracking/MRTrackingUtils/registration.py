@@ -47,15 +47,15 @@ class MRTrackingFiducialRegistration():
     registrationLayout.addRow("TrackingData (To): ", self.toTrackingDataSelector)
 
     pointBoxLayout = qt.QHBoxLayout()
-    pointGroup = qt.QButtonGroup()
+    self.pointGroup = qt.QButtonGroup()
 
     self.useTipRadioButton = qt.QRadioButton("Tip")
     self.useAllRadioButton = qt.QRadioButton("All ")
     self.useTipRadioButton.checked = 1
     pointBoxLayout.addWidget(self.useTipRadioButton)
-    pointGroup.addButton(self.useTipRadioButton)
+    self.pointGroup.addButton(self.useTipRadioButton)
     pointBoxLayout.addWidget(self.useAllRadioButton)
-    pointGroup.addButton(self.useAllRadioButton)
+    self.pointGroup.addButton(self.useAllRadioButton)
 
     registrationLayout.addRow("Points: ", pointBoxLayout)
 
@@ -64,14 +64,14 @@ class MRTrackingFiducialRegistration():
     #
     
     visibilityBoxLayout = qt.QHBoxLayout()
-    visibilityGroup = qt.QButtonGroup()
+    self.visibilityGroup = qt.QButtonGroup()
     self.visibilityOnRadioButton = qt.QRadioButton("ON")
     self.visibilityOffRadioButton = qt.QRadioButton("Off")
     self.visibilityOnRadioButton.checked = 1
     visibilityBoxLayout.addWidget(self.visibilityOnRadioButton)
-    visibilityGroup.addButton(self.visibilityOnRadioButton)
+    self.visibilityGroup.addButton(self.visibilityOnRadioButton)
     visibilityBoxLayout.addWidget(self.visibilityOffRadioButton)
-    visibilityGroup.addButton(self.visibilityOffRadioButton)
+    self.visibilityGroup.addButton(self.visibilityOffRadioButton)
 
     registrationLayout.addRow("Visibility: ", visibilityBoxLayout)
 

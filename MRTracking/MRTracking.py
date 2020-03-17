@@ -211,6 +211,7 @@ class MRTrackingWidget(ScriptedLoadableModuleWidget):
     self.coilCheckBox = [[None for i in range(self.nChannel)] for j in range(self.nCath)]
     self.coilOrderDistalRadioButton = [None]*self.nCath
     self.coilOrderProximalRadioButton = [None]*self.nCath
+    self.coilOrderButtonGroup = [None]*self.nCath
     
     for cath in range(self.nCath):
       for ch in range(self.nChannel):
@@ -234,9 +235,9 @@ class MRTrackingWidget(ScriptedLoadableModuleWidget):
       self.coilOrderDistalRadioButton[cath].checked = 1
       self.coilOrderProximalRadioButton[cath] = qt.QRadioButton("Proximal First")
       self.coilOrderProximalRadioButton[cath].checked = 0
-      coilOrderButtonGroup = qt.QButtonGroup()
-      coilOrderButtonGroup.addButton(self.coilOrderDistalRadioButton[cath])
-      coilOrderButtonGroup.addButton(self.coilOrderProximalRadioButton[cath])
+      self.coilOrderButtonGroup[cath] = qt.QButtonGroup()
+      self.coilOrderButtonGroup[cath].addButton(self.coilOrderDistalRadioButton[cath])
+      self.coilOrderButtonGroup[cath].addButton(self.coilOrderProximalRadioButton[cath])
       coilOrderGroupLayout = qt.QHBoxLayout()
       coilOrderGroupLayout.addWidget(self.coilOrderDistalRadioButton[cath])
       coilOrderGroupLayout.addWidget(self.coilOrderProximalRadioButton[cath])
