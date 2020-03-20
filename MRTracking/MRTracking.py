@@ -656,6 +656,10 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
     
 
   def onIncomingNodeModifiedEvent(self, caller, event):
+
+    import time
+
+    start = time.time()
     
     parentID = caller.GetAttribute('MRTracking.parent')
     
@@ -668,16 +672,23 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
       self.updateCatheterNode(tdnode, 0)
       self.updateCatheterNode(tdnode, 1)
 
+    end = time.time()
+    print('onIncomingNodeModifiedEvent(self, caller, event): %f' % (end - start))
+
       
   def updateCatheterNode(self, tdnode, index):
     #print("updateCatheterNode(%s, %d) is called" % (tdnode.GetID(), index) )
     # node shoud be vtkMRMLIGTLTrackingDataBundleNode
 
+    import time
+
+    start = time.time()
+
     fiducialNode = None
 
     cathName = 'Catheter_%d' % index
 
-    ## Catheter 1
+    ## Catheter
     fiducialNodeID = tdnode.GetAttribute(cathName)
     if fiducialNodeID != None:
       fiducialNode = self.scene.GetNodeByID(fiducialNodeID)
@@ -688,7 +699,9 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
       fiducialNode.SetName('CoilGroup_%d' % index)
       fiducialNodeID = fiducialNode.GetID()
       tdnode.SetAttribute(cathName, fiducialNodeID)
-      
+
+    prevState = fiducialNode.StartModify()
+    
     self.cmLogic.CurrentSourceNode = fiducialNode
 
     # Check if the curve model exists; if not, create one.
@@ -709,9 +722,19 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
         
     if self.cmLogic.CurrentDestinationNode and self.cmLogic.CurrentSourceNode:
       self.cmLogic.CurrentSourceNode.SetAttribute('CurveMaker.CurveModel', self.cmLogic.CurrentDestinationNode.GetID())
-              
+
+    end = time.time()
+    print('updateCatheterNode(self, tdnode, index): Check Curve Node %f' % (end - start))
+
+    start = time.time()
+    self.cmLogic.enableAutomaticUpdate(False, fiducialNode)
+    
     # Update coordinates in the fiducial node.
     nCoils = tdnode.GetNumberOfTransformNodes()
+    
+    if nCoils > 8: # Max. number of coils is 8.
+      nCoils = 8
+      
     td = self.TrackingData[tdnode.GetID()]
     mask = td.activeCoils1[0:nCoils]
     if index == 1:
@@ -721,30 +744,38 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
       fiducialNode.RemoveAllMarkups()
       for i in range(nActiveCoils):
         fiducialNode.AddFiducial(0.0, 0.0, 0.0)
-    j = 0
+        
+    lastCoil = nCoils - 1
+    fFlip = False
+    if index == 0:
+      fFlip = (not td.coilOrder1)
+    else: # index == 1:
+      fFlip = (not td.coilOrder2)
 
-    # Max. number of coils is 8.
-    if nCoils > 8:
-      nCoils = 8
-      
+    j = 0
     for i in range(nCoils):
       if mask[i]:
         tnode = tdnode.GetTransformNode(i)
         trans = tnode.GetTransformToParent()
-        #fiducialNode.SetNthFiducialPositionFromArray(j, trans.GetPosition())
         v = trans.GetPosition()
         coilID = j
-        if index == 0 and td.coilOrder1 == False:
-          coilID = nCoils - j - 1
-        if index == 1 and td.coilOrder2 == False:
-          coilID = nCoils - j - 1
+        if fFlip:
+          coilID = lastCoil - j
         fiducialNode.SetNthFiducialPosition(coilID, v[0] * td.axisDirection[0], v[1] * td.axisDirection[1], v[2] * td.axisDirection[2])
         j += 1
-      
+
+    self.cmLogic.enableAutomaticUpdate(True, fiducialNode)
+    fiducialNode.EndModify(prevState)
+    
+    end = time.time()
+    print('updateCatheterNode(self, tdnode, index): Update %f' % (end - start))
+        
     self.updateCatheter(tdnode, index)
 
     
   def updateCatheter(self, tdnode, index):
+
+    import time
 
     if tdnode == None:
       return
@@ -765,20 +796,28 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
     destinationNode = self.scene.GetNodeByID(cmModelID)
 
     td = self.TrackingData[tdnode.GetID()]
-    
+
+    start = time.time()
+
     modelDisplayNode = destinationNode.GetDisplayNode()
     if modelDisplayNode:
+      prevState = modelDisplayNode.StartModify()
       modelDisplayNode.SetColor(td.cmModelColor[index])
       modelDisplayNode.SetOpacity(td.cmOpacity[index])
       modelDisplayNode.SliceIntersectionVisibilityOn()
       modelDisplayNode.SetSliceDisplayModeToIntersection()
+      modelDisplayNode.EndModify(prevState)
 
     # Update catheter using the CurveMaker module
     self.cmLogic.setTubeRadius(td.cmRadius[index], sourceNode)
     self.cmLogic.enableAutomaticUpdate(1, sourceNode)
     self.cmLogic.setInterpolationMethod('cardinal', sourceNode)
-    self.cmLogic.updateCurve()
+    #self.cmLogic.updateCurve() 
+    self.cmLogic.updateSingleCurve(sourceNode, False) # Limit the curve to be updated for performance
 
+    end = time.time()
+    print('updateCatheter(): updated CurveMaker %f' % (end - start))
+    
     # Skip if the model has not been created. (Don't call this section before self.cmLogic.updateCurve()
     if not (sourceNode.GetID() in self.cmLogic.CurvePoly) or (self.cmLogic.CurvePoly[sourceNode.GetID()] == None):
       return
@@ -788,6 +827,7 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
     if fiducialDisplayNode:
       fiducialDisplayNode.SetVisibility(td.showCoilLabel)
 
+    start = time.time()
     # Add a extended tip
     ## make sure that there is more than one points
     if sourceNode.GetNumberOfFiducials() < 2:
@@ -832,22 +872,30 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
       tdnode.SetAttribute('MRTracking.tipTransform%d' % index, td.tipTransformNode[index].GetID())
 
     matrix = vtk.vtkMatrix4x4()
-    matrix.SetElement(0, 0, t[0])
-    matrix.SetElement(1, 0, t[1])
-    matrix.SetElement(2, 0, t[2])
-    matrix.SetElement(0, 1, s[0])
-    matrix.SetElement(1, 1, s[1])
-    matrix.SetElement(2, 1, s[2])
-    matrix.SetElement(0, 2, n10[0])
-    matrix.SetElement(1, 2, n10[1])
-    matrix.SetElement(2, 2, n10[2])
-    matrix.SetElement(0, 3, pe[0])
-    matrix.SetElement(1, 3, pe[1])
-    matrix.SetElement(2, 3, pe[2])
+    #matrix.SetElement(0, 0, t[0])
+    #matrix.SetElement(1, 0, t[1])
+    #matrix.SetElement(2, 0, t[2])
+    #matrix.SetElement(0, 1, s[0])
+    #matrix.SetElement(1, 1, s[1])
+    #matrix.SetElement(2, 1, s[2])
+    #matrix.SetElement(0, 2, n10[0])
+    #matrix.SetElement(1, 2, n10[1])
+    #matrix.SetElement(2, 2, n10[2])
+    #matrix.SetElement(0, 3, pe[0])
+    #matrix.SetElement(1, 3, pe[1])
+    #matrix.SetElement(2, 3, pe[2])
+    matrix.DeepCopy((t[0], s[0], n10[0], pe[0],
+                     t[1], s[1], n10[1], pe[1],
+                     t[2], s[2], n10[2], pe[2],
+                     0, 0, 0, 1))
+    
     td.tipTransformNode[index].SetMatrixTransformToParent(matrix)
     
     self.updateTipModelNode(td.tipModelNode[index], td.tipPoly[index], p0, pe, td.cmRadius[index], td.cmModelColor[index], td.cmOpacity[index])
 
+    end = time.time()
+    print('updateCatheter(): update tip %f' % (end - start))
+    
 
   def updateTipModelNode(self, tipModelNode, poly, p0, pe, radius, color, opacity):
     #tipModel = self.scene.CreateNodeByClass('vtkMRMLModelNode')
@@ -900,11 +948,13 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
       tipDispID = tipModelNode.GetDisplayNodeID()
       
     tipDispNode = self.scene.GetNodeByID(tipDispID)
-      
+
+    prevState = tipDispNode.StartModify()
     tipDispNode.SetColor(color)
     tipDispNode.SetOpacity(opacity)
     tipDispNode.SliceIntersectionVisibilityOn()
     tipDispNode.SetSliceDisplayModeToIntersection()
+    tipDispNode.EndModify(prevState)
     
 
   def onNodeRemovedEvent(self, caller, event, obj=None):
