@@ -10,8 +10,6 @@ from MRTrackingUtils.registration import *
 import numpy
 import functools
 
-import CurveMaker
-    
 #------------------------------------------------------------
 #
 # MRTracking
@@ -64,7 +62,7 @@ class MRTrackingWidget(ScriptedLoadableModuleWidget):
     #  your module to users)
     self.reloadButton = qt.QPushButton("Reload")
     self.reloadButton.toolTip = "Reload this module."
-    self.reloadButton.name = "CurveMaker Reload"
+    self.reloadButton.name = "Reload"
     reloadFormLayout.addWidget(self.reloadButton)
     self.reloadButton.connect('clicked()', self.onReload)
     #
@@ -468,9 +466,6 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
 
     self.eventTag = {}
 
-    # CurveMaker
-    self.cmLogic = CurveMaker.CurveMakerLogic()
-
     self.currentTrackingDataNodeID = ''
     self.TrackingData = {}
 
@@ -483,7 +478,7 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
       print('TrackingData "%s" has already been registered.' % tdnode.GetID())
     else:
       td = TrackingData()
-      td.cmLogic = self.cmLogic
+      #td.cmLogic = self.cmLogic
       self.TrackingData[tdnode.GetID()] = td
       
       self.setupFiducials(tdnode, 0)
@@ -614,23 +609,18 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
       return
     
     # Set up markups fiducial node, if specified in the connector node
-    cmFiducialsID = tdnode.GetAttribute('MRTracking.cmFiducials%d' % index)
-    if cmFiducialsID != None:
-      self.cmLogic.CurrentSourceNode = self.scene.GetNodeByID(cmFiducialsID)
+    #cmFiducialsID = tdnode.GetAttribute('MRTracking.cmFiducials%d' % index)
+    curveNodeID = tdnode.GetAttribute('MRTracking.CurveNode%d' % index)
+    curveNode = None
+
+    #cathName = 'Catheter_%d' % index
+    
+    if curveNodeID != None:
+      curveNode = self.scene.GetNodeByID(curveNodeID)
     else:
-      self.cmLogic.CurrentSourceNode = None
-      
-    # Set up model node, if specified in the connector node
-    cmModelID = tdnode.GetAttribute('MRTracking.cmModel%d' % index)
-    if cmModelID != None:
-      self.cmLogic.CurrentDestinationNode = self.scene.GetNodeByID(cmModelID)
-      if self.cmLogic.CurrentSourceNode:
-        self.cmLogic.CurrentSourceNode.SetAttribute('CurveMaker.CurveModel', self.cmLogic.CurrentDestinationNode.GetID())
-    else:
-      self.cmLogic.CurrentDestinationNode = None
-      
-    #if self.cmLogic.CurrentSourceNode:
-    #  cnode.SetAttribute('CoilPositions', cmFiducialsID)
+      curveNode = self.scene.AddNewNodeByClass('vtkMRMLMarkupsCurveNode')
+      ## TODO: Name?
+      tdnode.SetAttribute('MRTracking.CurveNode%d' % index, curveNode.GetID())
 
     td = self.TrackingData[tdnode.GetID()]
     
@@ -647,14 +637,6 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
     else:
       td.tipTransformNode[index] = None
 
-    ## Set up incoming node, if specified in the connector node
-    #incomingNodeID = tdnode.GetAttribute('MRTracking.incomingNode%d' % index)
-    #if incomingNodeID != None:
-    #  incomingNode = self.scene.GetNodeByID(incomingNodeID)
-    #  if incomingNode:
-    #      self.eventTag[incomingNodeID] = incomingNode.AddObserver(vtk.vtkCommand.ModifiedEvent, self.onIncomingNodeModifiedEvent)
-    #tdnode.eventTag = incomingNode.AddObserver(vtk.vtkCommand.ModifiedEvent, self.onIncomingNodeModifiedEvent)
-    
 
   def onIncomingNodeModifiedEvent(self, caller, event):
 
@@ -682,53 +664,19 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
     # node shoud be vtkMRMLIGTLTrackingDataBundleNode
 
     import time
-
     start = time.time()
 
-    fiducialNode = None
+    curveNodeID = tdnode.GetAttribute('MRTracking.CurveNode%d' % index)
+    curveNode = None
+    if curveNodeID != None:
+      curveNode = self.scene.GetNodeByID(curveNodeID)
 
-    cathName = 'Catheter_%d' % index
-
-    ## Catheter
-    fiducialNodeID = tdnode.GetAttribute(cathName)
-    if fiducialNodeID != None:
-      fiducialNode = self.scene.GetNodeByID(fiducialNodeID)
+    if curveNode == None:
+      curveNode = self.scene.AddNewNodeByClass('vtkMRMLMarkupsCurveNode')
+      tdnode.SetAttribute('MRTracking.CurveNode%d' % index, curveNode.GetID())
     
-    if fiducialNode == None:
-      fiducialNode = self.scene.AddNewNodeByClass("vtkMRMLMarkupsFiducialNode")
-      fiducialNode.SetLocked(True)
-      fiducialNode.SetName('CoilGroup_%d' % index)
-      fiducialNodeID = fiducialNode.GetID()
-      tdnode.SetAttribute(cathName, fiducialNodeID)
-
-    prevState = fiducialNode.StartModify()
+    prevState = curveNode.StartModify()
     
-    self.cmLogic.CurrentSourceNode = fiducialNode
-
-    # Check if the curve model exists; if not, create one.
-    destinationNode = None
-    nodeID = self.cmLogic.CurrentSourceNode.GetAttribute('CurveMaker.CurveModel')
-    if nodeID:
-      destinationNode = self.scene.GetNodeByID(nodeID)
-    if destinationNode == None:
-      destinationNode = self.scene.AddNewNodeByClass("vtkMRMLModelNode")
-      destinationNode.SetName('Catheter')
-      
-    self.cmLogic.CurrentDestinationNode = destinationNode
-
-    if self.cmLogic.CurrentDestinationNode:
-      tdnode.SetAttribute('MRTracking.cmModel%d' % index, self.cmLogic.CurrentDestinationNode.GetID())
-    if self.cmLogic.CurrentSourceNode:
-      tdnode.SetAttribute('MRTracking.cmFiducials%d' % index, self.cmLogic.CurrentSourceNode.GetID())
-        
-    if self.cmLogic.CurrentDestinationNode and self.cmLogic.CurrentSourceNode:
-      self.cmLogic.CurrentSourceNode.SetAttribute('CurveMaker.CurveModel', self.cmLogic.CurrentDestinationNode.GetID())
-
-    end = time.time()
-    print('updateCatheterNode(self, tdnode, index): Check Curve Node %f' % (end - start))
-
-    start = time.time()
-    self.cmLogic.enableAutomaticUpdate(False, fiducialNode)
     
     # Update coordinates in the fiducial node.
     nCoils = tdnode.GetNumberOfTransformNodes()
@@ -741,10 +689,15 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
     if index == 1:
       mask = td.activeCoils2[0:nCoils]
     nActiveCoils = sum(mask)
-    if fiducialNode.GetNumberOfFiducials() != nActiveCoils:
-      fiducialNode.RemoveAllMarkups()
+    
+    if curveNode.GetNumberOfControlPoints() != nActiveCoils:
+      curveNode.RemoveAllControlPoints()
       for i in range(nActiveCoils):
-        fiducialNode.AddFiducial(0.0, 0.0, 0.0)
+        p = vtk.vtkVector3d()
+        p.SetX(0.0)
+        p.SetY(0.0)
+        p.SetZ(0.0)
+        curveNode.AddControlPoint(p, "P_%d" % i)
         
     lastCoil = nCoils - 1
     fFlip = False
@@ -762,11 +715,10 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
         coilID = j
         if fFlip:
           coilID = lastCoil - j
-        fiducialNode.SetNthFiducialPosition(coilID, v[0] * td.axisDirection[0], v[1] * td.axisDirection[1], v[2] * td.axisDirection[2])
+        curveNode.SetNthControlPointPosition(coilID, v[0] * td.axisDirection[0], v[1] * td.axisDirection[1], v[2] * td.axisDirection[2])
         j += 1
 
-    self.cmLogic.enableAutomaticUpdate(True, fiducialNode)
-    fiducialNode.EndModify(prevState)
+    curveNode.EndModify(prevState)
     
     end = time.time()
     print('updateCatheterNode(self, tdnode, index): Update %f' % (end - start))
@@ -781,118 +733,92 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
     if tdnode == None:
       return
     
-    cmFiducialsID = tdnode.GetAttribute('MRTracking.cmFiducials%d' % index)
-    if cmFiducialsID == None:
+    curveNode = None
+    curveNodeID = tdnode.GetAttribute('MRTracking.CurveNode%d' % index)
+    if curveNodeID != None:
+      curveNode = self.scene.GetNodeByID(curveNodeID)
+
+    if curveNode == None:
       return
 
-    sourceNode = self.scene.GetNodeByID(cmFiducialsID)
-
-    if sourceNode == None:
-      return
-
-    cmModelID = sourceNode.GetAttribute('CurveMaker.CurveModel')
-    if cmModelID == None:
-      return
-    
-    destinationNode = self.scene.GetNodeByID(cmModelID)
+    #destinationNode = self.scene.GetNodeByID(cmModelID)
 
     td = self.TrackingData[tdnode.GetID()]
 
     start = time.time()
 
-    modelDisplayNode = destinationNode.GetDisplayNode()
-    if modelDisplayNode:
-      prevState = modelDisplayNode.StartModify()
-      modelDisplayNode.SetColor(td.cmModelColor[index])
-      modelDisplayNode.SetOpacity(td.cmOpacity[index])
-      modelDisplayNode.SliceIntersectionVisibilityOn()
-      modelDisplayNode.SetSliceDisplayModeToIntersection()
-      modelDisplayNode.EndModify(prevState)
-
-    # Update catheter using the CurveMaker module
-    self.cmLogic.setTubeRadius(td.cmRadius[index], sourceNode)
-    self.cmLogic.enableAutomaticUpdate(1, sourceNode)
-    self.cmLogic.setInterpolationMethod('cardinal', sourceNode)
-    #self.cmLogic.updateCurve() 
-    self.cmLogic.updateSingleCurve(sourceNode, False) # Limit the curve to be updated for performance
+    curveDisplayNode = curveNode.GetDisplayNode()
+    if curveDisplayNode:
+      prevState = curveDisplayNode.StartModify()
+      curveDisplayNode.SetColor(td.cmModelColor[index])
+      curveDisplayNode.SetOpacity(td.cmOpacity[index])
+      curveDisplayNode.SliceIntersectionVisibilityOn()
+      #curveDisplayNode.SetSliceDisplayModeToIntersection()
+      curveDisplayNode.EndModify(prevState)
+      # Show/hide fiducials for coils
+      #curveDisplayNode.SetVisibility(td.showCoilLabel)
+    
+    ## TODO: Change radius, interplation, 
 
     end = time.time()
-    print('updateCatheter(): updated CurveMaker %f' % (end - start))
+    print('updateCatheter(): updated curve %f' % (end - start))
     
-    # Skip if the model has not been created. (Don't call this section before self.cmLogic.updateCurve()
-    if not (sourceNode.GetID() in self.cmLogic.CurvePoly) or (self.cmLogic.CurvePoly[sourceNode.GetID()] == None):
-      return
-    
-    # Show/hide fiducials for coils
-    fiducialDisplayNode = sourceNode.GetDisplayNode()
-    if fiducialDisplayNode:
-      fiducialDisplayNode.SetVisibility(td.showCoilLabel)
-
     start = time.time()
     # Add a extended tip
-    ## make sure that there is more than one points
-    if sourceNode.GetNumberOfFiducials() < 2:
+    
+    # make sure that there is more than one points
+    if curveNode.GetNumberOfControlPoints() < 2:
       return
-    
-    curvePoly = self.cmLogic.CurvePoly[sourceNode.GetID()]
-    lines = curvePoly.GetLines()
-    points = curvePoly.GetPoints()
-    pts = vtk.vtkIdList()
-    
-    lines.GetCell(0, pts)
-    n = pts.GetNumberOfIds()
-    if n > 1:
-      p0 = numpy.array(points.GetPoint(pts.GetId(0)))
-      p1 = numpy.array(points.GetPoint(pts.GetId(1)))
-      v10 = p0 - p1
-      n10 = v10 / numpy.linalg.norm(v10) # Normal vector at the tip
-      pe = p0 + n10 * td.tipLength[index]
 
-      ## Calculate rotation matrix
-      ## Check if <n10> is not parallel to <s>=(0.0, 1.0, 0.0)
-      s = numpy.array([0.0, 1.0, 0.0])
-      t = numpy.array([1.0, 0.0, 0.0])
-      if n10[1] < 0.95:
-        t = numpy.cross(s, n10)
-        s = numpy.cross(n10, t)
-      else:
-        s = numpy.cross(n10, t)
-        t = numpy.cross(s, n10)
-
-    if td.tipPoly[index]==None:
-      td.tipPoly[index] = vtk.vtkPolyData()
-
-    if td.tipModelNode[index] == None:
-      td.tipModelNode[index] = self.scene.AddNewNodeByClass('vtkMRMLModelNode')
-      td.tipModelNode[index].SetName('Tip')
-      tdnode.SetAttribute('MRTracking.tipModel%d' % index, td.tipModelNode[index].GetID())
-        
-    if td.tipTransformNode[index] == None:
-      td.tipTransformNode[index] = self.scene.AddNewNodeByClass('vtkMRMLLinearTransformNode')
-      td.tipTransformNode[index].SetName('TipTransform')
-      tdnode.SetAttribute('MRTracking.tipTransform%d' % index, td.tipTransformNode[index].GetID())
-
-    matrix = vtk.vtkMatrix4x4()
-    #matrix.SetElement(0, 0, t[0])
-    #matrix.SetElement(1, 0, t[1])
-    #matrix.SetElement(2, 0, t[2])
-    #matrix.SetElement(0, 1, s[0])
-    #matrix.SetElement(1, 1, s[1])
-    #matrix.SetElement(2, 1, s[2])
-    #matrix.SetElement(0, 2, n10[0])
-    #matrix.SetElement(1, 2, n10[1])
-    #matrix.SetElement(2, 2, n10[2])
-    #matrix.SetElement(0, 3, pe[0])
-    #matrix.SetElement(1, 3, pe[1])
-    #matrix.SetElement(2, 3, pe[2])
-    matrix.DeepCopy((t[0], s[0], n10[0], pe[0],
-                     t[1], s[1], n10[1], pe[1],
-                     t[2], s[2], n10[2], pe[2],
-                     0, 0, 0, 1))
+    ## TODO: Visualize the tip
     
-    td.tipTransformNode[index].SetMatrixTransformToParent(matrix)
-    
-    self.updateTipModelNode(td.tipModelNode[index], td.tipPoly[index], p0, pe, td.cmRadius[index], td.cmModelColor[index], td.cmOpacity[index])
+    #curvePoly = self.cmLogic.CurvePoly[sourceNode.GetID()]
+    #lines = curvePoly.GetLines()
+    #points = curvePoly.GetPoints()
+    #pts = vtk.vtkIdList()
+    #
+    #lines.GetCell(0, pts)
+    #n = pts.GetNumberOfIds()
+    #if n > 1:
+    #  p0 = numpy.array(points.GetPoint(pts.GetId(0)))
+    #  p1 = numpy.array(points.GetPoint(pts.GetId(1)))
+    #  v10 = p0 - p1
+    #  n10 = v10 / numpy.linalg.norm(v10) # Normal vector at the tip
+    #  pe = p0 + n10 * td.tipLength[index]
+    #
+    #  ## Calculate rotation matrix
+    #  ## Check if <n10> is not parallel to <s>=(0.0, 1.0, 0.0)
+    #  s = numpy.array([0.0, 1.0, 0.0])
+    #  t = numpy.array([1.0, 0.0, 0.0])
+    #  if n10[1] < 0.95:
+    #    t = numpy.cross(s, n10)
+    #    s = numpy.cross(n10, t)
+    #  else:
+    #    s = numpy.cross(n10, t)
+    #    t = numpy.cross(s, n10)
+    #
+    #if td.tipPoly[index]==None:
+    #  td.tipPoly[index] = vtk.vtkPolyData()
+    #
+    #if td.tipModelNode[index] == None:
+    #  td.tipModelNode[index] = self.scene.AddNewNodeByClass('vtkMRMLModelNode')
+    #  td.tipModelNode[index].SetName('Tip')
+    #  tdnode.SetAttribute('MRTracking.tipModel%d' % index, td.tipModelNode[index].GetID())
+    #    
+    #if td.tipTransformNode[index] == None:
+    #  td.tipTransformNode[index] = self.scene.AddNewNodeByClass('vtkMRMLLinearTransformNode')
+    #  td.tipTransformNode[index].SetName('TipTransform')
+    #  tdnode.SetAttribute('MRTracking.tipTransform%d' % index, td.tipTransformNode[index].GetID())
+
+    #matrix = vtk.vtkMatrix4x4()
+    #matrix.DeepCopy((t[0], s[0], n10[0], pe[0],
+    #                 t[1], s[1], n10[1], pe[1],
+    #                 t[2], s[2], n10[2], pe[2],
+    #                 0, 0, 0, 1))
+    #
+    #td.tipTransformNode[index].SetMatrixTransformToParent(matrix)
+    #
+    #self.updateTipModelNode(td.tipModelNode[index], td.tipPoly[index], p0, pe, td.cmRadius[index], td.cmModelColor[index], td.cmOpacity[index])
 
     end = time.time()
     print('updateCatheter(): update tip %f' % (end - start))

@@ -14,7 +14,9 @@ class TrackingData:
     # self.activeTrackingDataNodeID = ''
 
     # CurveMaker
-    self.cmLogic = None
+    #self.cmLogic = None
+
+    self.curveNodeID = ''
     
     self.cmOpacity = [1.0, 1.0]
     self.cmRadius = [0.5, 0.5]
