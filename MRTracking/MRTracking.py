@@ -764,68 +764,64 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
     print('updateCatheter(): updated curve %f' % (end - start))
     
     start = time.time()
-    # Add a extended tip
     
+    # Add a extended tip
     # make sure that there is more than one points
     if curveNode.GetNumberOfControlPoints() < 2:
       return
 
-    ## TODO: Visualize the tip
+    if td.tipPoly[index]==None:
+      td.tipPoly[index] = vtk.vtkPolyData()
     
-    #curvePoly = self.cmLogic.CurvePoly[sourceNode.GetID()]
-    #lines = curvePoly.GetLines()
-    #points = curvePoly.GetPoints()
-    #pts = vtk.vtkIdList()
-    #
-    #lines.GetCell(0, pts)
-    #n = pts.GetNumberOfIds()
-    #if n > 1:
-    #  p0 = numpy.array(points.GetPoint(pts.GetId(0)))
-    #  p1 = numpy.array(points.GetPoint(pts.GetId(1)))
-    #  v10 = p0 - p1
-    #  n10 = v10 / numpy.linalg.norm(v10) # Normal vector at the tip
-    #  pe = p0 + n10 * td.tipLength[index]
-    #
-    #  ## Calculate rotation matrix
-    #  ## Check if <n10> is not parallel to <s>=(0.0, 1.0, 0.0)
-    #  s = numpy.array([0.0, 1.0, 0.0])
-    #  t = numpy.array([1.0, 0.0, 0.0])
-    #  if n10[1] < 0.95:
-    #    t = numpy.cross(s, n10)
-    #    s = numpy.cross(n10, t)
-    #  else:
-    #    s = numpy.cross(n10, t)
-    #    t = numpy.cross(s, n10)
-    #
-    #if td.tipPoly[index]==None:
-    #  td.tipPoly[index] = vtk.vtkPolyData()
-    #
-    #if td.tipModelNode[index] == None:
-    #  td.tipModelNode[index] = self.scene.AddNewNodeByClass('vtkMRMLModelNode')
-    #  td.tipModelNode[index].SetName('Tip')
-    #  tdnode.SetAttribute('MRTracking.tipModel%d' % index, td.tipModelNode[index].GetID())
-    #    
-    #if td.tipTransformNode[index] == None:
-    #  td.tipTransformNode[index] = self.scene.AddNewNodeByClass('vtkMRMLLinearTransformNode')
-    #  td.tipTransformNode[index].SetName('TipTransform')
-    #  tdnode.SetAttribute('MRTracking.tipTransform%d' % index, td.tipTransformNode[index].GetID())
+    if td.tipModelNode[index] == None:
+      td.tipModelNode[index] = self.scene.AddNewNodeByClass('vtkMRMLModelNode')
+      td.tipModelNode[index].SetName('Tip')
+      tdnode.SetAttribute('MRTracking.tipModel%d' % index, td.tipModelNode[index].GetID())
+        
+    if td.tipTransformNode[index] == None:
+      td.tipTransformNode[index] = self.scene.AddNewNodeByClass('vtkMRMLLinearTransformNode')
+      td.tipTransformNode[index].SetName('TipTransform')
+      tdnode.SetAttribute('MRTracking.tipTransform%d' % index, td.tipTransformNode[index].GetID())
 
+    ## The 'curve end point matrix' (normal vectors + the curve end position)
+    matrix = vtk.vtkMatrix4x4()
+    
+    ## Assuming that the tip is at index=0 
+    n10 = [0.0, 0.0, 0.0]
+    p0  = [0.0, 0.0, 0.0]
+    cpi = curveNode.GetCurvePointIndexFromControlPointIndex(0)
+
+    curveNode.GetNthControlPointPosition(0, p0)
+    curveNode.GetCurvePointToWorldTransformAtPointIndex(cpi, matrix)
+    n10[0] = matrix.GetElement(0, 2)
+    n10[1] = matrix.GetElement(1, 2)
+    n10[2] = matrix.GetElement(2, 2)
+
+    # Tip location
+    # The sign for the normal vector is '-' because the normal vector point toward points
+    # with larger indecies.
+    pe = numpy.array(p0) - numpy.array(n10) * td.tipLength[index]
+  
+    self.updateTipModelNode(td.tipModelNode[index], td.tipPoly[index], p0, pe, td.cmRadius[index], td.cmModelColor[index], td.cmOpacity[index])
+
+    ## Update the 'catheter tip matrix' (normal vectors + the catheter tip position)
+    ## Note that the catheter tip matrix is different from the curve end matrix
+    matrix.SetElement(0, 3, pe[0])
+    matrix.SetElement(1, 3, pe[1])
+    matrix.SetElement(2, 3, pe[2])
+    td.tipTransformNode[index].SetMatrixTransformToParent(matrix)
+    
     #matrix = vtk.vtkMatrix4x4()
     #matrix.DeepCopy((t[0], s[0], n10[0], pe[0],
     #                 t[1], s[1], n10[1], pe[1],
     #                 t[2], s[2], n10[2], pe[2],
     #                 0, 0, 0, 1))
-    #
-    #td.tipTransformNode[index].SetMatrixTransformToParent(matrix)
-    #
-    #self.updateTipModelNode(td.tipModelNode[index], td.tipPoly[index], p0, pe, td.cmRadius[index], td.cmModelColor[index], td.cmOpacity[index])
 
     end = time.time()
     print('updateCatheter(): update tip %f' % (end - start))
     
-
+    
   def updateTipModelNode(self, tipModelNode, poly, p0, pe, radius, color, opacity):
-    #tipModel = self.scene.CreateNodeByClass('vtkMRMLModelNode')
 
     points = vtk.vtkPoints()
     cellArray = vtk.vtkCellArray()
