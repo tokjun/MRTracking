@@ -638,10 +638,6 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
 
   def onIncomingNodeModifiedEvent(self, caller, event):
 
-    import time
-
-    start = time.time()
-    
     parentID = caller.GetAttribute('MRTracking.parent')
     
     if parentID == '':
@@ -653,16 +649,10 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
       self.updateCatheterNode(tdnode, 0)
       self.updateCatheterNode(tdnode, 1)
 
-    end = time.time()
-    print('onIncomingNodeModifiedEvent(self, caller, event): %f' % (end - start))
-
       
   def updateCatheterNode(self, tdnode, index):
     #print("updateCatheterNode(%s, %d) is called" % (tdnode.GetID(), index) )
     # node shoud be vtkMRMLIGTLTrackingDataBundleNode
-
-    import time
-    start = time.time()
 
     curveNodeID = tdnode.GetAttribute('MRTracking.CurveNode%d' % index)
     curveNode = None
@@ -718,15 +708,10 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
 
     curveNode.EndModify(prevState)
     
-    end = time.time()
-    print('updateCatheterNode(self, tdnode, index): Update %f' % (end - start))
-        
     self.updateCatheter(tdnode, index)
 
     
   def updateCatheter(self, tdnode, index):
-
-    import time
 
     if tdnode == None:
       return
@@ -741,8 +726,6 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
 
     td = self.TrackingData[tdnode.GetID()]
 
-    start = time.time()
-
     curveDisplayNode = curveNode.GetDisplayNode()
     if curveDisplayNode:
       prevState = curveDisplayNode.StartModify()
@@ -756,11 +739,6 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
       curveDisplayNode.SetUseGlyphScale(False)
       curveDisplayNode.SetGlyphSize(td.radius[index]*4.0)
       curveDisplayNode.SetLineThickness(0.5)  # Thickness is defined as a scale from the glyph size.
-    
-    end = time.time()
-    print('updateCatheter(): updated curve %f' % (end - start))
-    
-    start = time.time()
     
     # Add a extended tip
     # make sure that there is more than one points
@@ -814,9 +792,6 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
     #                 t[2], s[2], n10[2], pe[2],
     #                 0, 0, 0, 1))
 
-    end = time.time()
-    print('updateCatheter(): update tip %f' % (end - start))
-    
     
   def updateTipModelNode(self, tipModelNode, poly, p0, pe, radius, color, opacity):
 
