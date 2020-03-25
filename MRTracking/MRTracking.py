@@ -425,8 +425,8 @@ class MRTrackingWidget(ScriptedLoadableModuleWidget):
 
     for cath in range(self.nCath):
       self.tipLengthSliderWidget[cath].value = tdata.tipLength[cath]
-      self.catheterDiameterSliderWidget[cath].value = tdata.cmRadius[cath] * 2
-      self.catheterOpacitySliderWidget[cath].value = tdata.cmOpacity[cath]
+      self.catheterDiameterSliderWidget[cath].value = tdata.radius[cath] * 2
+      self.catheterOpacitySliderWidget[cath].value = tdata.opacity[cath]
       
     self.showCoilLabelCheckBox.checked = tdata.showCoilLabel
 
@@ -478,7 +478,6 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
       print('TrackingData "%s" has already been registered.' % tdnode.GetID())
     else:
       td = TrackingData()
-      #td.cmLogic = self.cmLogic
       self.TrackingData[tdnode.GetID()] = td
       
       self.setupFiducials(tdnode, 0)
@@ -519,7 +518,7 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
     if nodeID:
       td = self.TrackingData[nodeID]
       if td:
-        td.cmRadius[index] = diameter / 2.0
+        td.radius[index] = diameter / 2.0
         tnode = slicer.mrmlScene.GetNodeByID(nodeID)
         self.updateCatheter(tnode, index)
     
@@ -529,7 +528,7 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
     if nodeID:
       td = self.TrackingData[nodeID]
       if td:
-        td.cmOpacity[index] = opacity
+        td.opacity[index] = opacity
         tnode = slicer.mrmlScene.GetNodeByID(nodeID)
         self.updateCatheter(tnode, index)
 
@@ -609,7 +608,6 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
       return
     
     # Set up markups fiducial node, if specified in the connector node
-    #cmFiducialsID = tdnode.GetAttribute('MRTracking.cmFiducials%d' % index)
     curveNodeID = tdnode.GetAttribute('MRTracking.CurveNode%d' % index)
     curveNode = None
 
@@ -741,8 +739,6 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
     if curveNode == None:
       return
 
-    #destinationNode = self.scene.GetNodeByID(cmModelID)
-
     td = self.TrackingData[tdnode.GetID()]
 
     start = time.time()
@@ -750,16 +746,17 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
     curveDisplayNode = curveNode.GetDisplayNode()
     if curveDisplayNode:
       prevState = curveDisplayNode.StartModify()
-      curveDisplayNode.SetColor(td.cmModelColor[index])
-      curveDisplayNode.SetOpacity(td.cmOpacity[index])
+      curveDisplayNode.SetSelectedColor(td.modelColor[index])
+      curveDisplayNode.SetColor(td.modelColor[index])
+      curveDisplayNode.SetOpacity(td.opacity[index])
       curveDisplayNode.SliceIntersectionVisibilityOn()
-      #curveDisplayNode.SetSliceDisplayModeToIntersection()
       curveDisplayNode.EndModify(prevState)
-      # Show/hide fiducials for coils
-      #curveDisplayNode.SetVisibility(td.showCoilLabel)
+      # Show/hide labels for coils
+      curveDisplayNode.SetPointLabelsVisibility(td.showCoilLabel);
+      curveDisplayNode.SetUseGlyphScale(False)
+      curveDisplayNode.SetGlyphSize(td.radius[index]*4.0)
+      curveDisplayNode.SetLineThickness(0.5)  # Thickness is defined as a scale from the glyph size.
     
-    ## TODO: Change radius, interplation, 
-
     end = time.time()
     print('updateCatheter(): updated curve %f' % (end - start))
     
@@ -802,7 +799,7 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
     # with larger indecies.
     pe = numpy.array(p0) - numpy.array(n10) * td.tipLength[index]
   
-    self.updateTipModelNode(td.tipModelNode[index], td.tipPoly[index], p0, pe, td.cmRadius[index], td.cmModelColor[index], td.cmOpacity[index])
+    self.updateTipModelNode(td.tipModelNode[index], td.tipPoly[index], p0, pe, td.radius[index], td.modelColor[index], td.opacity[index])
 
     ## Update the 'catheter tip matrix' (normal vectors + the catheter tip position)
     ## Note that the catheter tip matrix is different from the curve end matrix

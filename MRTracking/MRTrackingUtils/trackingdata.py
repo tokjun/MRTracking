@@ -13,14 +13,11 @@ class TrackingData:
 
     # self.activeTrackingDataNodeID = ''
 
-    # CurveMaker
-    #self.cmLogic = None
-
     self.curveNodeID = ''
     
-    self.cmOpacity = [1.0, 1.0]
-    self.cmRadius = [0.5, 0.5]
-    self.cmModelColor = [[0.0, 0.0, 1.0], [1.0, 0.359375, 0.0]]
+    self.opacity = [1.0, 1.0]
+    self.radius = [0.5, 0.5]
+    self.modelColor = [[0.0, 0.0, 1.0], [1.0, 0.359375, 0.0]]
 
     # Tip model
     self.tipLength = [10.0, 10.0]
