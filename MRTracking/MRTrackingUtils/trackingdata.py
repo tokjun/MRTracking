@@ -21,6 +21,7 @@ class TrackingData:
 
     # Tip model
     self.tipLength = [10.0, 10.0]
+    self.coilPositions = [[0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]]
     self.tipModelNode = [None, None]
     self.tipTransformNode = [None, None]
     self.tipPoly = [None, None]

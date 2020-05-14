@@ -146,25 +146,27 @@ class MRTrackingWidget(ScriptedLoadableModuleWidget):
     configFormLayout = qt.QFormLayout(configGroupBox)
 
 
-    self.tipLengthSliderWidget = [None] * self.nCath
+    #self.tipLengthSliderWidget = [None] * self.nCath
     self.catheterDiameterSliderWidget = [None] * self.nCath
     self.catheterOpacitySliderWidget = [None] * self.nCath
+    self.catheterRegUseCoilCheckBox = [None] * self.nCath
+    self.catheterRegPointsLineEdit = [None] * self.nCath
     
     for cath in range(self.nCath):
       
-      #
-      # Tip Length (legnth between the catheter tip and the first coil)
-      #
-      self.tipLengthSliderWidget[cath] = ctk.ctkSliderWidget()
-      self.tipLengthSliderWidget[cath].singleStep = 0.5
-      self.tipLengthSliderWidget[cath].minimum = 0.0
-      self.tipLengthSliderWidget[cath].maximum = 100.0
-      self.tipLengthSliderWidget[cath].value = 10.0
-      self.tipLengthSliderWidget[cath].setToolTip("Set the length of the catheter tip.")
-      configFormLayout.addRow("Cath %d Tip Length (mm): " % cath, self.tipLengthSliderWidget[cath])
+      ##
+      ## Tip Length (legnth between the catheter tip and the first coil)
+      ##
+      #self.tipLengthSliderWidget[cath] = ctk.ctkSliderWidget()
+      #self.tipLengthSliderWidget[cath].singleStep = 0.5
+      #self.tipLengthSliderWidget[cath].minimum = 0.0
+      #self.tipLengthSliderWidget[cath].maximum = 100.0
+      #self.tipLengthSliderWidget[cath].value = 10.0
+      #self.tipLengthSliderWidget[cath].setToolTip("Set the length of the catheter tip.")
+      #configFormLayout.addRow("Cath %d Tip Length (mm): " % cath, self.tipLengthSliderWidget[cath])
       
       #
-      # Catheter #1 Catheter diameter
+      # Catheter #cath Catheter diameter
       #
       self.catheterDiameterSliderWidget[cath] = ctk.ctkSliderWidget()
       self.catheterDiameterSliderWidget[cath].singleStep = 0.1
@@ -175,7 +177,7 @@ class MRTrackingWidget(ScriptedLoadableModuleWidget):
       configFormLayout.addRow("Cath %d Diameter (mm): " % cath, self.catheterDiameterSliderWidget[cath])
       
       #
-      # Catheter #1 Catheter opacity
+      # Catheter #cath Catheter opacity
       #
       self.catheterOpacitySliderWidget[cath] = ctk.ctkSliderWidget()
       self.catheterOpacitySliderWidget[cath].singleStep = 0.1
@@ -184,6 +186,27 @@ class MRTrackingWidget(ScriptedLoadableModuleWidget):
       self.catheterOpacitySliderWidget[cath].value = 1.0
       self.catheterOpacitySliderWidget[cath].setToolTip("Set the opacity of the catheter")
       configFormLayout.addRow("Cath %d Opacity: " % cath, self.catheterOpacitySliderWidget[cath])
+
+      #
+      # Catheter #cath "Use coil positions for registration" check box
+      #
+      self.catheterRegUseCoilCheckBox[cath] = qt.QCheckBox()
+      self.catheterRegUseCoilCheckBox[cath].checked = 1
+      self.catheterRegUseCoilCheckBox[cath].enabled = 1
+      self.catheterRegUseCoilCheckBox[cath].setToolTip("Activate Tracking")
+      configFormLayout.addRow("Cath %d Use Coil Pos: " % cath, self.catheterRegUseCoilCheckBox[cath])
+      
+      #
+      # Catheter #cath registration points
+      #
+      #  Format: (<coil index>,<offset>),(<coil index>,<offset>),...
+      # 
+      self.catheterRegPointsLineEdit[cath] = qt.QLineEdit()
+      self.catheterRegPointsLineEdit[cath].text = '5.0,10.0,15.0,20.0'
+      self.catheterRegPointsLineEdit[cath].readOnly = False
+      self.catheterRegPointsLineEdit[cath].frame = True
+      self.catheterRegPointsLineEdit[cath].styleSheet = "QLineEdit { background:transparent; }"
+      configFormLayout.addRow("Cath %d Reg. Points: " % cath, self.catheterRegPointsLineEdit[cath])
 
     #--------------------------------------------------
     # Coil Selection Aare
@@ -314,7 +337,9 @@ class MRTrackingWidget(ScriptedLoadableModuleWidget):
     self.activeTrackingCheckBox.connect('toggled(bool)', self.onActiveTracking)
 
     for cath in range(self.nCath):
-      self.tipLengthSliderWidget[cath].connect("valueChanged(double)", functools.partial(self.onTipLengthChanged, cath))
+      ## JT: I'd leave this widget in the comment, because it might be useful to show the predicted in the future.
+      #self.tipLengthSliderWidget[cath].connect("valueChanged(double)", functools.partial(self.onTipLengthChanged, cath))
+      self.catheterRegPointsLineEdit[cath].editingFinished.connect(functools.partial(self.onCatheterRegPointsChanged, cath))
       self.catheterDiameterSliderWidget[cath].connect("valueChanged(double)", functools.partial(self.onCatheterDiameterChanged, cath))
       self.catheterOpacitySliderWidget[cath].connect("valueChanged(double)", functools.partial(self.onCatheterOpacityChanged, cath))
 
@@ -363,12 +388,22 @@ class MRTrackingWidget(ScriptedLoadableModuleWidget):
   def onRejectRegistration(self):
     self.logic.acceptNewMatrix(self, False)
 
-
-  def onTipLengthChanged(self, cath, checked):
-    print("onTipLengthChanged(%d)" % cath)
-    self.logic.setTipLength(self.tipLengthSliderWidget[cath].value, cath)
+  #def onTipLengthChanged(self, cath, checked):
+  #  print("onTipLengthChanged(%d)" % cath)
+  #  self.logic.setTipLength(self.tipLengthSliderWidget[cath].value, cath)
   
-    
+  def onCatheterRegPointsChanged(self, cath):
+    text = self.catheterRegPointsLineEdit[cath].text
+    print("onCatheterRegPointsChanged(%d, %s)" % (cath, text))
+
+    strarray = text.split(',')
+    try:
+      array = [float(ns) for ns in strarray]
+      self.logic.setCoilPositions(cath, array)
+    except ValueError:
+      print('Format error in coil position string.')
+
+      
   def onCatheterDiameterChanged(self, cath, checked):
     self.logic.setCatheterDiameter(self.catheterDiameterSliderWidget[cath].value, cath)
     
@@ -424,7 +459,7 @@ class MRTrackingWidget(ScriptedLoadableModuleWidget):
 
 
     for cath in range(self.nCath):
-      self.tipLengthSliderWidget[cath].value = tdata.tipLength[cath]
+      #self.tipLengthSliderWidget[cath].value = tdata.tipLength[cath]
       self.catheterDiameterSliderWidget[cath].value = tdata.radius[cath] * 2
       self.catheterOpacitySliderWidget[cath].value = tdata.opacity[cath]
       
@@ -502,7 +537,6 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
   def setWidget(self, widget):
     self.widget = widget
 
-
   def setTipLength(self, length, index):
     nodeID = self.currentTrackingDataNodeID
     if nodeID:
@@ -512,6 +546,17 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
         tnode = slicer.mrmlScene.GetNodeByID(nodeID)
         self.updateCatheter(tnode, index)
 
+  def setCoilPositions(self, index, array):
+    nodeID = self.currentTrackingDataNodeID
+    if nodeID:
+      td = self.TrackingData[nodeID]
+      if td:
+        if len(array) <= len(td.coilPositions[index]):
+          i = 0
+          for p in array:
+            td.coilPositions[index][i] = p
+            i = i + 1
+        print(td.coilPositions)
 
   def setCatheterDiameter(self, diameter, index):
     nodeID = self.currentTrackingDataNodeID
@@ -706,6 +751,7 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
         curveNode.SetNthControlPointPosition(coilID, v[0] * td.axisDirection[0], v[1] * td.axisDirection[1], v[2] * td.axisDirection[2])
         j += 1
 
+    print('curveNode.GetNumberOfPointsPerInterpolatingSegment(): %d' % curveNode.GetNumberOfPointsPerInterpolatingSegment())
     curveNode.EndModify(prevState)
     
     self.updateCatheter(tdnode, index)
