@@ -17,6 +17,7 @@ class MRTrackingFiducialRegistration():
     self.fromFiducialsNode = None
     self.toFiducialsNode = None
     self.registrationTransformNode = None
+    self.trackingData = None
     
   def buildGUI(self, parent):
 
@@ -166,8 +167,16 @@ class MRTrackingFiducialRegistration():
     fromTrackingNode = self.fromTrackingDataSelector.currentNode()
     toTrackingNode = self.toTrackingDataSelector.currentNode()
 
+    ## TODO: Assuming to use the first curve. 
+    fromCurveNodeID = fromTrackingNode.GetAttribute('MRTracking.CurveNode0')
+    toCurveNodeID = toTrackingNode.GetAttribute('MRTracking.CurveNode0')
+
+    fromCurveNode = slicer.mrmlScene.GetNodeByID(fromCurveNodeID)
+    toCurveNode = slicer.mrmlScene.GetNodeByID(toCurveNodeID)
+
     # If either tracking node is not specified, show an error message and exist this function.
-    if fromTrackingNode == None or toTrackingNode == None:
+    #if fromTrackingNode == None or toTrackingNode == None:
+    if fromCurveNode == None or toCurveNode == None:
       msgBox = QMessageBox()
       msgBox.setIcon(QMessageBox.Information)
       msgBox.setText("Tracking data are not spcified.")
@@ -190,13 +199,39 @@ class MRTrackingFiducialRegistration():
     else:
       print("Error: Fiducials Node for 'To' is not available.")
       return
+
+    ## Get TrackingData 
+    tdFrom = self.trackingData[fromTrackingNode.GetID()]
+    tdTo   = self.trackingData[toTrackingNode.GetID()]
+    coilPosFrom = tdFrom.coilPositions[0]
+    coilPosTo = tdTo.coilPositions[0]
     
     #
-    # In the following process, we assume that the two tracking data nodes (i.e. catheters) have
-    # the coils at the corresponding points. We will revise it in the future so that registration
-    # points can be between the actual coils.
+    #              Tip     s[0]     s[1]       s[2]       s[3] ...
+    #   Tracking 0 *-------x--------x----------x----------x------------------
     #
-      
+    #              Tip        t[0]      t[1]         t[2]       t[3] ...
+    #   Tracking 1 *----------x---------x------------x----------x------------
+    #
+    #
+    # where 's[]' and 't[]' are distance from the tip to each coil along the catheter.
+    #
+    # 1. Find the two closest coils for Tracking 0 (s[k] and s[k+1]) from each coil for Tracking 1 t[j]
+    # 2. Calculate the distance ratio a/(a+b) = distance(s[k], t[j]) / distance(s[k], s[k+1])
+    #
+    #                     s[k]         s[k+1]    
+    #   Tracking 0 ... ---x----------x----- ...
+    #                     |          |
+    #                     |   t[j]   |
+    #   Tracking 1 ... -------x------------ ...
+    #                     |   |      |
+    #                     |   |      |
+    #                     |<->|<---->|
+    #                       a    b
+    # 3. Calculate the location of t[j] in the Tracking 0 space by interpolation.
+    #
+    
+    # Match the number of coils
     nCoilsFrom = fromTrackingNode.GetNumberOfTransformNodes()
     nCoilsTo = toTrackingNode.GetNumberOfTransformNodes()
 
@@ -205,6 +240,12 @@ class MRTrackingFiducialRegistration():
       nCoils = nCoilsTo
     else:
       nCoils = nCoilsFrom
+
+    # Find which tracking has the coil nearest to the tip
+    if coilPosFrom[0] < coilPosTo[0]:
+      pass
+    
+      
       
     for i in range(nCoils):
       transNodeFrom = fromTrackingNode.GetTransformNode(i)

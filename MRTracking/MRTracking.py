@@ -329,6 +329,7 @@ class MRTrackingWidget(ScriptedLoadableModuleWidget):
 
     self.registration =  MRTrackingFiducialRegistration()
     self.registration.buildGUI(registrationCollapsibleButton)
+    self.logic.setRegistration(self.registration)
     
     #--------------------------------------------------
     # Connections
@@ -504,7 +505,14 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
     self.currentTrackingDataNodeID = ''
     self.TrackingData = {}
 
+    self.registration = None
 
+
+  def setRegistration(self, reg):
+    self.registration = reg
+    self.registration.trackingData = self.TrackingData
+  
+    
   def addNewTrackingData(self, tdnode):
     if not tdnode:
       return
@@ -546,6 +554,7 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
         tnode = slicer.mrmlScene.GetNodeByID(nodeID)
         self.updateCatheter(tnode, index)
 
+        
   def setCoilPositions(self, index, array):
     nodeID = self.currentTrackingDataNodeID
     if nodeID:
@@ -557,6 +566,9 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
             td.coilPositions[index][i] = p
             i = i + 1
         print(td.coilPositions)
+        # Make sure that the registration class instance references the tracking data
+        self.registration.trackingData = self.TrackingData
+        
 
   def setCatheterDiameter(self, diameter, index):
     nodeID = self.currentTrackingDataNodeID
