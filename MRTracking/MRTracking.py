@@ -458,13 +458,18 @@ class MRTrackingWidget(ScriptedLoadableModuleWidget):
     else:
       self.activeTrackingCheckBox.checked = False
 
-
     for cath in range(self.nCath):
       #self.tipLengthSliderWidget[cath].value = tdata.tipLength[cath]
-      self.catheterDiameterSliderWidget[cath].value = tdata.radius[cath] * 2
+      self.catheterDiameterSliderWidget[cath].value = tdata.radius[cath] * 2.0
       self.catheterOpacitySliderWidget[cath].value = tdata.opacity[cath]
+
+      str = ""
+      for p in tdata.coilPositions[cath]:
+        str += "%.f," % p
+      self.catheterRegPointsLineEdit[cath].text = str[:-1] # Remove the last ','
       
     self.showCoilLabelCheckBox.checked = tdata.showCoilLabel
+    
 
     for ch in range(self.nChannel):
       self.coilCheckBox[0][ch].checked = tdata.activeCoils1[ch]
@@ -507,6 +512,13 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
 
     self.registration = None
 
+    ## Default catheter configurations:
+    self.defaultCoilConfig = {
+      '"NavX-Ch0"' : '0,20,40,60',
+      '"NavX-Ch1"' : '0,20,40,60',
+      '"WWTracker"' : '10,30,50,70'
+    }
+
 
   def setRegistration(self, reg):
     self.registration = reg
@@ -526,15 +538,30 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
       self.setupFiducials(tdnode, 0)
       self.setupFiducials(tdnode, 1)
 
+      name = tdnode.GetName()
+      print('Setting up tracking data.. %s' % name)
+
+      if name in self.defaultCoilConfig:
+        print('Found %s in Default Config List' % name)
+        strarray = self.defaultCoilConfig[name].split(',')
+        print(strarray)
+        try:
+          array = [float(ns) for ns in strarray]
+          self.setCoilPositions(0, array)
+          self.setCoilPositions(1, array)
+        except ValueError:
+          print('Format error in coil position string.')
+      
       
   def switchCurrentTrackingData(self, tdnode):
     if not tdnode:
       return
 
+    self.currentTrackingDataNodeID = tdnode.GetID()
+    
     if not (tdnode.GetID() in self.TrackingData):
       self.addNewTrackingData(tdnode)
 
-    self.currentTrackingDataNodeID = tdnode.GetID()
     return self.TrackingData[tdnode.GetID()]
   
 
@@ -568,6 +595,7 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
         print(td.coilPositions)
         # Make sure that the registration class instance references the tracking data
         self.registration.trackingData = self.TrackingData
+        self.setTipLength(td.coilPositions[index][0], index)  # The first coil position match the tip length
         
 
   def setCatheterDiameter(self, diameter, index):
@@ -763,7 +791,7 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
         curveNode.SetNthControlPointPosition(coilID, v[0] * td.axisDirection[0], v[1] * td.axisDirection[1], v[2] * td.axisDirection[2])
         j += 1
 
-    print('curveNode.GetNumberOfPointsPerInterpolatingSegment(): %d' % curveNode.GetNumberOfPointsPerInterpolatingSegment())
+    #print('curveNode.GetNumberOfPointsPerInterpolatingSegment(): %d' % curveNode.GetNumberOfPointsPerInterpolatingSegment())
     curveNode.EndModify(prevState)
     
     self.updateCatheter(tdnode, index)

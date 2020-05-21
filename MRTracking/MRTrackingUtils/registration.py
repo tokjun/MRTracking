@@ -1,6 +1,7 @@
 import ctk
 import qt
 import slicer
+import vtk
 import functools
 
 #------------------------------------------------------------
@@ -217,7 +218,7 @@ class MRTrackingFiducialRegistration():
     # where 's[]' and 't[]' are distance from the tip to each coil along the catheter.
     #
     # 1. Find the two closest coils for Tracking 0 (s[k] and s[k+1]) from each coil for Tracking 1 t[j]
-    # 2. Calculate the distance ratio a/(a+b) = distance(s[k], t[j]) / distance(s[k], s[k+1])
+    # 2. Calculate the distance ratio a/b = distance(s[k], t[j]) / distance(s[k], s[k+1])
     #
     #                     s[k]         s[k+1]    
     #   Tracking 0 ... ---x----------x----- ...
@@ -225,9 +226,12 @@ class MRTrackingFiducialRegistration():
     #                     |   t[j]   |
     #   Tracking 1 ... -------x------------ ...
     #                     |   |      |
-    #                     |   |      |
-    #                     |<->|<---->|
-    #                       a    b
+    #                     |<->|      |
+    #                     | a        |
+    #                     |          |
+    #                     |<-------->|
+    #                           b
+    
     # 3. Calculate the location of t[j] in the Tracking 0 space by interpolation.
     #
     
@@ -241,25 +245,75 @@ class MRTrackingFiducialRegistration():
     else:
       nCoils = nCoilsFrom
 
-    # Find which tracking has the coil nearest to the tip
-    if coilPosFrom[0] < coilPosTo[0]:
-      pass
-    
-      
-      
-    for i in range(nCoils):
-      transNodeFrom = fromTrackingNode.GetTransformNode(i)
-      transFrom = transNodeFrom.GetTransformToParent()
-      posFrom = transFrom.GetPosition()
-      self.fromFiducialsNode.AddFiducial(posFrom[0], posFrom[1], posFrom[2])
-      print('Add From (%d, %d, %d)' % (posFrom[0], posFrom[1], posFrom[2]))
-      
-      transNodeTo   = toTrackingNode.GetTransformNode(i)
-      transTo   = transNodeTo.GetTransformToParent()
-      posTo   = transTo.GetPosition()
-      self.toFiducialsNode.AddFiducial(posTo[0], posTo[1], posTo[2])
-      print('Add To (%d, %d, %d)' % (posTo[0], posTo[1], posTo[2]))
+    #
+    # TODO: Check if the numbers are orderd correctly in the coilPosFrom and coilPosTo arrays
+    #
 
+    s = None
+    t = None
+    curve0Node = None
+    curve1Node = None
+    if coilPosFrom[0] < coilPosTo[0]:
+      s = coilPosFrom
+      t = coilPosTo
+      curve0Node = fromCurveNode
+      curve1Node = toCurveNode
+    else:
+      s = coilPosTo
+      t = coilPosFrom
+      curve0Node = toCurveNode
+      curve1Node = fromCurveNode
+
+    #adjPointIndex = [-1] * nCoils ## TODO: Should it have fixed length for speed?
+    k = 0
+    trans = vtk.vtkMatrix4x4()
+    posFrom = [0.0] * 3
+    posTo = [0.0] * 3
+    
+    for j in range(nCoils):
+
+      print ("t[%d] = %f" % (j, t[j]))
+      
+      # 1. Find the two closest coils for Tracking 0 (s[k] and s[k+1]) from each coil for Tracking 1 t[j]
+      
+      while k < nCoils-1 and s[k+1] < t[j]:
+        k = k + 1
+
+      if k == nCoils-1:
+        break
+
+      # 2. Calculate the distance ratio a/(a+b) = distance(s[k], t[j]) / distance(s[k], s[k+1])
+      a = t[j]-s[k]
+      b = s[k+1]-s[k]
+
+      # Get the point indices for s[k] and s[k+1] (control points)
+      pindex0 = curve0Node.GetCurvePointIndexFromControlPointIndex(k)
+      pindex1 = curve0Node.GetCurvePointIndexFromControlPointIndex(k+1)
+
+      ## TODO: Make sure that pindex0 < pindex1
+
+      # 3. Calculate the location of t[j] in the Tracking 0 space by interpolation.      
+      # Calculate the curve length between the point s[k] and point s[k+1]
+      clen = curve0Node.GetCurveLengthBetweenStartEndPointsWorld(pindex0, pindex1)
+      
+      pindexm =  curve0Node.GetCurvePointIndexAlongCurveWorld(pindex0, clen * a / b)
+
+      curve0Node.GetCurvePointToWorldTransformAtPointIndex(pindexm, trans)
+      posFrom[0] = trans.GetElement(0, 3)
+      posFrom[1] = trans.GetElement(1, 3)
+      posFrom[2] = trans.GetElement(2, 3)
+      self.fromFiducialsNode.AddFiducial(posFrom[0], posFrom[1], posFrom[2])
+      print('Add From (%f, %f, %f)' % (posFrom[0], posFrom[1], posFrom[2]))
+
+      # 4. Obtain the coordinates for t[j]
+      pindex = curve1Node.GetCurvePointIndexFromControlPointIndex(j)
+      curve1Node.GetCurvePointToWorldTransformAtPointIndex(pindex, trans)
+      posTo[0] = trans.GetElement(0, 3)
+      posTo[1] = trans.GetElement(1, 3)
+      posTo[2] = trans.GetElement(2, 3)
+      self.toFiducialsNode.AddFiducial(posTo[0], posTo[1], posTo[2])
+      print('Add To (%f, %f, %f)' % (posTo[0], posTo[1], posTo[2]))
+  
       
   def onClearPoints(self):
     
