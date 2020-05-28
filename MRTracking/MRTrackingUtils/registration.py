@@ -18,7 +18,10 @@ class MRTrackingFiducialRegistration():
     self.fromFiducialsNode = None
     self.toFiducialsNode = None
     self.registrationTransformNode = None
+    self.registrationTransform = None
     self.trackingData = None
+    self.applyTransform = None # Specifiy the data node under the transform
+    self.mrTrackingLogic = None
     
   def buildGUI(self, parent):
 
@@ -62,6 +65,22 @@ class MRTrackingFiducialRegistration():
     registrationLayout.addRow("Points: ", pointBoxLayout)
 
     #
+    # Fiducial points visibility
+    #
+    
+    visibilityBoxLayout = qt.QHBoxLayout()
+    self.visibilityGroup = qt.QButtonGroup()
+    self.visibilityOnRadioButton = qt.QRadioButton("ON")
+    self.visibilityOffRadioButton = qt.QRadioButton("Off")
+    self.visibilityOffRadioButton.checked = 1
+    visibilityBoxLayout.addWidget(self.visibilityOnRadioButton)
+    self.visibilityGroup.addButton(self.visibilityOnRadioButton)
+    visibilityBoxLayout.addWidget(self.visibilityOffRadioButton)
+    self.visibilityGroup.addButton(self.visibilityOffRadioButton)
+
+    registrationLayout.addRow("Visibility: ", visibilityBoxLayout)
+
+    #
     # Transform Type
     #
     
@@ -79,23 +98,6 @@ class MRTrackingFiducialRegistration():
     self.transTypeGroup.addButton(self.splineTypeRadioButton)
 
     registrationLayout.addRow("Transform Type: ", transTypeBoxLayout)
-
-
-    #
-    # Fiducial points visibility
-    #
-    
-    visibilityBoxLayout = qt.QHBoxLayout()
-    self.visibilityGroup = qt.QButtonGroup()
-    self.visibilityOnRadioButton = qt.QRadioButton("ON")
-    self.visibilityOffRadioButton = qt.QRadioButton("Off")
-    self.visibilityOnRadioButton.checked = 1
-    visibilityBoxLayout.addWidget(self.visibilityOnRadioButton)
-    self.visibilityGroup.addButton(self.visibilityOnRadioButton)
-    visibilityBoxLayout.addWidget(self.visibilityOffRadioButton)
-    self.visibilityGroup.addButton(self.visibilityOffRadioButton)
-
-    registrationLayout.addRow("Visibility: ", visibilityBoxLayout)
 
     #
     # Collect/Clear button
@@ -130,6 +132,22 @@ class MRTrackingFiducialRegistration():
     registrationLayout.addRow("", self.runButton)
 
     #
+    # Apply transform
+    #
+    
+    applyTransformBoxLayout = qt.QHBoxLayout()
+    self.applyTransformGroup = qt.QButtonGroup()
+    self.applyTransformOnRadioButton = qt.QRadioButton("ON")
+    self.applyTransformOffRadioButton = qt.QRadioButton("Off")
+    self.applyTransformOffRadioButton.checked = 1
+    applyTransformBoxLayout.addWidget(self.applyTransformOnRadioButton)
+    self.applyTransformGroup.addButton(self.applyTransformOnRadioButton)
+    applyTransformBoxLayout.addWidget(self.applyTransformOffRadioButton)
+    self.applyTransformGroup.addButton(self.applyTransformOffRadioButton)
+
+    registrationLayout.addRow("Apply Transform: ", applyTransformBoxLayout)
+
+    #
     # Connect signals and slots
     #
     self.fromTrackingDataSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onTrackingDataFromSelected)
@@ -139,6 +157,8 @@ class MRTrackingFiducialRegistration():
     self.runButton.connect(qt.SIGNAL("clicked()"), self.onRunRegistration)
     self.visibilityOnRadioButton.connect("clicked(bool)", self.onVisibilityChanged)
     self.visibilityOffRadioButton.connect("clicked(bool)", self.onVisibilityChanged)
+    self.applyTransformOnRadioButton.connect("clicked(bool)", self.onApplyTransformChanged)
+    self.applyTransformOffRadioButton.connect("clicked(bool)", self.onApplyTransformChanged)
 
 
   def onTrackingDataFromSelected(self):
@@ -350,7 +370,6 @@ class MRTrackingFiducialRegistration():
       print('Error: no fiducial point is available.')
 
     ## Copy fiducials to vtkPoint
-    landmarkTransform = vtk.vtkLandmarkTransform()
     fromPoints = vtk.vtkPoints()
     toPoints = vtk.vtkPoints()
 
@@ -378,6 +397,7 @@ class MRTrackingFiducialRegistration():
       self.registrationTransformNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLLinearTransformNode")
       self.registrationTransformNode.SetName("RegistrationTransform-Rigid")
 
+      landmarkTransform = vtk.vtkLandmarkTransform()
       landmarkTransform.SetSourceLandmarks(fromPoints)
       landmarkTransform.SetTargetLandmarks(toPoints)
       landmarkTransform.SetModeToRigidBody()
@@ -387,6 +407,7 @@ class MRTrackingFiducialRegistration():
       landmarkTransform.GetMatrix(calculatedTransform)
       
       self.registrationTransformNode.SetMatrixTransformToParent(calculatedTransform)
+      self.registrationTransform = landmarkTransform
 
     # Affine registration
     if self.affineTypeRadioButton.checked == 1:
@@ -395,6 +416,7 @@ class MRTrackingFiducialRegistration():
       self.registrationTransformNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLLinearTransformNode")
       self.registrationTransformNode.SetName("RegistrationTransform-Affine")
 
+      landmarkTransform = vtk.vtkLandmarkTransform()
       landmarkTransform.SetSourceLandmarks(fromPoints)
       landmarkTransform.SetTargetLandmarks(toPoints)
       landmarkTransform.SetModeToAffine()
@@ -403,7 +425,7 @@ class MRTrackingFiducialRegistration():
       calculatedTransform = vtk.vtkMatrix4x4()
       landmarkTransform.GetMatrix(calculatedTransform)
       self.registrationTransformNode.SetMatrixTransformToParent(calculatedTransform)
-
+      self.registrationTransform = landmarkTransform
       
     # Thin plate spline
     if self.splineTypeRadioButton.checked == 1:
@@ -412,11 +434,18 @@ class MRTrackingFiducialRegistration():
       
       tpsTransform = vtk.vtkThinPlateSplineTransform()
       tpsTransform.SetBasisToR()
-      self.registrationTransformNode.SetAndObserveTransformFromParent(tpsTransform)
-    
+      
       tpsTransform.SetSourceLandmarks(fromPoints)
       tpsTransform.SetTargetLandmarks(toPoints)
       tpsTransform.Update()
+
+      self.registrationTransformNode.SetAndObserveTransformFromParent(tpsTransform)
+      self.registrationTransform = tpsTransform
+    #
+    # TODO: The function create a new transform node instance (either vtkMRMLLinearTransformNode or
+    # vtkMRMLTransformNode) everytime called for the debugging purpose. It should clean up the old
+    # transform node after creating a new one.
+    #
           
 
   def onVisibilityChanged(self):
@@ -434,3 +463,21 @@ class MRTrackingFiducialRegistration():
       dnode = self.toFiducialsNode.GetDisplayNode()
       dnode.SetVisibility(self.fiducialsVisible)
 
+
+  def onApplyTransformChanged(self):
+
+    tdnode = None
+    
+    if self.applyTransformOnRadioButton.checked == True:
+      self.applyTransform = self.fromTrackingDataSelector.currentNode()
+      tdnode = self.applyTransform
+    else:
+      tdnode = self.applyTransform
+      self.applyTransform = None
+
+    self.mrTrackingLogic.updateCatheterNode(tdnode, 0)
+    self.mrTrackingLogic.updateCatheterNode(tdnode, 1)
+      
+  def setMRTrackingLogic(self, t):
+    self.mrTrackingLogic = t
+  

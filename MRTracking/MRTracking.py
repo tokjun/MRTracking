@@ -329,7 +329,9 @@ class MRTrackingWidget(ScriptedLoadableModuleWidget):
 
     self.registration =  MRTrackingFiducialRegistration()
     self.registration.buildGUI(registrationCollapsibleButton)
+    self.registration.setMRTrackingLogic(self.logic)
     self.logic.setRegistration(self.registration)
+
     
     #--------------------------------------------------
     # Connections
@@ -785,6 +787,13 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
         tnode = tdnode.GetTransformNode(i)
         trans = tnode.GetTransformToParent()
         v = trans.GetPosition()
+        
+        # Apply the registration transform, if activated. (GUI is defined in registration.py)
+        if self.registration and self.registration.applyTransform and (self.registration.applyTransform.GetID() == tdnode.GetID()):
+          print("Applying registration transform")
+          if self.registration.registrationTransform:
+            v = self.registration.registrationTransform.TransformPoint(v)
+
         coilID = j
         if fFlip:
           coilID = lastCoil - j
