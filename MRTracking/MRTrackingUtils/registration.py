@@ -62,6 +62,26 @@ class MRTrackingFiducialRegistration():
     registrationLayout.addRow("Points: ", pointBoxLayout)
 
     #
+    # Transform Type
+    #
+    
+    transTypeBoxLayout = qt.QHBoxLayout()
+    self.transTypeGroup = qt.QButtonGroup()
+    self.rigidTypeRadioButton = qt.QRadioButton("Rigid")
+    self.affineTypeRadioButton = qt.QRadioButton("Affine")
+    self.splineTypeRadioButton = qt.QRadioButton("Thin Plate Spline")
+    self.rigidTypeRadioButton.checked = 1
+    transTypeBoxLayout.addWidget(self.rigidTypeRadioButton)
+    self.transTypeGroup.addButton(self.rigidTypeRadioButton)
+    transTypeBoxLayout.addWidget(self.affineTypeRadioButton)
+    self.transTypeGroup.addButton(self.affineTypeRadioButton)
+    transTypeBoxLayout.addWidget(self.splineTypeRadioButton)
+    self.transTypeGroup.addButton(self.splineTypeRadioButton)
+
+    registrationLayout.addRow("Transform Type: ", transTypeBoxLayout)
+
+
+    #
     # Fiducial points visibility
     #
     
@@ -325,24 +345,79 @@ class MRTrackingFiducialRegistration():
 
       
   def onRunRegistration(self):
-    
+
     if self.fromFiducialsNode == None or self.toFiducialsNode == None:
       print('Error: no fiducial point is available.')
 
-    # Create linear transform node to store the registration result
-    if self.registrationTransformNode == None:
+    ## Copy fiducials to vtkPoint
+    landmarkTransform = vtk.vtkLandmarkTransform()
+    fromPoints = vtk.vtkPoints()
+    toPoints = vtk.vtkPoints()
+
+    nFrom = self.fromFiducialsNode.GetNumberOfFiducials()
+    nTo = self.toFiducialsNode.GetNumberOfFiducials()
+
+    if nFrom != nTo:
+      print("ERROR: The numbers of fixed and moving landmarks do not match.")
+      return
+
+    fromPoints.SetNumberOfPoints(nFrom)
+    toPoints.SetNumberOfPoints(nFrom)
+
+    for i in range(nFrom):
+      pos = [0.0]*3
+      self.fromFiducialsNode.GetNthFiducialPosition(i, pos)
+      fromPoints.SetPoint(i, pos)
+      self.toFiducialsNode.GetNthFiducialPosition(i, pos)
+      toPoints.SetPoint(i, pos)
+
+    # Rigid registration
+    if self.rigidTypeRadioButton.checked == 1:
+      
+      # Create linear transform node to store the registration result
       self.registrationTransformNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLLinearTransformNode")
-      self.registrationTransformNode.SetName("RegistrationTransform")
+      self.registrationTransformNode.SetName("RegistrationTransform-Rigid")
 
-    frCLI = slicer.modules.fiducialregistration
-    frParameters = {}
-    frParameters["fixedLandmarks"]  = self.toFiducialsNode.GetID()
-    frParameters["movingLandmarks"] = self.fromFiducialsNode.GetID()
-    frParameters["saveTransform"]   = self.registrationTransformNode.GetID()
-    
-    frCLINode = slicer.cli.runSync(frCLI, None, frParameters)
+      landmarkTransform.SetSourceLandmarks(fromPoints)
+      landmarkTransform.SetTargetLandmarks(toPoints)
+      landmarkTransform.SetModeToRigidBody()
+      landmarkTransform.Update()
 
+      calculatedTransform = vtk.vtkMatrix4x4()
+      landmarkTransform.GetMatrix(calculatedTransform)
+      
+      self.registrationTransformNode.SetMatrixTransformToParent(calculatedTransform)
+
+    # Affine registration
+    if self.affineTypeRadioButton.checked == 1:
+      
+      # Create linear transform node to store the registration result
+      self.registrationTransformNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLLinearTransformNode")
+      self.registrationTransformNode.SetName("RegistrationTransform-Affine")
+
+      landmarkTransform.SetSourceLandmarks(fromPoints)
+      landmarkTransform.SetTargetLandmarks(toPoints)
+      landmarkTransform.SetModeToAffine()
+      landmarkTransform.Update()
     
+      calculatedTransform = vtk.vtkMatrix4x4()
+      landmarkTransform.GetMatrix(calculatedTransform)
+      self.registrationTransformNode.SetMatrixTransformToParent(calculatedTransform)
+
+      
+    # Thin plate spline
+    if self.splineTypeRadioButton.checked == 1:
+      self.registrationTransformNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLTransformNode")
+      self.registrationTransformNode.SetName("RegistrationTransform-Spline")
+      
+      tpsTransform = vtk.vtkThinPlateSplineTransform()
+      tpsTransform.SetBasisToR()
+      self.registrationTransformNode.SetAndObserveTransformFromParent(tpsTransform)
+    
+      tpsTransform.SetSourceLandmarks(fromPoints)
+      tpsTransform.SetTargetLandmarks(toPoints)
+      tpsTransform.Update()
+          
 
   def onVisibilityChanged(self):
 
@@ -352,11 +427,10 @@ class MRTrackingFiducialRegistration():
       self.fiducialsVisible = False
 
     if self.fromFiducialsNode:
-        dnode = self.fromFiducialsNode.GetDisplayNode()
-        dnode.SetVisibility(self.fiducialsVisible)
+      dnode = self.fromFiducialsNode.GetDisplayNode()
+      dnode.SetVisibility(self.fiducialsVisible)
         
     if self.toFiducialsNode:
-        dnode = self.toFiducialsNode.GetDisplayNode()
-        dnode.SetVisibility(self.fiducialsVisible)
+      dnode = self.toFiducialsNode.GetDisplayNode()
+      dnode.SetVisibility(self.fiducialsVisible)
 
-          
