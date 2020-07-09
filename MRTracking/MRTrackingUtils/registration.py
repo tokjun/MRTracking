@@ -3,6 +3,7 @@ import qt
 import slicer
 import vtk
 import functools
+import time
 
 #------------------------------------------------------------
 #
@@ -22,6 +23,17 @@ class MRTrackingFiducialRegistration():
     self.trackingData = None
     self.applyTransform = None # Specifiy the data node under the transform
     self.mrTrackingLogic = None
+    self.sizeCircularBuffer = 24 # 8 time points x 3 (x, y, z) = 24
+    self.pCircularBuffer = 0
+
+    ## For automatic registration update
+    self.autoUpdate = False
+    self.prevNCoilsTo = 0
+    self.prevNCoilsFrom = 0
+    self.prevCollectionTime = 0.0
+    self.interval = 1.0
+    self.minNumFiducials = 10
+    self.maxNumFiducials = 100
     
   def buildGUI(self, parent):
 
@@ -56,7 +68,7 @@ class MRTrackingFiducialRegistration():
 
     self.useTipRadioButton = qt.QRadioButton("Tip")
     self.useAllRadioButton = qt.QRadioButton("All ")
-    self.useTipRadioButton.checked = 1
+    self.useAllRadioButton.checked = 1
     pointBoxLayout.addWidget(self.useTipRadioButton)
     self.pointGroup.addButton(self.useTipRadioButton)
     pointBoxLayout.addWidget(self.useAllRadioButton)
@@ -98,6 +110,22 @@ class MRTrackingFiducialRegistration():
     self.transTypeGroup.addButton(self.splineTypeRadioButton)
 
     registrationLayout.addRow("Transform Type: ", transTypeBoxLayout)
+
+    #
+    # Automatic Update
+    #
+    
+    autoUpdateBoxLayout = qt.QHBoxLayout()
+    self.autoUpdateGroup = qt.QButtonGroup()
+    self.autoUpdateOnRadioButton = qt.QRadioButton("ON")
+    self.autoUpdateOffRadioButton = qt.QRadioButton("OFF")
+    self.autoUpdateOffRadioButton.checked = 1
+    autoUpdateBoxLayout.addWidget(self.autoUpdateOnRadioButton)
+    self.autoUpdateGroup.addButton(self.autoUpdateOnRadioButton)
+    autoUpdateBoxLayout.addWidget(self.autoUpdateOffRadioButton)
+    self.autoUpdateGroup.addButton(self.autoUpdateOffRadioButton)
+
+    registrationLayout.addRow("Automatic Update: ", autoUpdateBoxLayout)
 
     #
     # Collect/Clear button
@@ -159,6 +187,9 @@ class MRTrackingFiducialRegistration():
     self.visibilityOffRadioButton.connect("clicked(bool)", self.onVisibilityChanged)
     self.applyTransformOnRadioButton.connect("clicked(bool)", self.onApplyTransformChanged)
     self.applyTransformOffRadioButton.connect("clicked(bool)", self.onApplyTransformChanged)
+    self.autoUpdateOnRadioButton.connect("clicked(bool)", self.onAutoUpdateChanged)
+    self.autoUpdateOffRadioButton.connect("clicked(bool)", self.onAutoUpdateChanged)
+
 
 
   def onTrackingDataFromSelected(self):
@@ -202,7 +233,13 @@ class MRTrackingFiducialRegistration():
     dnode.SetVisibility(self.fiducialsVisible)
 
     
-  def onCollectPoints(self):
+  def onCollectPoints(self, auto=False):
+    # Returns True if registration needs to be updated.
+
+    fCollect = True # Flag to collect points
+    
+    if auto:
+      fCollect = False # If auto=True, this function won't collect the points in default.
 
     print ("onCollectPoints(self)")
     fromTrackingNode = self.fromTrackingDataSelector.currentNode()
@@ -279,12 +316,32 @@ class MRTrackingFiducialRegistration():
     nCoilsFrom = fromTrackingNode.GetNumberOfTransformNodes()
     nCoilsTo = toTrackingNode.GetNumberOfTransformNodes()
 
+    # Check if the number of coils has changed
+    if self.prevNCoilsFrom != nCoilsFrom:
+      fCollect = True
+      self.prevNCoilsFrom = nCoilsFrom
+      
+    if self.prevNCoilsTo != nCoilsTo:
+      fCollect = True
+      self.prevNCoilsTo = nCoilsTo
+
     nCoils = 0
     if nCoilsFrom > nCoilsTo:
       nCoils = nCoilsTo
     else:
       nCoils = nCoilsFrom
 
+    # If there is no coil, skip the following process.
+    if nCoils == 0:
+      return False
+
+    # Check the current time 
+    currentTime = time.time()
+    if currentTime - self.prevCollectionTime < self.interval:
+      return False
+
+    self.prevCollectionTime = currentTime
+      
     #
     # TODO: Check if the numbers are orderd correctly in the coilPosFrom and coilPosTo arrays
     #
@@ -304,11 +361,16 @@ class MRTrackingFiducialRegistration():
       curve0Node = toCurveNode
       curve1Node = fromCurveNode
 
+
     #adjPointIndex = [-1] * nCoils ## TODO: Should it have fixed length for speed?
     k = 0
     trans = vtk.vtkMatrix4x4()
     posFrom = [0.0] * 3
     posTo = [0.0] * 3
+
+    invTransform = None
+    if self.applyTransform:
+      invTransform = self.registrationTransform.GetInverse()
     
     for j in range(nCoils):
 
@@ -342,18 +404,38 @@ class MRTrackingFiducialRegistration():
       posFrom[0] = trans.GetElement(0, 3)
       posFrom[1] = trans.GetElement(1, 3)
       posFrom[2] = trans.GetElement(2, 3)
-      self.fromFiducialsNode.AddFiducial(posFrom[0], posFrom[1], posFrom[2])
-      print('Add From (%f, %f, %f)' % (posFrom[0], posFrom[1], posFrom[2]))
-
-      # 4. Obtain the coordinates for t[j]
+      if self.applyTransform:
+        v = invTransform.TransformPoint(posFrom)
+        posFrom[0] = v[0]
+        posFrom[1] = v[1]
+        posFrom[2] = v[2]
+        
+      
+      # 3. Obtain the coordinates for t[j]
       pindex = curve1Node.GetCurvePointIndexFromControlPointIndex(j)
       curve1Node.GetCurvePointToWorldTransformAtPointIndex(pindex, trans)
       posTo[0] = trans.GetElement(0, 3)
       posTo[1] = trans.GetElement(1, 3)
       posTo[2] = trans.GetElement(2, 3)
-      self.toFiducialsNode.AddFiducial(posTo[0], posTo[1], posTo[2])
+
+
+      # 5. Record the coordinates
+      nFrom = self.fromFiducialsNode.GetNumberOfFiducials()
+      
+      if nFrom > self.sizeCircularBuffer: # Overwrite a previous point.
+        self.fromFiducialsNode.SetNthFiducialPosition(self.pCircularBuffer, posFrom[0], posFrom[1], posFrom[2])
+        self.toFiducialsNode.SetNthFiducialPosition(self.pCircularBuffer, posTo[0], posTo[1], posTo[2])
+        self.pCircularBuffer = (self.pCircularBuffer + 1) % self.sizeCircularBuffer
+      else: # Add a new point
+        self.fromFiducialsNode.AddFiducial(posFrom[0], posFrom[1], posFrom[2])
+        self.toFiducialsNode.AddFiducial(posTo[0], posTo[1], posTo[2])
+        
+      print('Add From (%f, %f, %f)' % (posFrom[0], posFrom[1], posFrom[2]))
       print('Add To (%f, %f, %f)' % (posTo[0], posTo[1], posTo[2]))
-  
+
+    if self.fromFiducialsNode.GetNumberOfFiducials() >  self.minNumFiducials:
+      return True
+    
       
   def onClearPoints(self):
     
@@ -477,7 +559,26 @@ class MRTrackingFiducialRegistration():
 
     self.mrTrackingLogic.updateCatheterNode(tdnode, 0)
     self.mrTrackingLogic.updateCatheterNode(tdnode, 1)
-      
+
+    
+  def onAutoUpdateChanged(self):
+    
+    if self.autoUpdateOnRadioButton.checked:
+      self.autoUpdate = True
+    else:
+      self.autoUpdate = False
+
+    
   def setMRTrackingLogic(self, t):
+    
     self.mrTrackingLogic = t
-  
+
+    
+  def updatePoints(self):
+
+    if self.autoUpdate:
+      r = self.onCollectPoints(auto=True)
+      if r:
+        self.onRunRegistration()
+      
+    

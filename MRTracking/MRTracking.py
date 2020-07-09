@@ -736,6 +736,8 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
       self.updateCatheterNode(tdnode, 0)
       self.updateCatheterNode(tdnode, 1)
 
+    self.registration.updatePoints()
+
       
   def updateCatheterNode(self, tdnode, index):
     #print("updateCatheterNode(%s, %d) is called" % (tdnode.GetID(), index) )
