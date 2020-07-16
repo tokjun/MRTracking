@@ -4,6 +4,7 @@ import slicer
 import vtk
 import functools
 import time
+import numpy
 
 #------------------------------------------------------------
 #
@@ -16,11 +17,17 @@ class MRTrackingFiducialRegistration():
 
     self.label = label
     self.fiducialsVisible = False
+    self.trackingData = None
+
+    # Circular buffers for registration poitns
     self.fromFiducialsNode = None
     self.toFiducialsNode = None
+    self.fromFiducialsTimeStamp = []
+    self.toFiducialsTimeStamp = []
+
+    # Transformation
     self.registrationTransformNode = None
     self.registrationTransform = None
-    self.trackingData = None
     self.applyTransform = None # Specifiy the data node under the transform
     self.mrTrackingLogic = None
     self.sizeCircularBuffer = 24 # 8 time points x 3 (x, y, z) = 24
@@ -31,9 +38,13 @@ class MRTrackingFiducialRegistration():
     self.prevNCoilsTo = 0
     self.prevNCoilsFrom = 0
     self.prevCollectionTime = 0.0
-    self.interval = 1.0
+
     self.minNumFiducials = 10
     self.maxNumFiducials = 100
+
+    self.minInterval = 1.0           # seconds
+    self.maxTimeDifference = 0.1     # seconds
+    
     
   def buildGUI(self, parent):
 
@@ -176,6 +187,17 @@ class MRTrackingFiducialRegistration():
     registrationLayout.addRow("Apply Transform: ", applyTransformBoxLayout)
 
     #
+    # Fiducial Registration Error
+    #
+    self.freLineEdit = qt.QLineEdit()
+    self.freLineEdit.text = '--'
+    self.freLineEdit.readOnly = True
+    self.freLineEdit.frame = True
+    self.freLineEdit.styleSheet = "QLineEdit { background:transparent; }"
+    
+    registrationLayout.addRow("FRE (mm): ", self.freLineEdit)
+    
+    #
     # Connect signals and slots
     #
     self.fromTrackingDataSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onTrackingDataFromSelected)
@@ -238,10 +260,13 @@ class MRTrackingFiducialRegistration():
 
     fCollect = True # Flag to collect points
     
+    # Check the current time 
+    currentTime = time.time()
+    
     if auto:
       fCollect = False # If auto=True, this function won't collect the points in default.
 
-    print ("onCollectPoints(self)")
+    #print ("onCollectPoints(self)")
     fromTrackingNode = self.fromTrackingDataSelector.currentNode()
     toTrackingNode = self.toTrackingDataSelector.currentNode()
 
@@ -335,13 +360,6 @@ class MRTrackingFiducialRegistration():
     if nCoils == 0:
       return False
 
-    # Check the current time 
-    currentTime = time.time()
-    if currentTime - self.prevCollectionTime < self.interval:
-      return False
-
-    self.prevCollectionTime = currentTime
-      
     #
     # TODO: Check if the numbers are orderd correctly in the coilPosFrom and coilPosTo arrays
     #
@@ -361,7 +379,21 @@ class MRTrackingFiducialRegistration():
       curve0Node = toCurveNode
       curve1Node = fromCurveNode
 
+    # Check time stamp
+    curve0Time = float(curve0Node.GetAttribute('MRTracking.ts'))
+    curve1Time = float(curve1Node.GetAttribute('MRTracking.ts'))
 
+
+    # Check if it is too early to perform new registration
+    if (curve0Time - self.prevCollectionTime < self.minInterval) and (curve1Time - self.prevCollectionTime < self.minInterval):
+      return False
+
+    # Check if the acquisition time difference between the two curves are small enough
+    if abs(curve0Time - curve1Time) > self.maxTimeDifference:
+      return False
+            
+    self.prevCollectionTime = currentTime
+                                                
     #adjPointIndex = [-1] * nCoils ## TODO: Should it have fixed length for speed?
     k = 0
     trans = vtk.vtkMatrix4x4()
@@ -369,7 +401,7 @@ class MRTrackingFiducialRegistration():
     posTo = [0.0] * 3
 
     invTransform = None
-    if self.applyTransform:
+    if self.applyTransform and self.registrationTransform:
       invTransform = self.registrationTransform.GetInverse()
     
     for j in range(nCoils):
@@ -404,7 +436,7 @@ class MRTrackingFiducialRegistration():
       posFrom[0] = trans.GetElement(0, 3)
       posFrom[1] = trans.GetElement(1, 3)
       posFrom[2] = trans.GetElement(2, 3)
-      if self.applyTransform:
+      if self.applyTransform and invTransform:
         v = invTransform.TransformPoint(posFrom)
         posFrom[0] = v[0]
         posFrom[1] = v[1]
@@ -425,14 +457,21 @@ class MRTrackingFiducialRegistration():
       if nFrom > self.sizeCircularBuffer: # Overwrite a previous point.
         self.fromFiducialsNode.SetNthFiducialPosition(self.pCircularBuffer, posFrom[0], posFrom[1], posFrom[2])
         self.toFiducialsNode.SetNthFiducialPosition(self.pCircularBuffer, posTo[0], posTo[1], posTo[2])
+        self.fromFiducialsTimeStamp[self.pCircularBuffer] = curve0Time
+        self.toFiducialsTimeStamp[self.pCircularBuffer] = curve1Time
         self.pCircularBuffer = (self.pCircularBuffer + 1) % self.sizeCircularBuffer
       else: # Add a new point
         self.fromFiducialsNode.AddFiducial(posFrom[0], posFrom[1], posFrom[2])
         self.toFiducialsNode.AddFiducial(posTo[0], posTo[1], posTo[2])
+        self.fromFiducialsTimeStamp.append(curve0Time)
+        self.toFiducialsTimeStamp.append(curve1Time)
+
         
       print('Add From (%f, %f, %f)' % (posFrom[0], posFrom[1], posFrom[2]))
       print('Add To (%f, %f, %f)' % (posTo[0], posTo[1], posTo[2]))
 
+
+    # Check if it is ready for new registration
     if self.fromFiducialsNode.GetNumberOfFiducials() >  self.minNumFiducials:
       return True
     
@@ -529,7 +568,32 @@ class MRTrackingFiducialRegistration():
     # transform node after creating a new one.
     #
           
+    #
+    # Check registration error
+    #
+    fre = self.CalculateRegistrationError(fromPoints, toPoints, self.registrationTransform)
+    print ("FRE: %.6f mm" % fre)
+    self.freLineEdit.text = "%.6f" % fre
+    
+    
+  def CalculateRegistrationError(self, fromPoints, toPoints, transform):
 
+    # Transform the from points
+    transformedFromPoints = vtk.vtkPoints()
+    transform.TransformPoints(fromPoints, transformedFromPoints)
+
+    # Calculate the RMS distance between the to points and the transformed from points
+    sumSquaredError = 0
+    for i in range(toPoints.GetNumberOfPoints()):
+      currentToPoint = [0, 0, 0]
+      toPoints.GetPoint(i, currentToPoint)
+      currentTransformedFromPoint = [0, 0, 0];
+      transformedFromPoints.GetPoint(i, currentTransformedFromPoint)
+      sumSquaredError = sumSquaredError + vtk.vtkMath.Distance2BetweenPoints(currentToPoint, currentTransformedFromPoint)
+
+    return numpy.sqrt(sumSquaredError / toPoints.GetNumberOfPoints())
+
+    
   def onVisibilityChanged(self):
 
     if self.visibilityOnRadioButton.checked == True:
@@ -577,8 +641,11 @@ class MRTrackingFiducialRegistration():
   def updatePoints(self):
 
     if self.autoUpdate:
-      r = self.onCollectPoints(auto=True)
+      r = self.onCollectPoints(True)
       if r:
         self.onRunRegistration()
+        print("updatePoints(self): Running registration")
+      else:
+        print("updatePoints(self): Skipping")
       
     

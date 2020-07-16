@@ -731,15 +731,19 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
       return
 
     tdnode = slicer.mrmlScene.GetNodeByID(parentID)
+
+    ## Obtain the current time stamp
+    ## TODO: Ideally, the time stamp should come from the data source rather than 3D Slicer.
+    currentTime = time.time()
     
     if tdnode and tdnode.GetClassName() == 'vtkMRMLIGTLTrackingDataBundleNode':
-      self.updateCatheterNode(tdnode, 0)
-      self.updateCatheterNode(tdnode, 1)
+      self.updateCatheterNode(tdnode, 0, currentTime)
+      self.updateCatheterNode(tdnode, 1, currentTime)
 
     self.registration.updatePoints()
 
       
-  def updateCatheterNode(self, tdnode, index):
+  def updateCatheterNode(self, tdnode, index, ts=-1.0):
     #print("updateCatheterNode(%s, %d) is called" % (tdnode.GetID(), index) )
     # node shoud be vtkMRMLIGTLTrackingDataBundleNode
 
@@ -753,7 +757,9 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
       tdnode.SetAttribute('MRTracking.CurveNode%d' % index, curveNode.GetID())
     
     prevState = curveNode.StartModify()
-    
+
+    if ts > 0.0:
+      curveNode.SetAttribute('MRTracking.ts', '%f' % ts)
     
     # Update coordinates in the fiducial node.
     nCoils = tdnode.GetNumberOfTransformNodes()
@@ -792,7 +798,6 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
         
         # Apply the registration transform, if activated. (GUI is defined in registration.py)
         if self.registration and self.registration.applyTransform and (self.registration.applyTransform.GetID() == tdnode.GetID()):
-          print("Applying registration transform")
           if self.registration.registrationTransform:
             v = self.registration.registrationTransform.TransformPoint(v)
 
