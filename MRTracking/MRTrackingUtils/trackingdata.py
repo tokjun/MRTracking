@@ -6,6 +6,9 @@
 class TrackingData:
 
   def __init__(self):
+
+    self.MAX_CATHETERS = 2
+    self.MAX_COILS = 8
     
     #slicer.mrmlScene.AddObserver(slicer.vtkMRMLScene.NodeRemovedEvent, self.onNodeRemovedEvent)
     self.widget = None
@@ -18,6 +21,11 @@ class TrackingData:
     self.opacity = [1.0, 1.0]
     self.radius = [0.5, 0.5]
     self.modelColor = [[0.0, 0.0, 1.0], [1.0, 0.359375, 0.0]]
+
+    # Filtering
+    self.transformProcessorNodes = [None] * self.MAX_COILS
+    self.filteredTransformNodes = [None] * self.MAX_COILS
+    
 
     # Tip model
     self.tipLength = [10.0, 10.0]
@@ -44,3 +52,4 @@ class TrackingData:
 
     
       
+## TODO: Store parameters as attributes for TrackingDataBundleNode.

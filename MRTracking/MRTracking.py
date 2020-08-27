@@ -792,7 +792,8 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
     j = 0
     for i in range(nCoils):
       if mask[i]:
-        tnode = tdnode.GetTransformNode(i)
+        #tnode = tdnode.GetTransformNode(i)
+        tnode = td.filteredTransformNodes[i]
         trans = tnode.GetTransformToParent()
         v = trans.GetPosition()
         
@@ -834,7 +835,8 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
       curveDisplayNode.SetSelectedColor(td.modelColor[index])
       curveDisplayNode.SetColor(td.modelColor[index])
       curveDisplayNode.SetOpacity(td.opacity[index])
-      curveDisplayNode.SliceIntersectionVisibilityOn()
+      #curveDisplayNode.SliceIntersectionVisibilityOn()
+      curveDisplayNode.Visibility2DOn()
       curveDisplayNode.EndModify(prevState)
       # Show/hide labels for coils
       curveDisplayNode.SetPointLabelsVisibility(td.showCoilLabel);
@@ -949,7 +951,8 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
     prevState = tipDispNode.StartModify()
     tipDispNode.SetColor(color)
     tipDispNode.SetOpacity(opacity)
-    tipDispNode.SliceIntersectionVisibilityOn()
+    #tipDispNode.SliceIntersectionVisibilityOn()
+    tipDispNode.Visibility2DOn()
     tipDispNode.SetSliceDisplayModeToIntersection()
     tipDispNode.EndModify(prevState)
     
@@ -966,17 +969,45 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
     if delkey != '':
       del self.eventTag[delkey]
 
+
+  #
+  # To fileter the transforms under the TrackingDataBundleNode, prepare transform nodes
+  # to store the filtered transforms.
+  def setFilteredTransforms(self, tdnode):
+    td = self.TrackingData[tdnode.GetID()]
+
+    nTransforms =  tdnode.GetNumberOfTransformNodes()
+    for i in range(nTransforms):
+      inputNode = tdnode.GetTransformNode(i)
+      if td.filteredTransformNodes[i] == None:
+        td.filteredTransformNodes[i] = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLLinearTransformNode')
+      if td.transformProcessorNodes[i] == None:
+        td.transformProcessorNodes[i] = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLTransformProcessorNode')
+        
+      tpnode = td.transformProcessorNodes[i]
+      tpnode.SetName('%s_filtered' % inputNode.GetID())
+      tpnode.SetProcessingMode(slicer.vtkMRMLTransformProcessorNode.PROCESSING_MODE_STABILIZE)
+      tpnode.SetStabilizationCutOffFrequency(7.50)
+      tpnode.SetStabilizationEnabled(1)
+      tpnode.SetUpdateModeToAuto()
+      tpnode.SetAndObserveInputUnstabilizedTransformNode(inputNode)
+      tpnode.SetAndObserveOutputTransformNode(td.filteredTransformNodes[i])
+    
+      
   def activateTracking(self):
     td = self.TrackingData[self.currentTrackingDataNodeID]
     tdnode = slicer.mrmlScene.GetNodeByID(self.currentTrackingDataNodeID)
     
     if tdnode:
-      print("Observer added.")
       # Since TrackingDataBundle does not invoke ModifiedEvent, obtain the first child node
       if tdnode.GetNumberOfTransformNodes() > 0:
-        childNode = tdnode.GetTransformNode(0)
+        # Create transform nodes for filtered tracking data
+        self.setFilteredTransforms(tdnode)
+        #childNode = tdnode.GetTransformNode(0)
+        childNode = td.filteredTransformNodes[0] ## TODO: Using the first node to trigger the event may cause a timing issue..
         childNode.SetAttribute('MRTracking.parent', tdnode.GetID())
         td.eventTag = childNode.AddObserver(vtk.vtkCommand.ModifiedEvent, self.onIncomingNodeModifiedEvent)
+        print("Observer for TrackingDataBundleNode added.")
         return True
       else:
         return False  # Could not add observer.

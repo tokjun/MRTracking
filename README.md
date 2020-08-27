@@ -6,7 +6,7 @@ Slicer Module for MR Tracking
 Prerequisite
 ============
 
-This module has been tested on Slicer 4.11.x (2020-03-15).
+This module has been only tested on Slicer 4.11.x (2020-08-26).
 
 Installation
 ============
