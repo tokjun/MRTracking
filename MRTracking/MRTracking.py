@@ -308,6 +308,25 @@ class MRTrackingWidget(ScriptedLoadableModuleWidget):
     coordinateLayout.addRow("Superior:", self.coordinateSBoxLayout)
 
     #--------------------------------------------------
+    # Stabilizer
+    #
+    stabilizerGroupBox = ctk.ctkCollapsibleGroupBox()
+    stabilizerGroupBox.title = "Stabilizer"
+    stabilizerGroupBox.collapsed = True
+    
+    catheterFormLayout.addWidget(stabilizerGroupBox)
+    stabilizerLayout = qt.QFormLayout(stabilizerGroupBox)
+    
+    self.cutoffFrequencySliderWidget = ctk.ctkSliderWidget()
+    self.cutoffFrequencySliderWidget.singleStep = 0.1
+    self.cutoffFrequencySliderWidget.minimum = 0.10
+    self.cutoffFrequencySliderWidget.maximum = 50.0
+    self.cutoffFrequencySliderWidget.value = 7.5
+    #self.cutoffFrequencySliderWidget.setToolTip("")
+    stabilizerLayout.addRow("Cut-off frequency: ",  self.cutoffFrequencySliderWidget)
+    
+    
+    #--------------------------------------------------
     # Reslice
     #
     resliceCollapsibleButton = ctk.ctkCollapsibleButton()
@@ -362,6 +381,8 @@ class MRTrackingWidget(ScriptedLoadableModuleWidget):
     self.coordinateAMinusRadioButton.connect('clicked(bool)', self.onSelectCoordinate)
     self.coordinateSPlusRadioButton.connect('clicked(bool)', self.onSelectCoordinate)
     self.coordinateSMinusRadioButton.connect('clicked(bool)', self.onSelectCoordinate)
+
+    self.cutoffFrequencySliderWidget.connect("valueChanged(double)", self.onStabilizerCutoffChanged)
     
     # Add vertical spacer
     self.layout.addStretch(1)
@@ -459,8 +480,14 @@ class MRTrackingWidget(ScriptedLoadableModuleWidget):
     sPositive = self.coordinateSPlusRadioButton.checked
     
     self.logic.setAxisDirections(rPositive, aPositive, sPositive)
+
     
-      
+  def onStabilizerCutoffChanged(self):
+
+    frequency = self.cutoffFrequencySliderWidget.value
+    self.logic.setStabilizerCutoff(frequency)
+
+    
   def onReload(self, moduleName="MRTracking"):
     # Generic reload method for any scripted module.
     # ModuleWizard will subsitute correct default moduleName.
@@ -999,9 +1026,10 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
         td.filteredTransformNodes[i] = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLLinearTransformNode')
       if td.transformProcessorNodes[i] == None:
         td.transformProcessorNodes[i] = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLTransformProcessorNode')
-        
+
+      td.filteredTransformNodes[i].SetName('%s_filtered' % inputNode.GetID())
+      
       tpnode = td.transformProcessorNodes[i]
-      tpnode.SetName('%s_filtered' % inputNode.GetID())
       tpnode.SetProcessingMode(slicer.vtkMRMLTransformProcessorNode.PROCESSING_MODE_STABILIZE)
       tpnode.SetStabilizationCutOffFrequency(7.50)
       tpnode.SetStabilizationEnabled(1)
@@ -1030,6 +1058,7 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
 
   
   def deactivateTracking(self):
+    
     td = self.TrackingData[self.currentTrackingDataNodeID]
     tdnode = slicer.mrmlScene.GetNodeByID(self.currentTrackingDataNodeID)
     if tdnode:
@@ -1041,6 +1070,18 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
       else:
         return False
 
+      
+  def setStabilizerCutoff(self, frequency):
+    
+    td = self.TrackingData[self.currentTrackingDataNodeID]
+    tdnode = slicer.mrmlScene.GetNodeByID(self.currentTrackingDataNodeID)
+    if td and tdnode:
+      nTransforms = tdnode.GetNumberOfTransformNodes()
+      for i in range(nTransforms):
+        tpnode = td.transformProcessorNodes[i]
+        tpnode.SetStabilizationCutOffFrequency(frequency)
+
+      
   def isTrackingActive(self):
     td = self.TrackingData[self.currentTrackingDataNodeID]
     return td.isActive()
