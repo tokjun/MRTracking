@@ -370,12 +370,28 @@ class MRTrackingWidget(ScriptedLoadableModuleWidget):
   def cleanup(self):
     pass
 
+  
+  def enableCoilSelection(self, switch):
+    
+    if switch:
+      for cath in range(self.nCath):
+        for ch in range(self.nChannel):
+          self.coilCheckBox[cath][ch].enabled = 1
+    else:
+      for cath in range(self.nCath):
+        for ch in range(self.nChannel):
+          self.coilCheckBox[cath][ch].enabled = 0
+
+          
   def onActiveTracking(self):
     if self.activeTrackingCheckBox.checked == True:
+      self.enableCoilSelection(0)
       self.logic.activateTracking()
-    else:
-      self.logic.deactivateTracking()
 
+    else:
+      self.enableCoilSelection(1)
+      self.logic.deactivateTracking()
+      
     
   def onTrackingDataSelected(self):
     tdnode = self.trackingDataSelector.currentNode()    
