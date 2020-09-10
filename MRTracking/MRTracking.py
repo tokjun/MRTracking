@@ -1027,7 +1027,7 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
       if td.transformProcessorNodes[i] == None:
         td.transformProcessorNodes[i] = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLTransformProcessorNode')
 
-      td.filteredTransformNodes[i].SetName('%s_filtered' % inputNode.GetID())
+      td.filteredTransformNodes[i].SetName('%s_filtered' % inputNode.GetName())
       
       tpnode = td.transformProcessorNodes[i]
       tpnode.SetProcessingMode(slicer.vtkMRMLTransformProcessorNode.PROCESSING_MODE_STABILIZE)
