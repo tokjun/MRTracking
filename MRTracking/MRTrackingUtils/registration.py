@@ -74,19 +74,24 @@ class MRTrackingFiducialRegistration():
     self.toTrackingDataSelector.setToolTip( "Tracking data (To)")
     registrationLayout.addRow("TrackingData (To): ", self.toTrackingDataSelector)
 
-    pointBoxLayout = qt.QHBoxLayout()
-    self.pointGroup = qt.QButtonGroup()
-
-    self.useTipRadioButton = qt.QRadioButton("Tip")
-    self.useAllRadioButton = qt.QRadioButton("All ")
-    self.useAllRadioButton.checked = 1
-    pointBoxLayout.addWidget(self.useTipRadioButton)
-    self.pointGroup.addButton(self.useTipRadioButton)
-    pointBoxLayout.addWidget(self.useAllRadioButton)
-    self.pointGroup.addButton(self.useAllRadioButton)
-
-    registrationLayout.addRow("Points: ", pointBoxLayout)
-
+    # #
+    # # Fiducial points used (either "tip only" or "all"
+    # #
+    # 
+    # pointBoxLayout = qt.QHBoxLayout()
+    # self.pointGroup = qt.QButtonGroup()
+    # 
+    # self.useTipRadioButton = qt.QRadioButton("Tip")
+    # self.useAllRadioButton = qt.QRadioButton("All ")
+    # self.useAllRadioButton.checked = 1
+    # pointBoxLayout.addWidget(self.useTipRadioButton)
+    # self.pointGroup.addButton(self.useTipRadioButton)
+    # pointBoxLayout.addWidget(self.useAllRadioButton)
+    # self.pointGroup.addButton(self.useAllRadioButton)
+    # 
+    # registrationLayout.addRow("Points: ", pointBoxLayout)
+    #
+    
     #
     # Fiducial points visibility
     #
@@ -138,6 +143,39 @@ class MRTrackingFiducialRegistration():
 
     registrationLayout.addRow("Automatic Update: ", autoUpdateBoxLayout)
 
+    #
+    # Parameters for point selections
+    #
+
+    # Maximum time difference between the corresponding points from the two trackers.
+    
+    self.maxTimeDifferenceSliderWidget = ctk.ctkSliderWidget()
+    self.maxTimeDifferenceSliderWidget.singleStep = 10.0
+    self.maxTimeDifferenceSliderWidget.minimum = 0.0
+    self.maxTimeDifferenceSliderWidget.maximum = 10000.0
+    self.maxTimeDifferenceSliderWidget.value = self.maxTimeDifference
+    #self.maxTimeDifferenceSliderWidget.setToolTip("")
+    registrationLayout.addRow("Max. Time Diff (ms): ",  self.maxTimeDifferenceSliderWidget)
+
+    # Minimum interval between two consecutive registrations
+    self.minIntervalSliderWidget = ctk.ctkSliderWidget()
+    self.minIntervalSliderWidget.singleStep = 10.0
+    self.minIntervalSliderWidget.minimum = 0.0
+    self.minIntervalSliderWidget.maximum = 10000.0
+    self.minIntervalSliderWidget.value = self.minInterval
+    #self.minIntervalSliderWidget.setToolTip("")
+    registrationLayout.addRow("Min. Registration Interval (ms): ",  self.minIntervalSliderWidget)
+
+    # Minimum interval between two consecutive registrations
+    self.pointExpirationSliderWidget = ctk.ctkSliderWidget()
+    self.pointExpirationSliderWidget.singleStep = 10.0
+    self.pointExpirationSliderWidget.minimum = 0.0
+    self.pointExpirationSliderWidget.maximum = 10000.0
+    self.pointExpirationSliderWidget.value = self.minInterval
+    #self.minIntervalSliderWidget.setToolTip("")
+    registrationLayout.addRow("Point Exp. (ms): ",  self.pointExpirationSliderWidget)
+
+    
     #
     # Collect/Clear button
     #
@@ -211,9 +249,10 @@ class MRTrackingFiducialRegistration():
     self.applyTransformOffRadioButton.connect("clicked(bool)", self.onApplyTransformChanged)
     self.autoUpdateOnRadioButton.connect("clicked(bool)", self.onAutoUpdateChanged)
     self.autoUpdateOffRadioButton.connect("clicked(bool)", self.onAutoUpdateChanged)
-
-
-
+    self.maxTimeDifferenceSliderWidget.connect("valueChanged(double)", self.onPointSelectionParametersChanged)
+    self.minIntervalSliderWidget.connect("valueChanged(double)", self.onPointSelectionParametersChanged)
+    self.pointExpirationSliderWidget.connect("valueChanged(double)", self.onPointSelectionParametersChanged)
+    
   def onTrackingDataFromSelected(self):
 
     fromTrackingNode = self.fromTrackingDataSelector.currentNode()
@@ -632,7 +671,14 @@ class MRTrackingFiducialRegistration():
     else:
       self.autoUpdate = False
 
+      
+  def onPointSelectionParametersChanged(self):
     
+    self.maxTimeDifference = self.maxTimeDifferenceSliderWidget.value
+    self.minInterval = self.minIntervalSliderWidget.value
+    self.pointExpiration = self.pointExpirationSliderWidget.value
+    
+      
   def setMRTrackingLogic(self, t):
     
     self.mrTrackingLogic = t
