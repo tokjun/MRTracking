@@ -557,6 +557,9 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
 
     self.registration = None
 
+    #self.dataProcessingTimer = qt.QTimer(self)
+    
+
     ## Default catheter configurations:
     self.defaultCoilConfig = {
       '"NavX-Ch0"' : '0,20,40,60',
@@ -775,18 +778,35 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
 
     tdnode = slicer.mrmlScene.GetNodeByID(parentID)
 
-    ## Obtain the current time stamp
-    ## TODO: Ideally, the time stamp should come from the data source rather than 3D Slicer.
-    currentTime = time.time()
-    
     if tdnode and tdnode.GetClassName() == 'vtkMRMLIGTLTrackingDataBundleNode':
-      self.updateCatheterNode(tdnode, 0, currentTime)
-      self.updateCatheterNode(tdnode, 1, currentTime)
-
-    self.registration.updatePoints()
-
+      # Update coordinates in the fiducial node.
+      nCoils = tdnode.GetNumberOfTransformNodes()
+      td = self.TrackingData[tdnode.GetID()]
+      fUpdate = False
+      if nCoils > 0:
+        # Update timestamp
+        # TODO: Should we check all time stamps under the tracking node?
+        tnode = tdnode.GetTransformNode(0)
+        mTime = tnode.GetTransformToWorldMTime()
+        if mTime > td.lastMTime:
+          currentTime = time.time()
+          td.lastMTime = mTime
+          td.lastTS = currentTime
+          fUpdate = True
       
-  def updateCatheterNode(self, tdnode, index, ts=-1.0):
+      self.updateCatheterNode(tdnode, 0)
+      self.updateCatheterNode(tdnode, 1)
+
+      if fUpdate:
+        self.registration.updatePoints()
+
+        
+  #def processIncomingNodes(self):
+  #  print('processIncomingNodes()')
+  #  pass
+    
+      
+  def updateCatheterNode(self, tdnode, index):
     #print("updateCatheterNode(%s, %d) is called" % (tdnode.GetID(), index) )
     # node shoud be vtkMRMLIGTLTrackingDataBundleNode
 
@@ -801,16 +821,18 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
     
     prevState = curveNode.StartModify()
 
-    if ts > 0.0:
-      curveNode.SetAttribute('MRTracking.ts', '%f' % ts)
-    
     # Update coordinates in the fiducial node.
     nCoils = tdnode.GetNumberOfTransformNodes()
-    
+  
     if nCoils > 8: # Max. number of coils is 8.
       nCoils = 8
       
     td = self.TrackingData[tdnode.GetID()]
+    
+    # Update time stamp
+    ## TODO: Ideally, the time stamp should come from the data source rather than 3D Slicer.
+    curveNode.SetAttribute('MRTracking.lastTS', '%f' % td.lastTS)
+    
     mask = td.activeCoils1[0:nCoils]
     if index == 1:
       mask = td.activeCoils2[0:nCoils]
@@ -1041,14 +1063,25 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
   def activateTracking(self):
     td = self.TrackingData[self.currentTrackingDataNodeID]
     tdnode = slicer.mrmlScene.GetNodeByID(self.currentTrackingDataNodeID)
+
+    #
+    # The following section adds an observer invoked by an NodeModifiedEvent
+    # NOTE on 09/10/2020: This mechanism does not work well for the tracker stabilizer. 
+    #
     
     if tdnode:
       # Since TrackingDataBundle does not invoke ModifiedEvent, obtain the first child node
       if tdnode.GetNumberOfTransformNodes() > 0:
         # Create transform nodes for filtered tracking data
         self.setFilteredTransforms(tdnode)
+
+        ## TODO: Using the first node to trigger the event may cause a timing issue.
+        ## TODO: Using the filtered transform node will invoke the event handler every 15 ms as fixed in
+        ##       TrackerStabilizer module. It is not guaranteed that every tracking data is used when
+        ##       the tracking frame rate is higher than 66.66 fps (=1000ms/15ms). 
         #childNode = tdnode.GetTransformNode(0)
-        childNode = td.filteredTransformNodes[0] ## TODO: Using the first node to trigger the event may cause a timing issue..
+        childNode = td.filteredTransformNodes[0]
+        
         childNode.SetAttribute('MRTracking.parent', tdnode.GetID())
         td.eventTag = childNode.AddObserver(vtk.vtkCommand.ModifiedEvent, self.onIncomingNodeModifiedEvent)
         print("Observer for TrackingDataBundleNode added.")
@@ -1056,6 +1089,19 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
       else:
         return False  # Could not add observer.
 
+    ##
+    ## The following section adds a timer-driven observer
+    ## NOTE: The timer interval is set to 15 ms as assumed in TrackerStabilizer (see vtkSlicerTrackerStabilizerLogic.cxx)
+    #if tdnode:
+    #  if self.dataProcessingTimer.isActive() == False:
+    #    self.dataProcessingTimer.timeout.connect(self.processIncomingNodes)
+    #    self.dataProcessingTimer.start(15)
+    #    print("Timer started")
+    #    return True
+    #  else:
+    #    return False  # Could not add observer.
+    
+      
   
   def deactivateTracking(self):
     

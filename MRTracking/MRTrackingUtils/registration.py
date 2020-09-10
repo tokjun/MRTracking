@@ -380,8 +380,8 @@ class MRTrackingFiducialRegistration():
       curve1Node = fromCurveNode
 
     # Check time stamp
-    curve0Time = float(curve0Node.GetAttribute('MRTracking.ts'))
-    curve1Time = float(curve1Node.GetAttribute('MRTracking.ts'))
+    curve0Time = float(curve0Node.GetAttribute('MRTracking.lastTS'))
+    curve1Time = float(curve1Node.GetAttribute('MRTracking.lastTS'))
 
 
     # Check if it is too early to perform new registration

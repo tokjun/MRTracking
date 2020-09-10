@@ -43,6 +43,8 @@ class TrackingData:
     
     self.axisDirection = [1.0, 1.0, 1.0]
 
+    self.lastMTime = 0
+    
 
   def isActive(self):
     if self.eventTag == '':
