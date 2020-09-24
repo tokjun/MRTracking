@@ -153,7 +153,7 @@ class MRTrackingFiducialRegistration():
     self.maxTimeDifferenceSliderWidget.singleStep = 10.0
     self.maxTimeDifferenceSliderWidget.minimum = 0.0
     self.maxTimeDifferenceSliderWidget.maximum = 10000.0
-    self.maxTimeDifferenceSliderWidget.value = self.maxTimeDifference
+    self.maxTimeDifferenceSliderWidget.value = self.maxTimeDifference * 1000.0
     #self.maxTimeDifferenceSliderWidget.setToolTip("")
     registrationLayout.addRow("Max. Time Diff (ms): ",  self.maxTimeDifferenceSliderWidget)
 
@@ -162,7 +162,7 @@ class MRTrackingFiducialRegistration():
     self.minIntervalSliderWidget.singleStep = 10.0
     self.minIntervalSliderWidget.minimum = 0.0
     self.minIntervalSliderWidget.maximum = 10000.0
-    self.minIntervalSliderWidget.value = self.minInterval
+    self.minIntervalSliderWidget.value = self.minInterval * 1000.0
     #self.minIntervalSliderWidget.setToolTip("")
     registrationLayout.addRow("Min. Registration Interval (ms): ",  self.minIntervalSliderWidget)
 
@@ -424,7 +424,9 @@ class MRTrackingFiducialRegistration():
 
 
     # Check if it is too early to perform new registration
-    if (curve0Time - self.prevCollectionTime < self.minInterval) and (curve1Time - self.prevCollectionTime < self.minInterval):
+    print('curve 0, curve 1, prevCollectionTime, interval = %f, %f, %f, %f' % (curve0Time, curve1Time, self.prevCollectionTime, self.minInterval))
+    
+    if ((curve0Time - self.prevCollectionTime) < self.minInterval) and ((curve1Time - self.prevCollectionTime) < self.minInterval):
       return False
 
     # Check if the acquisition time difference between the two curves are small enough
@@ -673,10 +675,11 @@ class MRTrackingFiducialRegistration():
 
       
   def onPointSelectionParametersChanged(self):
-    
-    self.maxTimeDifference = self.maxTimeDifferenceSliderWidget.value
-    self.minInterval = self.minIntervalSliderWidget.value
-    self.pointExpiration = self.pointExpirationSliderWidget.value
+
+    # Make sure to convert from millisecond to second
+    self.maxTimeDifference = self.maxTimeDifferenceSliderWidget.value / 1000.0
+    self.minInterval = self.minIntervalSliderWidget.value / 1000.0
+    self.pointExpiration = self.pointExpirationSliderWidget.value / 1000.0
     
       
   def setMRTrackingLogic(self, t):
