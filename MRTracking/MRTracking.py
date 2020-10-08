@@ -29,7 +29,7 @@ class MRTracking(ScriptedLoadableModule):
     Visualization of MR-tracked catheter. 
     """
     self.parent.acknowledgementText = """
-    This work is supported by NIH (P41EB015898, R01EB020667).
+    This work is supported by NIH (5R01EB022011, P41EB015898, R01EB020667).
     """ 
 
 
@@ -420,20 +420,20 @@ class MRTrackingWidget(ScriptedLoadableModuleWidget):
 
   def onCoilChecked(self):
     
+    activeCoils0 = [0] * self.nChannel
     activeCoils1 = [0] * self.nChannel
-    activeCoils2 = [0] * self.nChannel
     for ch in range(self.nChannel):
-      activeCoils1[ch] = self.coilCheckBox[0][ch].checked
-      activeCoils2[ch] = self.coilCheckBox[1][ch].checked
+      activeCoils0[ch] = self.coilCheckBox[0][ch].checked
+      activeCoils1[ch] = self.coilCheckBox[1][ch].checked
 
-    coilOrder1 = 'distal'
+    coilOrder0 = 'distal'
     if self.coilOrderProximalRadioButton[0].checked:
-      coilOrder1 = 'proximal'
-    coilOrder2 = 'distal'
+      coilOrder0 = 'proximal'
+    coilOrder1 = 'distal'
     if self.coilOrderProximalRadioButton[1].checked:
-      coilOrder2 = 'proximal'
+      coilOrder1 = 'proximal'
 
-    self.logic.setActiveCoils(activeCoils1, activeCoils2, coilOrder1, coilOrder2)
+    self.logic.setActiveCoils(activeCoils0, activeCoils1, coilOrder0, coilOrder1)
 
     
   def onSelectCoordinate(self):
@@ -474,8 +474,8 @@ class MRTrackingWidget(ScriptedLoadableModuleWidget):
     
 
     for ch in range(self.nChannel):
-      self.coilCheckBox[0][ch].checked = tdata.activeCoils1[ch]
-      self.coilCheckBox[1][ch].checked = tdata.activeCoils2[ch]
+      self.coilCheckBox[0][ch].checked = tdata.activeCoils[0][ch]
+      self.coilCheckBox[1][ch].checked = tdata.activeCoils[1][ch]
     
     if tdata.axisDirection[0] > 0.0:
       self.coordinateRPlusRadioButton.checked = 1
@@ -503,8 +503,7 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
     ScriptedLoadableModuleLogic.__init__(self, parent)
 
     self.scene = slicer.mrmlScene
-    self.scene.AddObserver(slicer.vtkMRMLScene.NodeRemovedEvent, self.onNodeRemovedEvent)
-
+    
     self.widget = None
 
     self.eventTag = {}
@@ -521,7 +520,14 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
       '"WWTracker"' : '10,30,50,70'
     }
 
+    # Create a parameter node
+    self.parameterNode = self.getParameterNode()
+    #self.parameterNode.SetParameter("a", str(a))
 
+    # Add observers
+    self.scene.AddObserver(slicer.vtkMRMLScene.NodeAddedEvent, self.onNodeAddedEvent)
+    self.scene.AddObserver(slicer.vtkMRMLScene.NodeRemovedEvent, self.onNodeRemovedEvent)
+    
   def setRegistration(self, reg):
     self.registration = reg
     self.registration.trackingData = self.TrackingData
@@ -536,6 +542,8 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
     else:
       td = TrackingData()
       self.TrackingData[tdnode.GetID()] = td
+      self.TrackingData[tdnode.GetID()].setID(tdnode.GetID())
+      self.TrackingData[tdnode.GetID()].setLogic(self)
       
       self.setupFiducials(tdnode, 0)
       self.setupFiducials(tdnode, 1)
@@ -579,7 +587,8 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
     if nodeID:
       td = self.TrackingData[nodeID]
       if td:
-        td.tipLength[index] = length
+        #td.tipLength[index] = length
+        td.setTipLength(index, length)
         tnode = slicer.mrmlScene.GetNodeByID(nodeID)
         self.updateCatheter(tnode, index)
 
@@ -590,10 +599,12 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
       td = self.TrackingData[nodeID]
       if td:
         if len(array) <= len(td.coilPositions[index]):
-          i = 0
-          for p in array:
-            td.coilPositions[index][i] = p
-            i = i + 1
+          td.coilPositions[index] = array
+          #i = 0
+          #for p in array:
+          #  td.coilPositions[index][i] = p
+          #  td.setCoilPositions(index, p)
+          #  i = i + 1
         print(td.coilPositions)
         # Make sure that the registration class instance references the tracking data
         self.registration.trackingData = self.TrackingData
@@ -605,7 +616,8 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
     if nodeID:
       td = self.TrackingData[nodeID]
       if td:
-        td.radius[index] = diameter / 2.0
+        #td.radius[index] = diameter / 2.0
+        td.setRadius(index, diameter / 2.0)
         tnode = slicer.mrmlScene.GetNodeByID(nodeID)
         self.updateCatheter(tnode, index)
     
@@ -615,7 +627,8 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
     if nodeID:
       td = self.TrackingData[nodeID]
       if td:
-        td.opacity[index] = opacity
+        #td.opacity[index] = opacity
+        td.setOpacity(index, opacity)
         tnode = slicer.mrmlScene.GetNodeByID(nodeID)
         self.updateCatheter(tnode, index)
 
@@ -625,7 +638,8 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
     if nodeID:
       td = self.TrackingData[nodeID]
       if td:
-        td.showCoilLabel = show
+        #td.showCoilLabel = show
+        td.setShowCoilLabel(show)
         tnode = slicer.mrmlScene.GetNodeByID(nodeID)
         self.updateCatheter(tnode, 0)
         self.updateCatheter(tnode, 1)
@@ -639,22 +653,29 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
         return False
 
 
-  def setActiveCoils(self, coils1, coils2, coilOrder1, coilOrder2):
+  def setActiveCoils(self, coils0, coils1, coilOrder0, coilOrder1):
     #print("setActiveCoils(self, coils1, coils2, coilOrder1, coilOrder2)")
     nodeID = self.currentTrackingDataNodeID
     if nodeID:
       td = self.TrackingData[nodeID]
       if td:
-        td.activeCoils1 = coils1
-        td.activeCoils2 = coils2
+        #td.activeCoils1 = coils1
+        #td.activeCoils2 = coils2
+        td.setActiveCoils(0, coils0)
+        td.setActiveCoils(1, coils1)
+        
+        if coilOrder0 == 'distal':
+          #td.coilOrder1 = True
+          td.setCoilOrder(0, True)
+        else:
+          #td.coilOrder1 = False
+          td.setCoilOrder(0, False)
         if coilOrder1 == 'distal':
-          td.coilOrder1 = True
+          #td.coilOrder2 = True
+          td.setCoilOrder(1, True)
         else:
-          td.coilOrder1 = False
-        if coilOrder2 == 'distal':
-          td.coilOrder2 = True
-        else:
-          td.coilOrder2 = False
+          #td.coilOrder2 = False
+          td.setCoilOrder(1, False)
 
         tnode = slicer.mrmlScene.GetNodeByID(nodeID)
         self.updateCatheter(tnode, 0)
@@ -670,19 +691,25 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
       td = self.TrackingData[nodeID]
       if td:
         if rPositive:
-          td.axisDirection[0] = 1.0
+          #td.axisDirection[0] = 1.0
+          td.setAxisDirection(0, 1.0)
         else:
-          td.axisDirection[0] = -1.0
+          #td.axisDirection[0] = -1.0
+          td.setAxisDirection(0, -1.0)
           
         if aPositive:
-          td.axisDirection[1] = 1.0
+          #td.axisDirection[1] = 1.0
+          td.setAxisDirection(1, 1.0)
         else:
-          td.axisDirection[1] = -1.0
+          #td.axisDirection[1] = -1.0
+          td.setAxisDirection(1, -1.0)
           
         if sPositive:
-          td.axisDirection[2] = 1.0
+          #td.axisDirection[2] = 1.0
+          td.setAxisDirection(2, 1.0)
         else:
-          td.axisDirection[2] = -1.0
+          #td.axisDirection[2] = -1.0
+          td.setAxisDirection(2, 1.0)
 
         tnode = slicer.mrmlScene.GetNodeByID(nodeID)
         self.updateCatheter(tnode, 0)
@@ -712,16 +739,20 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
     # Set up tip model node
     tipModelID = tdnode.GetAttribute('MRTracking.tipModel%d' % index)
     if tipModelID != None:
-      td.tipModelNode[index] = self.scene.GetNodeByID(tipModelID)
+      #td.tipModelNode[index] = self.scene.GetNodeByID(tipModelID)
+      td.setTipModelNode(index, self.scene.GetNodeByID(tipModelID))
     else:
-      td.tipModelNode[index] = None
+      #td.tipModelNode[index] = None
+      td.setTipModelNode(index, None)
 
     tipTransformNodeID = tdnode.GetAttribute('MRTracking.tipTransform%d' % index)
     if tipTransformNodeID != None:
-      td.tipTransformNode[index] = self.scene.GetNodeByID(tipTransformNodeID)
+      #td.tipTransformNode[index] = self.scene.GetNodeByID(tipTransformNodeID)
+      td.setTipTransformNode(index, self.scene.GetNodeByID(tipTransformNodeID))
     else:
-      td.tipTransformNode[index] = None
-
+      #td.tipTransformNode[index] = None
+      td.setTipTransformNode(index, None)
+      
 
   def onIncomingNodeModifiedEvent(self, caller, event):
 
@@ -768,9 +799,9 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
       nCoils = 8
       
     td = self.TrackingData[tdnode.GetID()]
-    mask = td.activeCoils1[0:nCoils]
+    mask = td.activeCoils[0][0:nCoils]
     if index == 1:
-      mask = td.activeCoils2[0:nCoils]
+      mask = td.activeCoils[1][0:nCoils]
     nActiveCoils = sum(mask)
     
     if curveNode.GetNumberOfControlPoints() != nActiveCoils:
@@ -785,9 +816,9 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
     lastCoil = nCoils - 1
     fFlip = False
     if index == 0:
-      fFlip = (not td.coilOrder1)
+      fFlip = (not td.coilOrder[0])
     else: # index == 1:
-      fFlip = (not td.coilOrder2)
+      fFlip = (not td.coilOrder[1])
 
     j = 0
     for i in range(nCoils):
@@ -952,7 +983,16 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
     tipDispNode.SliceIntersectionVisibilityOn()
     tipDispNode.SetSliceDisplayModeToIntersection()
     tipDispNode.EndModify(prevState)
-    
+
+
+  @vtk.calldata_type(vtk.VTK_OBJECT)
+  def onNodeAddedEvent(self, caller, eventId, callData):
+    print("Node added")
+    print("New node: {0}".format(callData.GetName()))
+        
+    if callData.GetAttribute("ModuleName") == self.moduleName:
+      print ("parameterNode added!!!!!!")
+
 
   def onNodeRemovedEvent(self, caller, event, obj=None):
     delkey = ''

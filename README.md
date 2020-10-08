@@ -169,6 +169,7 @@ Contributors
 
 - Ehud Schmidt, PhD (Johns Hopkins University)
 - Junichi Tokuda, PhD (Brigham and Women's Hospital)
+- Wei Wang (Formerly Brigham and Women's Hospital) 
 
 
 
