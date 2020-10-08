@@ -2,7 +2,6 @@ MRTracking
 ==============
 Slicer Module for MR Tracking
 
-
 Prerequisite
 ============
 
@@ -159,6 +158,17 @@ There are other parameters you can configure:
   - The position of each coil on the catheter (as the distance along the catheter from the tip). This information will be used for point-to-point registration.
 - In "Tracking Node" -> "Coordinate System":
   - The direction of the coordinate in each direction.
+
+
+Acknowledgement
+===============
+This work is supported by the National Institutes of Health 5R01EB022011 (PI: Henry R Halperin, MD). 
+
+Contributors
+============
+
+- Ehud Schmidt, PhD (Johns Hopkins University)
+- Junichi Tokuda, PhD (Brigham and Women's Hospital)
 
 
 
