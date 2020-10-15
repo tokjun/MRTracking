@@ -308,6 +308,25 @@ class MRTrackingWidget(ScriptedLoadableModuleWidget):
     coordinateLayout.addRow("Superior:", self.coordinateSBoxLayout)
 
     #--------------------------------------------------
+    # Stabilizer
+    #
+    stabilizerGroupBox = ctk.ctkCollapsibleGroupBox()
+    stabilizerGroupBox.title = "Stabilizer"
+    stabilizerGroupBox.collapsed = True
+    
+    catheterFormLayout.addWidget(stabilizerGroupBox)
+    stabilizerLayout = qt.QFormLayout(stabilizerGroupBox)
+    
+    self.cutoffFrequencySliderWidget = ctk.ctkSliderWidget()
+    self.cutoffFrequencySliderWidget.singleStep = 0.1
+    self.cutoffFrequencySliderWidget.minimum = 0.10
+    self.cutoffFrequencySliderWidget.maximum = 50.0
+    self.cutoffFrequencySliderWidget.value = 7.5
+    #self.cutoffFrequencySliderWidget.setToolTip("")
+    stabilizerLayout.addRow("Cut-off frequency: ",  self.cutoffFrequencySliderWidget)
+    
+    
+    #--------------------------------------------------
     # Reslice
     #
     resliceCollapsibleButton = ctk.ctkCollapsibleButton()
@@ -362,6 +381,8 @@ class MRTrackingWidget(ScriptedLoadableModuleWidget):
     self.coordinateAMinusRadioButton.connect('clicked(bool)', self.onSelectCoordinate)
     self.coordinateSPlusRadioButton.connect('clicked(bool)', self.onSelectCoordinate)
     self.coordinateSMinusRadioButton.connect('clicked(bool)', self.onSelectCoordinate)
+
+    self.cutoffFrequencySliderWidget.connect("valueChanged(double)", self.onStabilizerCutoffChanged)
     
     # Add vertical spacer
     self.layout.addStretch(1)
@@ -370,12 +391,28 @@ class MRTrackingWidget(ScriptedLoadableModuleWidget):
   def cleanup(self):
     pass
 
+  
+  def enableCoilSelection(self, switch):
+    
+    if switch:
+      for cath in range(self.nCath):
+        for ch in range(self.nChannel):
+          self.coilCheckBox[cath][ch].enabled = 1
+    else:
+      for cath in range(self.nCath):
+        for ch in range(self.nChannel):
+          self.coilCheckBox[cath][ch].enabled = 0
+
+          
   def onActiveTracking(self):
     if self.activeTrackingCheckBox.checked == True:
+      self.enableCoilSelection(0)
       self.logic.activateTracking()
-    else:
-      self.logic.deactivateTracking()
 
+    else:
+      self.enableCoilSelection(1)
+      self.logic.deactivateTracking()
+      
     
   def onTrackingDataSelected(self):
     tdnode = self.trackingDataSelector.currentNode()    
@@ -443,8 +480,14 @@ class MRTrackingWidget(ScriptedLoadableModuleWidget):
     sPositive = self.coordinateSPlusRadioButton.checked
     
     self.logic.setAxisDirections(rPositive, aPositive, sPositive)
+
     
-      
+  def onStabilizerCutoffChanged(self):
+
+    frequency = self.cutoffFrequencySliderWidget.value
+    self.logic.setStabilizerCutoff(frequency)
+
+    
   def onReload(self, moduleName="MRTracking"):
     # Generic reload method for any scripted module.
     # ModuleWizard will subsitute correct default moduleName.
@@ -512,6 +555,9 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
     self.TrackingData = {}
 
     self.registration = None
+
+    #self.dataProcessingTimer = qt.QTimer(self)
+    
 
     ## Default catheter configurations:
     self.defaultCoilConfig = {
@@ -763,18 +809,35 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
 
     tdnode = slicer.mrmlScene.GetNodeByID(parentID)
 
-    ## Obtain the current time stamp
-    ## TODO: Ideally, the time stamp should come from the data source rather than 3D Slicer.
-    currentTime = time.time()
-    
     if tdnode and tdnode.GetClassName() == 'vtkMRMLIGTLTrackingDataBundleNode':
-      self.updateCatheterNode(tdnode, 0, currentTime)
-      self.updateCatheterNode(tdnode, 1, currentTime)
-
-    self.registration.updatePoints()
-
+      # Update coordinates in the fiducial node.
+      nCoils = tdnode.GetNumberOfTransformNodes()
+      td = self.TrackingData[tdnode.GetID()]
+      fUpdate = False
+      if nCoils > 0:
+        # Update timestamp
+        # TODO: Should we check all time stamps under the tracking node?
+        tnode = tdnode.GetTransformNode(0)
+        mTime = tnode.GetTransformToWorldMTime()
+        if mTime > td.lastMTime:
+          currentTime = time.time()
+          td.lastMTime = mTime
+          td.lastTS = currentTime
+          fUpdate = True
       
-  def updateCatheterNode(self, tdnode, index, ts=-1.0):
+      self.updateCatheterNode(tdnode, 0)
+      self.updateCatheterNode(tdnode, 1)
+
+      if fUpdate:
+        self.registration.updatePoints()
+
+        
+  #def processIncomingNodes(self):
+  #  print('processIncomingNodes()')
+  #  pass
+    
+      
+  def updateCatheterNode(self, tdnode, index):
     #print("updateCatheterNode(%s, %d) is called" % (tdnode.GetID(), index) )
     # node shoud be vtkMRMLIGTLTrackingDataBundleNode
 
@@ -789,17 +852,20 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
     
     prevState = curveNode.StartModify()
 
-    if ts > 0.0:
-      curveNode.SetAttribute('MRTracking.ts', '%f' % ts)
-    
     # Update coordinates in the fiducial node.
     nCoils = tdnode.GetNumberOfTransformNodes()
-    
+  
     if nCoils > 8: # Max. number of coils is 8.
       nCoils = 8
       
     td = self.TrackingData[tdnode.GetID()]
+
     mask = td.activeCoils[0][0:nCoils]
+    
+    # Update time stamp
+    ## TODO: Ideally, the time stamp should come from the data source rather than 3D Slicer.
+    curveNode.SetAttribute('MRTracking.lastTS', '%f' % td.lastTS)
+    
     if index == 1:
       mask = td.activeCoils[1][0:nCoils]
     nActiveCoils = sum(mask)
@@ -823,7 +889,8 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
     j = 0
     for i in range(nCoils):
       if mask[i]:
-        tnode = tdnode.GetTransformNode(i)
+        #tnode = tdnode.GetTransformNode(i)
+        tnode = td.filteredTransformNodes[i]
         trans = tnode.GetTransformToParent()
         v = trans.GetPosition()
         
@@ -865,7 +932,8 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
       curveDisplayNode.SetSelectedColor(td.modelColor[index])
       curveDisplayNode.SetColor(td.modelColor[index])
       curveDisplayNode.SetOpacity(td.opacity[index])
-      curveDisplayNode.SliceIntersectionVisibilityOn()
+      #curveDisplayNode.SliceIntersectionVisibilityOn()
+      curveDisplayNode.Visibility2DOn()
       curveDisplayNode.EndModify(prevState)
       # Show/hide labels for coils
       curveDisplayNode.SetPointLabelsVisibility(td.showCoilLabel);
@@ -980,7 +1048,8 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
     prevState = tipDispNode.StartModify()
     tipDispNode.SetColor(color)
     tipDispNode.SetOpacity(opacity)
-    tipDispNode.SliceIntersectionVisibilityOn()
+    #tipDispNode.SliceIntersectionVisibilityOn()
+    tipDispNode.Visibility2DOn()
     tipDispNode.SetSliceDisplayModeToIntersection()
     tipDispNode.EndModify(prevState)
 
@@ -1006,23 +1075,77 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
     if delkey != '':
       del self.eventTag[delkey]
 
+
+  #
+  # To fileter the transforms under the TrackingDataBundleNode, prepare transform nodes
+  # to store the filtered transforms.
+  def setFilteredTransforms(self, tdnode):
+    td = self.TrackingData[tdnode.GetID()]
+
+    nTransforms =  tdnode.GetNumberOfTransformNodes()
+    for i in range(nTransforms):
+      inputNode = tdnode.GetTransformNode(i)
+      if td.filteredTransformNodes[i] == None:
+        td.filteredTransformNodes[i] = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLLinearTransformNode')
+      if td.transformProcessorNodes[i] == None:
+        td.transformProcessorNodes[i] = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLTransformProcessorNode')
+
+      td.filteredTransformNodes[i].SetName('%s_filtered' % inputNode.GetName())
+      
+      tpnode = td.transformProcessorNodes[i]
+      tpnode.SetProcessingMode(slicer.vtkMRMLTransformProcessorNode.PROCESSING_MODE_STABILIZE)
+      tpnode.SetStabilizationCutOffFrequency(7.50)
+      tpnode.SetStabilizationEnabled(1)
+      tpnode.SetUpdateModeToAuto()
+      tpnode.SetAndObserveInputUnstabilizedTransformNode(inputNode)
+      tpnode.SetAndObserveOutputTransformNode(td.filteredTransformNodes[i])
+    
+      
   def activateTracking(self):
     td = self.TrackingData[self.currentTrackingDataNodeID]
     tdnode = slicer.mrmlScene.GetNodeByID(self.currentTrackingDataNodeID)
+
+    #
+    # The following section adds an observer invoked by an NodeModifiedEvent
+    # NOTE on 09/10/2020: This mechanism does not work well for the tracker stabilizer. 
+    #
     
     if tdnode:
-      print("Observer added.")
       # Since TrackingDataBundle does not invoke ModifiedEvent, obtain the first child node
       if tdnode.GetNumberOfTransformNodes() > 0:
-        childNode = tdnode.GetTransformNode(0)
+        # Create transform nodes for filtered tracking data
+        self.setFilteredTransforms(tdnode)
+
+        ## TODO: Using the first node to trigger the event may cause a timing issue.
+        ## TODO: Using the filtered transform node will invoke the event handler every 15 ms as fixed in
+        ##       TrackerStabilizer module. It is not guaranteed that every tracking data is used when
+        ##       the tracking frame rate is higher than 66.66 fps (=1000ms/15ms). 
+        #childNode = tdnode.GetTransformNode(0)
+        childNode = td.filteredTransformNodes[0]
+        
         childNode.SetAttribute('MRTracking.parent', tdnode.GetID())
         td.eventTag = childNode.AddObserver(vtk.vtkCommand.ModifiedEvent, self.onIncomingNodeModifiedEvent)
+        print("Observer for TrackingDataBundleNode added.")
         return True
       else:
         return False  # Could not add observer.
 
+    ##
+    ## The following section adds a timer-driven observer
+    ## NOTE: The timer interval is set to 15 ms as assumed in TrackerStabilizer (see vtkSlicerTrackerStabilizerLogic.cxx)
+    #if tdnode:
+    #  if self.dataProcessingTimer.isActive() == False:
+    #    self.dataProcessingTimer.timeout.connect(self.processIncomingNodes)
+    #    self.dataProcessingTimer.start(15)
+    #    print("Timer started")
+    #    return True
+    #  else:
+    #    return False  # Could not add observer.
+    
+      
   
   def deactivateTracking(self):
+    
     td = self.TrackingData[self.currentTrackingDataNodeID]
     tdnode = slicer.mrmlScene.GetNodeByID(self.currentTrackingDataNodeID)
     if tdnode:
@@ -1034,6 +1157,18 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
       else:
         return False
 
+      
+  def setStabilizerCutoff(self, frequency):
+    
+    td = self.TrackingData[self.currentTrackingDataNodeID]
+    tdnode = slicer.mrmlScene.GetNodeByID(self.currentTrackingDataNodeID)
+    if td and tdnode:
+      nTransforms = tdnode.GetNumberOfTransformNodes()
+      for i in range(nTransforms):
+        tpnode = td.transformProcessorNodes[i]
+        tpnode.SetStabilizationCutOffFrequency(frequency)
+
+      
   def isTrackingActive(self):
     td = self.TrackingData[self.currentTrackingDataNodeID]
     return td.isActive()
