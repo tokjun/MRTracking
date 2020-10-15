@@ -3,6 +3,9 @@
 # TrakcingData class
 #
 
+import qt
+import slicer
+
 class TrackingData:
 
   def __init__(self):
@@ -36,7 +39,7 @@ class TrackingData:
     self.tipTransformNode = [None, None]  # TODO: The node ID is saved in Tracking Data Node
     self.tipPoly = [None, None]
     self.showCoilLabel = False
-    self.activeCoils = [[False, False, False, False, True, True, True, True], [True, True, True, True, False, False, False, False]]
+    self.activeCoils = [[True, True, True, True, False, False, False, False], [False, False, False, False, True, True, True, True]]
 
     # Coil order (True if Distal -> Proximal)
     self.coilOrder = [True, True]
@@ -45,6 +48,11 @@ class TrackingData:
     
     self.lastMTime = 0
 
+    ## Default catheter configurations:
+    self.defaultCoilConfig = {}
+    self.defaultCoilConfig['"NavX-Ch0"'] = [[0,20,40,60],[0,20,40,60]]
+    self.defaultCoilConfig['"NavX-Ch1"'] = [[0,20,40,60],[0,20,40,60]]
+    self.defaultCoilConfig['"WWTracker"'] = [[10,30,50,70],[10,30,50,70]]
     
   def setID(self, id):
     self.ID = id
@@ -53,6 +61,7 @@ class TrackingData:
   def setLogic(self, logic):
     self.logic = logic
 
+    
   def isActive(self):
     if self.eventTag == '':
       return False
@@ -60,6 +69,43 @@ class TrackingData:
       return True
 
     
+  def loadConfig(self):
+    loadConfigCoilPositions()
+    
+
+  def loadConfigCoilPositions(self):
+    ## Load config
+    settings = qt.QSettings()
+    setting = []
+
+    tdnode = slicer.mrmlScene.GetNodeByID(self.ID)
+    if not tdnode:
+      return
+    name = tdnode.GetName()
+    print('Setting up tracking data.. %s' % name)
+    
+    for index in range(2):
+      setting = settings.value(self.logic.widget.moduleName + '/' + 'CoilConfig.' + str(name) + '.' + str(index))
+      array = []
+      if setting != None:
+        print('Found ' + str(name) + '.' + str(index) + ' in Setting')
+        array = [float(f) for f in setting]
+      else:
+        if name in self.defaultCoilConfig:
+          print('Found ' + str(name) + '.' + str(index) + ' in Default Config List')
+          array = self.defaultCoilConfig[name][index]
+          
+      if len(array) > 0:
+        print(array)
+        try:
+          #self.setCoilPositions(index, array)
+          if len(array) <= len(self.coilPositions[index]):
+            self.coilPositions[index] = array
+            print(self.coilPositions)
+        except ValueError:
+          print('Format error in coil position string.')
+
+          
   def setCurveNodeID(self, id):
     
     self.curveNodeID = id
@@ -117,6 +163,9 @@ class TrackingData:
 
 
   def setTipModelNode(self, index, node):
+
+    if node == None:
+      return 0
     
     self.tipModelNode[index] = node
     if self.logic:
@@ -127,6 +176,9 @@ class TrackingData:
   
   def setTipTransformNode(self, index, node):
       
+    if node == None:
+      return 0
+    
     self.tipTransformNode[index] = node
     if self.logic:
       self.logic.getParameterNode().SetParameter("TD.%s.tipTransformNode.%s" % (self.ID, index), node.GetID())

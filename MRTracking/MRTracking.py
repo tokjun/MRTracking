@@ -439,7 +439,7 @@ class MRTrackingWidget(ScriptedLoadableModuleWidget):
     strarray = text.split(',')
     try:
       array = [float(ns) for ns in strarray]
-      self.logic.setCoilPositions(cath, array)
+      self.logic.setCoilPositions(cath, array, True)
     except ValueError:
       print('Format error in coil position string.')
 
@@ -557,14 +557,6 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
     self.registration = None
 
     #self.dataProcessingTimer = qt.QTimer(self)
-    
-
-    ## Default catheter configurations:
-    self.defaultCoilConfig = {
-      '"NavX-Ch0"' : '0,20,40,60',
-      '"NavX-Ch1"' : '0,20,40,60',
-      '"WWTracker"' : '10,30,50,70'
-    }
 
     # Create a parameter node
     self.parameterNode = self.getParameterNode()
@@ -591,22 +583,13 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
       self.TrackingData[tdnode.GetID()].setID(tdnode.GetID())
       self.TrackingData[tdnode.GetID()].setLogic(self)
       
+      self.TrackingData[tdnode.GetID()].loadConfig()
+      
       self.setupFiducials(tdnode, 0)
       self.setupFiducials(tdnode, 1)
 
-      name = tdnode.GetName()
-      print('Setting up tracking data.. %s' % name)
-
-      if name in self.defaultCoilConfig:
-        print('Found %s in Default Config List' % name)
-        strarray = self.defaultCoilConfig[name].split(',')
-        print(strarray)
-        try:
-          array = [float(ns) for ns in strarray]
-          self.setCoilPositions(0, array)
-          self.setCoilPositions(1, array)
-        except ValueError:
-          print('Format error in coil position string.')
+      self.setTipLength(td.coilPositions[0][0], 0)  # The first coil position match the tip length
+      self.setTipLength(td.coilPositions[1][0], 1)  # The first coil position match the tip length            
       
       
   def switchCurrentTrackingData(self, tdnode):
@@ -628,6 +611,7 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
   def setWidget(self, widget):
     self.widget = widget
 
+    
   def setTipLength(self, length, index):
     nodeID = self.currentTrackingDataNodeID
     if nodeID:
@@ -639,7 +623,7 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
         self.updateCatheter(tnode, index)
 
         
-  def setCoilPositions(self, index, array):
+  def setCoilPositions(self, index, array, save=False):
     nodeID = self.currentTrackingDataNodeID
     if nodeID:
       td = self.TrackingData[nodeID]
@@ -655,6 +639,15 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
         # Make sure that the registration class instance references the tracking data
         self.registration.trackingData = self.TrackingData
         self.setTipLength(td.coilPositions[index][0], index)  # The first coil position match the tip length
+
+      if save:
+        # Save configuration
+        tdnode = slicer.mrmlScene.GetNodeByID(nodeID)
+        if tdnode:
+          name = tdnode.GetName()
+          value = td.coilPositions[index]
+          settings = qt.QSettings()
+          settings.setValue(self.widget.moduleName + '/' + 'CoilConfig.' + str(name) + '.' + str(index), value)
         
 
   def setCatheterDiameter(self, diameter, index):
