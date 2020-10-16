@@ -30,7 +30,6 @@ class TrackingData:
     # Filtering
     self.transformProcessorNodes = [None] * self.MAX_COILS
     self.filteredTransformNodes = [None] * self.MAX_COILS
-    
 
     # Tip model
     self.tipLength = [10.0, 10.0]
@@ -53,6 +52,7 @@ class TrackingData:
     self.defaultCoilConfig['"NavX-Ch0"'] = [[0,20,40,60],[0,20,40,60]]
     self.defaultCoilConfig['"NavX-Ch1"'] = [[0,20,40,60],[0,20,40,60]]
     self.defaultCoilConfig['"WWTracker"'] = [[10,30,50,70],[10,30,50,70]]
+
     
   def setID(self, id):
     self.ID = id
@@ -69,23 +69,25 @@ class TrackingData:
       return True
 
     
-  def loadConfig(self):
-    loadConfigCoilPositions()
+  def loadDefaultConfig(self):
+    self.loadDefaultConfigCoilPositions()
+    self.loadDefaultConfigActiveCoils()
     
 
-  def loadConfigCoilPositions(self):
-    ## Load config
-    settings = qt.QSettings()
-    setting = []
+  def loadDefaultConfigCoilPositions(self):
 
     tdnode = slicer.mrmlScene.GetNodeByID(self.ID)
     if not tdnode:
       return
+
+    ## Load config
+    settings = qt.QSettings()
+    setting = []
+
     name = tdnode.GetName()
-    print('Setting up tracking data.. %s' % name)
     
     for index in range(2):
-      setting = settings.value(self.logic.widget.moduleName + '/' + 'CoilConfig.' + str(name) + '.' + str(index))
+      setting = settings.value(self.logic.widget.moduleName + '/' + 'CoilPositions.' + str(name) + '.' + str(index))
       array = []
       if setting != None:
         print('Found ' + str(name) + '.' + str(index) + ' in Setting')
@@ -96,16 +98,64 @@ class TrackingData:
           array = self.defaultCoilConfig[name][index]
           
       if len(array) > 0:
-        print(array)
         try:
           #self.setCoilPositions(index, array)
           if len(array) <= len(self.coilPositions[index]):
             self.coilPositions[index] = array
-            print(self.coilPositions)
         except ValueError:
-          print('Format error in coil position string.')
+          print('Format error in coilConfig string.')
 
           
+  def saveDefaultConfigCoilPositions(self):
+    
+    tdnode = slicer.mrmlScene.GetNodeByID(self.ID)
+    if not tdnode:
+      return
+    
+    for index in range(2):
+      name = tdnode.GetName()
+      value = self.coilPositions[index]
+      settings = qt.QSettings()
+      settings.setValue(self.logic.widget.moduleName + '/' + 'CoilPositions.' + str(name) + '.' + str(index), value)
+      
+          
+  def loadDefaultConfigActiveCoils(self):
+
+    tdnode = slicer.mrmlScene.GetNodeByID(self.ID)
+    if not tdnode:
+      return
+    
+    settings = qt.QSettings()
+    setting = []
+
+    name = tdnode.GetName()
+
+    for index in range(2):
+      setting = settings.value(self.logic.widget.moduleName + '/' + 'ActiveCoils.' + str(name) + '.' + str(index))
+      if setting != None:
+        array = [bool(int(i)) for i in setting]
+        
+        if len(array) > 0:
+          try:
+            if len(array) <= len(self.activeCoils[index]):
+              self.activeCoils[index] = array
+          except ValueError:
+            print('Format error in activeCoils string.')
+          
+          
+  def saveDefaultConfigActiveCoils(self):
+
+    tdnode = slicer.mrmlScene.GetNodeByID(self.ID)
+    if not tdnode:
+      return
+    
+    for index in range(2):
+      name = tdnode.GetName()
+      value = [int(b) for b in self.activeCoils[index]]
+      settings = qt.QSettings()
+      settings.setValue(self.logic.widget.moduleName + '/' + 'ActiveCoils.' + str(name) + '.' + str(index), value)
+
+
   def setCurveNodeID(self, id):
     
     self.curveNodeID = id

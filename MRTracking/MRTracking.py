@@ -356,7 +356,7 @@ class MRTrackingWidget(ScriptedLoadableModuleWidget):
     # Connections
     #--------------------------------------------------
     self.trackingDataSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onTrackingDataSelected)
-    self.activeTrackingCheckBox.connect('toggled(bool)', self.onActiveTracking)
+    self.activeTrackingCheckBox.connect('clicked(bool)', self.onActiveTracking)
 
     for cath in range(self.nCath):
       ## JT: I'd leave this widget in the comment, because it might be useful to show the predicted in the future.
@@ -365,11 +365,11 @@ class MRTrackingWidget(ScriptedLoadableModuleWidget):
       self.catheterDiameterSliderWidget[cath].connect("valueChanged(double)", functools.partial(self.onCatheterDiameterChanged, cath))
       self.catheterOpacitySliderWidget[cath].connect("valueChanged(double)", functools.partial(self.onCatheterOpacityChanged, cath))
 
-    self.showCoilLabelCheckBox.connect('toggled(bool)', self.onCoilLabelChecked)
+    self.showCoilLabelCheckBox.connect('clicked(bool)', self.onCoilLabelChecked)
 
     for cath in range(self.nCath):
       for ch in range(self.nChannel):
-        self.coilCheckBox[cath][ch].connect('toggled(bool)', self.onCoilChecked)
+        self.coilCheckBox[cath][ch].connect('clicked(bool)', self.onCoilChecked)
     
     for cath in range(self.nCath):
       self.coilOrderDistalRadioButton[cath].connect('clicked(bool)', self.onCoilChecked)
@@ -456,7 +456,8 @@ class MRTrackingWidget(ScriptedLoadableModuleWidget):
 
 
   def onCoilChecked(self):
-    
+
+    print("onCoilChecked(self):")
     activeCoils0 = [0] * self.nChannel
     activeCoils1 = [0] * self.nChannel
     for ch in range(self.nChannel):
@@ -583,7 +584,7 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
       self.TrackingData[tdnode.GetID()].setID(tdnode.GetID())
       self.TrackingData[tdnode.GetID()].setLogic(self)
       
-      self.TrackingData[tdnode.GetID()].loadConfig()
+      self.TrackingData[tdnode.GetID()].loadDefaultConfig()
       
       self.setupFiducials(tdnode, 0)
       self.setupFiducials(tdnode, 1)
@@ -641,13 +642,9 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
         self.setTipLength(td.coilPositions[index][0], index)  # The first coil position match the tip length
 
       if save:
-        # Save configuration
-        tdnode = slicer.mrmlScene.GetNodeByID(nodeID)
+        tdnode = slicer.mrmlScene.GetNodeByID(self.currentTrackingDataNodeID)
         if tdnode:
-          name = tdnode.GetName()
-          value = td.coilPositions[index]
-          settings = qt.QSettings()
-          settings.setValue(self.widget.moduleName + '/' + 'CoilConfig.' + str(name) + '.' + str(index), value)
+          td.saveDefaultConfigCoilPositions()
         
 
   def setCatheterDiameter(self, diameter, index):
@@ -693,28 +690,25 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
 
 
   def setActiveCoils(self, coils0, coils1, coilOrder0, coilOrder1):
-    #print("setActiveCoils(self, coils1, coils2, coilOrder1, coilOrder2)")
+    print("setActiveCoils(self, coils1, coils2, coilOrder1, coilOrder2)")
     nodeID = self.currentTrackingDataNodeID
+    print(nodeID)
     if nodeID:
       td = self.TrackingData[nodeID]
       if td:
-        #td.activeCoils1 = coils1
-        #td.activeCoils2 = coils2
         td.setActiveCoils(0, coils0)
         td.setActiveCoils(1, coils1)
         
         if coilOrder0 == 'distal':
-          #td.coilOrder1 = True
           td.setCoilOrder(0, True)
         else:
-          #td.coilOrder1 = False
           td.setCoilOrder(0, False)
         if coilOrder1 == 'distal':
-          #td.coilOrder2 = True
           td.setCoilOrder(1, True)
         else:
-          #td.coilOrder2 = False
           td.setCoilOrder(1, False)
+
+        td.saveDefaultConfigActiveCoils()
 
         tnode = slicer.mrmlScene.GetNodeByID(nodeID)
         self.updateCatheter(tnode, 0)
@@ -1053,7 +1047,7 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
     print("New node: {0}".format(callData.GetName()))
         
     if callData.GetAttribute("ModuleName") == self.moduleName:
-      print ("parameterNode added!!!!!!")
+      print ("parameterNode added")
 
 
   def onNodeRemovedEvent(self, caller, event, obj=None):
