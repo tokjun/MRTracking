@@ -104,15 +104,15 @@ class MRTrackingWidget(ScriptedLoadableModuleWidget):
     catheterCollapsibleButton.text = "Tracking Node"
     self.layout.addWidget(catheterCollapsibleButton)
 
-    catheterFormLayout = qt.QFormLayout(catheterCollapsibleButton)
+    catheterFormLayout = qt.QVBoxLayout(catheterCollapsibleButton)
 
     #--------------------------------------------------
     # Tracking node selector
 
-    trackingNodeGroupBox = ctk.ctkCollapsibleGroupBox()
-    trackingNodeGroupBox.title = "Tracking Node"
-    catheterFormLayout.addWidget(trackingNodeGroupBox)
-    trackingNodeFormLayout = qt.QFormLayout(trackingNodeGroupBox)
+    trackingDataSelectorFrame = qt.QFrame()
+    #trackingDataSelectorFrame.setFrameStyle(qt.QFrame.StyledPanel | qt.QFrame.Plain);
+    #trackingDataSelectorFrame.setLineWidth(1);
+    trackingDataSelectorLayout = qt.QFormLayout(trackingDataSelectorFrame)
     
     self.trackingDataSelector = slicer.qMRMLNodeComboBox()
     self.trackingDataSelector.nodeTypes = ( ("vtkMRMLIGTLTrackingDataBundleNode"), "" )
@@ -124,17 +124,17 @@ class MRTrackingWidget(ScriptedLoadableModuleWidget):
     self.trackingDataSelector.showChildNodeTypes = False
     self.trackingDataSelector.setMRMLScene( slicer.mrmlScene )
     self.trackingDataSelector.setToolTip( "Incoming tracking data" )
-    trackingNodeFormLayout.addRow("TrackingData: ", self.trackingDataSelector)
+    trackingDataSelectorLayout.addRow("TrackingData: ", self.trackingDataSelector)
 
-    #
-    # check box to trigger transform conversion
-    #
     self.activeTrackingCheckBox = qt.QCheckBox()
     self.activeTrackingCheckBox.checked = 0
     self.activeTrackingCheckBox.enabled = 1
     self.activeTrackingCheckBox.setToolTip("Activate Tracking")
-    trackingNodeFormLayout.addRow("Active: ", self.activeTrackingCheckBox)
-    
+    trackingDataSelectorLayout.addRow("Active: ", self.activeTrackingCheckBox)
+
+    catheterFormLayout.addWidget(trackingDataSelectorFrame)
+
+
     #--------------------------------------------------
     # Catheter Configuration
 
@@ -724,24 +724,18 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
       td = self.TrackingData[nodeID]
       if td:
         if rPositive:
-          #td.axisDirection[0] = 1.0
           td.setAxisDirection(0, 1.0)
         else:
-          #td.axisDirection[0] = -1.0
           td.setAxisDirection(0, -1.0)
           
         if aPositive:
-          #td.axisDirection[1] = 1.0
           td.setAxisDirection(1, 1.0)
         else:
-          #td.axisDirection[1] = -1.0
           td.setAxisDirection(1, -1.0)
           
         if sPositive:
-          #td.axisDirection[2] = 1.0
           td.setAxisDirection(2, 1.0)
         else:
-          #td.axisDirection[2] = -1.0
           td.setAxisDirection(2, 1.0)
 
         tnode = slicer.mrmlScene.GetNodeByID(nodeID)
