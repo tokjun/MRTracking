@@ -85,7 +85,7 @@ class MRTrackingWidget(ScriptedLoadableModuleWidget):
     connectionFormLayout = qt.QFormLayout(connectionCollapsibleButton)
 
     #--------------------------------------------------
-    # Connector Selector
+    # Connection
     #--------------------------------------------------
 
     self.igtlConnector1 = MRTrackingIGTLConnector("Connector 1 (MRI)")
@@ -97,7 +97,7 @@ class MRTrackingWidget(ScriptedLoadableModuleWidget):
     self.igtlConnector2.buildGUI(connectionFormLayout)
     
     #--------------------------------------------------
-    # Catheter
+    # Tracking Node
     #--------------------------------------------------
 
     catheterCollapsibleButton = ctk.ctkCollapsibleButton()
@@ -133,7 +133,6 @@ class MRTrackingWidget(ScriptedLoadableModuleWidget):
     trackingDataSelectorLayout.addRow("Active: ", self.activeTrackingCheckBox)
 
     catheterFormLayout.addWidget(trackingDataSelectorFrame)
-
 
     #--------------------------------------------------
     # Catheter Configuration
@@ -209,7 +208,7 @@ class MRTrackingWidget(ScriptedLoadableModuleWidget):
       configFormLayout.addRow("Cath %d Reg. Points: " % cath, self.catheterRegPointsLineEdit[cath])
 
     #--------------------------------------------------
-    # Coil Selection Aare
+    # Coil Selection
     #
     coilGroupBox = ctk.ctkCollapsibleGroupBox()
     coilGroupBox.title = "Coil Selection"
@@ -324,11 +323,30 @@ class MRTrackingWidget(ScriptedLoadableModuleWidget):
     self.cutoffFrequencySliderWidget.value = 7.5
     #self.cutoffFrequencySliderWidget.setToolTip("")
     stabilizerLayout.addRow("Cut-off frequency: ",  self.cutoffFrequencySliderWidget)
+
+
+    #--------------------------------------------------
+    # Save Configuration
+    #
     
+    trackingDataSaveFrame = qt.QFrame()
+    trackingDataSaveLayout = qt.QHBoxLayout(trackingDataSaveFrame)
+
+    trackingDataSaveLayout.addStretch(1)
+    
+    self.saveTrackingDataDefaultConfigButton = qt.QPushButton()
+    self.saveTrackingDataDefaultConfigButton.setCheckable(False)
+    self.saveTrackingDataDefaultConfigButton.text = 'Save Current Configuration as Default'
+    self.saveTrackingDataDefaultConfigButton.setToolTip("Save above configurations as default.")
+    
+    trackingDataSaveLayout.addWidget(self.saveTrackingDataDefaultConfigButton)
+    
+    catheterFormLayout.addWidget(trackingDataSaveFrame)
     
     #--------------------------------------------------
-    # Reslice
-    #
+    # Image Reslice
+    #--------------------------------------------------
+
     resliceCollapsibleButton = ctk.ctkCollapsibleButton()
     resliceCollapsibleButton.text = "Image Reslice"
     self.layout.addWidget(resliceCollapsibleButton)
@@ -341,7 +359,8 @@ class MRTrackingWidget(ScriptedLoadableModuleWidget):
     
     #--------------------------------------------------
     # Point-to-Point registration
-    #
+    #--------------------------------------------------
+
     registrationCollapsibleButton = ctk.ctkCollapsibleButton()
     registrationCollapsibleButton.text = "Point-to-Point Registration"
     self.layout.addWidget(registrationCollapsibleButton)
@@ -383,6 +402,8 @@ class MRTrackingWidget(ScriptedLoadableModuleWidget):
     self.coordinateSMinusRadioButton.connect('clicked(bool)', self.onSelectCoordinate)
 
     self.cutoffFrequencySliderWidget.connect("valueChanged(double)", self.onStabilizerCutoffChanged)
+
+    self.saveTrackingDataDefaultConfigButton.connect('clicked(bool)', self.onSaveTrackingDataDefaultConfig)
     
     # Add vertical spacer
     self.layout.addStretch(1)
@@ -489,6 +510,10 @@ class MRTrackingWidget(ScriptedLoadableModuleWidget):
     self.logic.setStabilizerCutoff(frequency)
 
     
+  def onSaveTrackingDataDefaultConfig(self):
+    
+    self.logic.saveDefaultTrackingDataConfig()
+    
   def onReload(self, moduleName="MRTracking"):
     # Generic reload method for any scripted module.
     # ModuleWizard will subsitute correct default moduleName.
@@ -521,17 +546,17 @@ class MRTrackingWidget(ScriptedLoadableModuleWidget):
       self.coilCheckBox[0][ch].checked = tdata.activeCoils[0][ch]
       self.coilCheckBox[1][ch].checked = tdata.activeCoils[1][ch]
     
-    if tdata.axisDirection[0] > 0.0:
+    if tdata.axisDirections[0] > 0.0:
       self.coordinateRPlusRadioButton.checked = 1
     else:
       self.coordinateRMinusRadioButton.checked = 1
       
-    if tdata.axisDirection[1] > 0.0:
+    if tdata.axisDirections[1] > 0.0:
       self.coordinateAPlusRadioButton.checked = 1
     else:
       self.coordinateAMinusRadioButton.checked = 1
 
-    if tdata.axisDirection[2] > 0.0:
+    if tdata.axisDirections[2] > 0.0:
       self.coordinateSPlusRadioButton.checked = 1
     else:
       self.coordinateSMinusRadioButton.checked = 1
@@ -641,12 +666,7 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
         self.registration.trackingData = self.TrackingData
         self.setTipLength(td.coilPositions[index][0], index)  # The first coil position match the tip length
 
-      if save:
-        tdnode = slicer.mrmlScene.GetNodeByID(self.currentTrackingDataNodeID)
-        if tdnode:
-          td.saveDefaultConfigCoilPositions()
         
-
   def setCatheterDiameter(self, diameter, index):
     nodeID = self.currentTrackingDataNodeID
     if nodeID:
@@ -708,8 +728,6 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
         else:
           td.setCoilOrder(1, False)
 
-        td.saveDefaultConfigActiveCoils()
-
         tnode = slicer.mrmlScene.GetNodeByID(nodeID)
         self.updateCatheter(tnode, 0)
         self.updateCatheter(tnode, 1)
@@ -741,8 +759,17 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
         tnode = slicer.mrmlScene.GetNodeByID(nodeID)
         self.updateCatheter(tnode, 0)
         self.updateCatheter(tnode, 1)
-   
+
+        
+  def saveDefaultTrackingDataConfig(self):
     
+    nodeID = self.currentTrackingDataNodeID
+    if nodeID:
+      td = self.TrackingData[nodeID]
+      if td:
+        td.saveDefaultConfig()
+
+        
   def setupFiducials(self, tdnode, index):
 
     if not tdnode:
@@ -883,7 +910,7 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
         coilID = j
         if fFlip:
           coilID = lastCoil - j
-        curveNode.SetNthControlPointPosition(coilID, v[0] * td.axisDirection[0], v[1] * td.axisDirection[1], v[2] * td.axisDirection[2])
+        curveNode.SetNthControlPointPosition(coilID, v[0] * td.axisDirections[0], v[1] * td.axisDirections[1], v[2] * td.axisDirections[2])
         j += 1
 
     #print('curveNode.GetNumberOfPointsPerInterpolatingSegment(): %d' % curveNode.GetNumberOfPointsPerInterpolatingSegment())

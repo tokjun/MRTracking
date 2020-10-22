@@ -19,10 +19,25 @@ class TrackingData:
     self.widget = None
     self.eventTag = ''
 
-    # self.activeTrackingDataNodeID = ''
-
     self.curveNodeID = ''  # TODO: Is this needed?
+    self.lastMTime = 0
     
+    # Tip model
+    self.tipModelNode = [None, None]      # TODO: The node ID is saved in Tracking Data Node
+    self.tipTransformNode = [None, None]  # TODO: The node ID is saved in Tracking Data Node
+    self.tipPoly = [None, None]
+
+    # Coil configulation
+    self.tipLength = [10.0, 10.0]
+    self.coilPositions = [[0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]]
+    self.activeCoils = [[True, True, True, True, False, False, False, False], [False, False, False, False, True, True, True, True]]
+    self.showCoilLabel = False
+    self.coilOrder = [True, True]
+
+    # Coordinate system
+    self.axisDirections = [1.0, 1.0, 1.0]
+    
+    # Visual settings
     self.opacity = [1.0, 1.0]
     self.radius = [0.5, 0.5]
     self.modelColor = [[0.0, 0.0, 1.0], [1.0, 0.359375, 0.0]]
@@ -31,27 +46,11 @@ class TrackingData:
     self.transformProcessorNodes = [None] * self.MAX_COILS
     self.filteredTransformNodes = [None] * self.MAX_COILS
 
-    # Tip model
-    self.tipLength = [10.0, 10.0]
-    self.coilPositions = [[0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]]
-    self.tipModelNode = [None, None]  # TODO: The node ID is saved in Tracking Data Node
-    self.tipTransformNode = [None, None]  # TODO: The node ID is saved in Tracking Data Node
-    self.tipPoly = [None, None]
-    self.showCoilLabel = False
-    self.activeCoils = [[True, True, True, True, False, False, False, False], [False, False, False, False, True, True, True, True]]
-
-    # Coil order (True if Distal -> Proximal)
-    self.coilOrder = [True, True]
-    
-    self.axisDirection = [1.0, 1.0, 1.0]
-    
-    self.lastMTime = 0
-
-    ## Default catheter configurations:
-    self.defaultCoilConfig = {}
-    self.defaultCoilConfig['"NavX-Ch0"'] = [[0,20,40,60],[0,20,40,60]]
-    self.defaultCoilConfig['"NavX-Ch1"'] = [[0,20,40,60],[0,20,40,60]]
-    self.defaultCoilConfig['"WWTracker"'] = [[10,30,50,70],[10,30,50,70]]
+    ## Default values for self.coilPositions:
+    self.defaultCoilPositions = {}
+    self.defaultCoilPositions['"NavX-Ch0"'] = [[0,20,40,60],[0,20,40,60]]
+    self.defaultCoilPositions['"NavX-Ch1"'] = [[0,20,40,60],[0,20,40,60]]
+    self.defaultCoilPositions['"WWTracker"'] = [[10,30,50,70],[10,30,50,70]]
 
     
   def setID(self, id):
@@ -70,11 +69,12 @@ class TrackingData:
 
     
   def loadDefaultConfig(self):
-    self.loadDefaultConfigCoilPositions()
-    self.loadDefaultConfigActiveCoils()
+    self.loadDefaultCoilConfigulation()
+    self.loadDefaultAxisDirections()
+    self.loadDefaultVisualSettings()
     
 
-  def loadDefaultConfigCoilPositions(self):
+  def loadDefaultCoilConfigulation(self):
 
     tdnode = slicer.mrmlScene.GetNodeByID(self.ID)
     if not tdnode:
@@ -83,19 +83,19 @@ class TrackingData:
     ## Load config
     settings = qt.QSettings()
     setting = []
-
     name = tdnode.GetName()
     
     for index in range(2):
+      # Coil positions
       setting = settings.value(self.logic.widget.moduleName + '/' + 'CoilPositions.' + str(name) + '.' + str(index))
       array = []
       if setting != None:
         print('Found ' + str(name) + '.' + str(index) + ' in Setting')
         array = [float(f) for f in setting]
       else:
-        if name in self.defaultCoilConfig:
+        if name in self.defaultCoilPositions:
           print('Found ' + str(name) + '.' + str(index) + ' in Default Config List')
-          array = self.defaultCoilConfig[name][index]
+          array = self.defaultCoilPositions[name][index]
           
       if len(array) > 0:
         try:
@@ -105,32 +105,7 @@ class TrackingData:
         except ValueError:
           print('Format error in coilConfig string.')
 
-          
-  def saveDefaultConfigCoilPositions(self):
-    
-    tdnode = slicer.mrmlScene.GetNodeByID(self.ID)
-    if not tdnode:
-      return
-    
-    for index in range(2):
-      name = tdnode.GetName()
-      value = self.coilPositions[index]
-      settings = qt.QSettings()
-      settings.setValue(self.logic.widget.moduleName + '/' + 'CoilPositions.' + str(name) + '.' + str(index), value)
-      
-          
-  def loadDefaultConfigActiveCoils(self):
-
-    tdnode = slicer.mrmlScene.GetNodeByID(self.ID)
-    if not tdnode:
-      return
-    
-    settings = qt.QSettings()
-    setting = []
-
-    name = tdnode.GetName()
-
-    for index in range(2):
+      # Active coils
       setting = settings.value(self.logic.widget.moduleName + '/' + 'ActiveCoils.' + str(name) + '.' + str(index))
       if setting != None:
         array = [bool(int(i)) for i in setting]
@@ -143,18 +118,100 @@ class TrackingData:
             print('Format error in activeCoils string.')
           
           
-  def saveDefaultConfigActiveCoils(self):
-
+  def loadDefaultAxisDirections(self):
+    
     tdnode = slicer.mrmlScene.GetNodeByID(self.ID)
     if not tdnode:
       return
+
+    ## Load config
+    settings = qt.QSettings()
+    setting = []
+    name = tdnode.GetName()
+
+    setting = settings.value(self.logic.widget.moduleName + '/' + 'AxisDirections.' + str(name))
+    if setting != None:
+      self.axisDirections = [float(s) for s in setting]
+
+    
+  def loadDefaultVisualSettings(self):
+    
+    tdnode = slicer.mrmlScene.GetNodeByID(self.ID)
+    if not tdnode:
+      return
+
+    ## Load config
+    settings = qt.QSettings()
+    setting = []
+    name = tdnode.GetName()
+
+    for index in range(2):
+
+      setting = settings.value(self.logic.widget.moduleName + '/' + 'Opacity.' + str(name) + '.' + str(index))
+      if setting != None:
+        self.opacity[index] = float(setting)
+        
+      setting = settings.value(self.logic.widget.moduleName + '/' + 'Radius.' + str(name) + '.' + str(index))
+      if setting != None:
+        self.radius[index] = float(setting)
+
+      setting = settings.value(self.logic.widget.moduleName + '/' + 'ModelColor.' + str(name) + '.' + str(index))
+      if setting != None:
+        self.modelColor[index] = [float(s) for s in setting]
+      
+          
+  def saveDefaultConfig(self):
+    
+    self.saveDefaultCoilConfigulation()
+    self.saveDefaultAxisDirections()
+    self.saveDefaultVisualSettings()
+
+    
+  def saveDefaultCoilConfigulation(self):
+    
+    tdnode = slicer.mrmlScene.GetNodeByID(self.ID)
+    if not tdnode:
+      return
+
+    name = tdnode.GetName()
+    settings = qt.QSettings()
+    
+    settings.setValue(self.logic.widget.moduleName + '/' + 'ShowCoilLabel.' + str(name), self.showCoilLabel)
     
     for index in range(2):
-      name = tdnode.GetName()
       value = [int(b) for b in self.activeCoils[index]]
-      settings = qt.QSettings()
       settings.setValue(self.logic.widget.moduleName + '/' + 'ActiveCoils.' + str(name) + '.' + str(index), value)
+      settings.setValue(self.logic.widget.moduleName + '/' + 'CoilPositions.' + str(name) + '.' + str(index), self.coilPositions[index])
+      
+      settings.setValue(self.logic.widget.moduleName + '/' + 'TipLength.' + str(name) + '.' + str(index), self.tipLength[index])
+      settings.setValue(self.logic.widget.moduleName + '/' + 'CoilOrder.' + str(name) + '.' + str(index), int(self.coilOrder[index]))
 
+      
+  def saveDefaultAxisDirections(self):
+    
+    tdnode = slicer.mrmlScene.GetNodeByID(self.ID)
+    if not tdnode:
+      return
+
+    name = tdnode.GetName()
+    settings = qt.QSettings()
+    settings.setValue(self.logic.widget.moduleName + '/' + 'AxisDirections.' + str(name), self.axisDirections)
+    
+
+  def saveDefaultVisualSettings(self):
+    
+    tdnode = slicer.mrmlScene.GetNodeByID(self.ID)
+    if not tdnode:
+      return
+
+    name = tdnode.GetName()
+    settings = qt.QSettings()
+    
+    for index in range(2):
+      settings.setValue(self.logic.widget.moduleName + '/' + 'Opacity.' + str(name) + '.' + str(index), self.opacity[index])
+      settings.setValue(self.logic.widget.moduleName + '/' + 'Radius.' + str(name) + '.' + str(index), self.radius[index])
+      settings.setValue(self.logic.widget.moduleName + '/' + 'ModelColor.' + str(name) + '.' + str(index), self.modelColor[index])
+    
 
   def setCurveNodeID(self, id):
     
@@ -268,9 +325,9 @@ class TrackingData:
   def setAxisDirection(self, dir, sign):
     # dir: 0 = x, 1 = y, 2 = z
 
-    self.axisDirection[dir] = sign
+    self.axisDirections[dir] = sign
     if self.logic:
-      self.logic.getParameterNode().SetParameter("TD.%s.axisDirection.%s" % (self.ID, dir), str(self.axisDirection[dir]))
+      self.logic.getParameterNode().SetParameter("TD.%s.axisDirection.%s" % (self.ID, dir), str(self.axisDirections[dir]))
       return 1
     return 0
 
@@ -280,7 +337,8 @@ class TrackingData:
     self.parameterNode.SetParameter("TD.%s.radius" % (trackingDataName), str(self.radius[0]))
     self.parameterNode.SetParameter("TD.%s.radius" % (trackingDataName), str(self.radius[0]))
     self.parameterNode.SetParameter("TD.%s.modelColor" % (trackingDataName), str(self.modelColor))
-    self.parameterNode.SetParameter("TD.%s.modelColor" % (tipLength), str(self.tipLenngth))
+    self.parameterNode.SetParameter("TD.%s.tipLength" % (tipLength), str(self.tipLenngth))
     
+
   def loadParameters(self, parameterNode):
     pass
