@@ -575,8 +575,6 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
     
     self.widget = None
 
-    self.eventTag = {}
-
     self.currentTrackingDataNodeID = ''
     self.TrackingData = {}
 
@@ -586,11 +584,28 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
 
     # Create a parameter node
     self.parameterNode = self.getParameterNode()
-    #self.parameterNode.SetParameter("a", str(a))
 
+    self.addObservers()
+    
+
+  def addObservers(self):
     # Add observers
     self.scene.AddObserver(slicer.vtkMRMLScene.NodeAddedEvent, self.onNodeAddedEvent)
-    self.scene.AddObserver(slicer.vtkMRMLScene.NodeRemovedEvent, self.onNodeRemovedEvent)
+    #self.scene.AddObserver(slicer.vtkMRMLScene.NodeAboutToBeRemovedEvent, self.onNodeRemovedEvent)
+    #self.scene.AddObserver(slicer.vtkMRMLScene.StartSaveEvent, self.onSceneStartSaveEvent)
+    self.scene.AddObserver(slicer.vtkMRMLScene.EndImportEvent, self.onSceneImportedEvent)
+    self.scene.AddObserver(slicer.vtkMRMLScene.EndCloseEvent, self.onSceneClosedEvent)
+
+
+  def clean(self):
+    
+    for item in self.TrackingData.items():
+      del item
+      
+    self.TrackingData = {}
+    self.currentTrackingDataNodeID = ''
+    #del self.registration
+    
     
   def setRegistration(self, reg):
     self.registration = reg
@@ -600,22 +615,32 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
   def addNewTrackingData(self, tdnode):
     if not tdnode:
       return
-    
-    if tdnode.GetID() in self.TrackingData:
-      print('TrackingData "%s" has already been registered.' % tdnode.GetID())
-    else:
-      td = TrackingData()
-      self.TrackingData[tdnode.GetID()] = td
-      self.TrackingData[tdnode.GetID()].setID(tdnode.GetID())
-      self.TrackingData[tdnode.GetID()].setLogic(self)
-      
-      self.TrackingData[tdnode.GetID()].loadDefaultConfig()
-      
-      self.setupFiducials(tdnode, 0)
-      self.setupFiducials(tdnode, 1)
 
-      self.setTipLength(td.coilPositions[0][0], 0)  # The first coil position match the tip length
-      self.setTipLength(td.coilPositions[1][0], 1)  # The first coil position match the tip length            
+    for key in self.TrackingData:
+      if key == tdnode.GetID():
+        print('TrackingData "%s" has already been registered.' % tdnode.GetID())
+        return
+      node = self.scene.GetNodeByID(key)
+      if node:
+        if node.GetName() == tdnode.GetName():
+          print('TrackingData "%s" has an object with the same name: %s.' % (tdnode.GetID(), tdnode.GetName()))
+          self.TrackingData[tdnode.GetID()] = self.TrackingData[key]
+          del self.TrackingData[key] ## TODO: Should the existing one be kept?
+          self.TrackingData[tdnode.GetID()].setID(tdnode.GetID())
+          return
+          
+    td = TrackingData()
+    self.TrackingData[tdnode.GetID()] = td
+    self.TrackingData[tdnode.GetID()].setID(tdnode.GetID())
+    self.TrackingData[tdnode.GetID()].setLogic(self)
+    
+    self.TrackingData[tdnode.GetID()].loadDefaultConfig()
+    
+    self.setupFiducials(tdnode, 0)
+    self.setupFiducials(tdnode, 1)
+
+    self.setTipLength(td.coilPositions[0][0], 0)  # The first coil position match the tip length
+    self.setTipLength(td.coilPositions[1][0], 1)  # The first coil position match the tip length            
       
       
   def switchCurrentTrackingData(self, tdnode):
@@ -776,7 +801,7 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
       return
     
     # Set up markups fiducial node, if specified in the connector node
-    curveNodeID = tdnode.GetAttribute('MRTracking.CurveNode%d' % index)
+    curveNodeID = str(tdnode.GetAttribute('MRTracking.CurveNode%d' % index))
     curveNode = None
 
     #cathName = 'Catheter_%d' % index
@@ -793,24 +818,20 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
     # Set up tip model node
     tipModelID = tdnode.GetAttribute('MRTracking.tipModel%d' % index)
     if tipModelID != None:
-      #td.tipModelNode[index] = self.scene.GetNodeByID(tipModelID)
       td.setTipModelNode(index, self.scene.GetNodeByID(tipModelID))
     else:
-      #td.tipModelNode[index] = None
       td.setTipModelNode(index, None)
 
-    tipTransformNodeID = tdnode.GetAttribute('MRTracking.tipTransform%d' % index)
+    tipTransformNodeID = str(tdnode.GetAttribute('MRTracking.tipTransform%d' % index))
     if tipTransformNodeID != None:
-      #td.tipTransformNode[index] = self.scene.GetNodeByID(tipTransformNodeID)
       td.setTipTransformNode(index, self.scene.GetNodeByID(tipTransformNodeID))
     else:
-      #td.tipTransformNode[index] = None
       td.setTipTransformNode(index, None)
       
 
   def onIncomingNodeModifiedEvent(self, caller, event):
 
-    parentID = caller.GetAttribute('MRTracking.parent')
+    parentID = str(caller.GetAttribute('MRTracking.parent'))
     
     if parentID == '':
       return
@@ -849,7 +870,7 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
     #print("updateCatheterNode(%s, %d) is called" % (tdnode.GetID(), index) )
     # node shoud be vtkMRMLIGTLTrackingDataBundleNode
 
-    curveNodeID = tdnode.GetAttribute('MRTracking.CurveNode%d' % index)
+    curveNodeID = str(tdnode.GetAttribute('MRTracking.CurveNode%d' % index))
     curveNode = None
     if curveNodeID != None:
       curveNode = self.scene.GetNodeByID(curveNodeID)
@@ -925,7 +946,7 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
       return
     
     curveNode = None
-    curveNodeID = tdnode.GetAttribute('MRTracking.CurveNode%d' % index)
+    curveNodeID = str(tdnode.GetAttribute('MRTracking.CurveNode%d' % index))
     if curveNodeID != None:
       curveNode = self.scene.GetNodeByID(curveNodeID)
 
@@ -1067,46 +1088,150 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
     print("Node added")
     print("New node: {0}".format(callData.GetName()))
         
-    if callData.GetAttribute("ModuleName") == self.moduleName:
+    if str(callData.GetAttribute("ModuleName")) == self.moduleName:
       print ("parameterNode added")
 
+    # Check if the transform nodes under the tracking data bundles points
+    # are associated with the bundle node.
+    if callData.GetClassName() == 'vtkMRMLLinearTransformNode':
+      tdlist = slicer.util.getNodesByClass("vtkMRMLIGTLTrackingDataBundleNode")
+      for tdnode in tdlist:
+        if not tdnode:
+          continue
+        nTrans = tdnode.GetNumberOfTransformNodes()
+        for i in range(nTrans):
+          tnode = tdnode.GetTransformNode(i)
+          if tnode:
+            tnode.SetAttribute('MRTracking.trackingDataBundle', tdnode.GetID())
 
-  def onNodeRemovedEvent(self, caller, event, obj=None):
-    delkey = ''
-    if obj == None:
-      for k in self.eventTag:
-        node = self.scene.GetNodeByID(k)
-        if node == None:
-          delkey = k
-          break
-
-    if delkey != '':
-      del self.eventTag[delkey]
+      
+  #def onNodeRemovedEvent(self, caller, event, obj=None):
 
 
+  ## TODO: slicer.vtkMRMLScene.StartSaveEvent is not captured... 
+  #def onSceneStartSaveEvent(self, caller, event, obj=None):
+  #  print ("onSceneStartSaveEvent()")
+  #
+  #  ## Scene should be saved as Bundle as the Slicer tries to overwrite the nodes with the same names
+  #  ## if scene is saved in a folder.
+  #
+  #  ## Because vtkMRMLIGTLTrackingDataBundleNode does not save the child transforms,
+  #  ## we tag the parent tracking data bundle node as an attribute in each child transform.
+  #  tdlist = slicer.util.getNodesByClass("vtkMRMLIGTLTrackingDataBundleNode")
+  #  for tdnode in tdlist:
+  #    if not tdnode:
+  #      continue
+  #    nTrans = tdnode.GetNumberOfTransformNodes()
+  #    for i in range(nTrans):
+  #      tnode = tdnode.GetTransformNode(i)
+  #      if tnode:
+  #        tnode.SetAttribute('MRTracking.trackingDataBundle', tdnode.GetID())
+          
+    
+    ##TODO: Check if there are any overlapping names under the tracking data nodes in the scene.
+    #nameDict = {}
+    #
+    #tdlist = slicer.util.getNodesByClass("vtkMRMLIGTLTrackingDataBundleNode")
+    #for tdnode in tdlist:
+    #  nTrans = tdnode.GetNumberOfTransformNodes()
+    #  for i in range(nTrans):
+    #    tnode = tdnode.GetTransformNode(i)
+    #  
+    #  
+    #  if not (tdnode.GetID() in self.TrackingData):
+    
+  
+  def onSceneImportedEvent(self, caller, event, obj=None):
+    print ("onSceneImportedEvent()")
+
+    self.clean()
+
+    # Look for tracking data ("vtkMRMLIGTLTrackingDataBundleNode") in the imported scene.
+    tdlist = slicer.util.getNodesByClass("vtkMRMLIGTLTrackingDataBundleNode")
+    
+    for tdnode in tdlist:
+      if not (tdnode.GetID() in self.TrackingData):
+        self.addNewTrackingData(tdnode)
+
+    ## Because vtkMRMLIGTLTrackingDataBundleNode does not recover the child transforms
+    ## we add them based on the attributes in each child transform. (see onSceneStartSaveEvent())
+
+    tlist = slicer.util.getNodesByClass("vtkMRMLLinearTransformNode")
+    for tnode in tlist:
+      if not tnode:
+        continue
+      nodeID = str(tnode.GetAttribute('MRTracking.trackingDataBundle'))
+      if nodeID == '':
+        continue
+      tdnode = slicer.mrmlScene.GetNodeByID(nodeID)
+      if tdnode:
+        matrix = vtk.vtkMatrix4x4()
+        tnode.GetMatrixTransformToParent(matrix)
+        print("Adding new tracking node to the bundle: %s" % tnode.GetName())
+        tdnode.UpdateTransformNode(tnode.GetName(), matrix)
+        # Sincce UpdateTransformNode creates a new transform node, discard the old one:
+        # Remove filtered node and processor node
+        filteredNodeID = str(tnode.GetAttribute('MRTracking.filteredNode'))
+        if filteredNodeID != '':
+          filteredNode = slicer.mrmlScene.GetNodeByID(filteredNodeID)
+          slicer.mrmlScene.RemoveNode(filteredNode)
+          
+        processorNodeID = str(tnode.GetAttribute('MRTracking.processorNode'))
+        if processorNodeID != '':
+          processorNode = slicer.mrmlScene.GetNodeByID(processorNodeID)
+          slicer.mrmlScene.RemoveNode(processorNode)
+
+        slicer.mrmlScene.RemoveNode(tnode)
+        
+        ## TODO: Set filtered transforms? 
+
+      
+  def onSceneClosedEvent(self, caller, event, obj=None):
+    
+    print ("onSceneClosedEvent()")
+    self.clean()
+
+
+      
   #
   # To fileter the transforms under the TrackingDataBundleNode, prepare transform nodes
   # to store the filtered transforms.
-  def setFilteredTransforms(self, tdnode):
+  def setFilteredTransforms(self, tdnode, createNew=True):
     td = self.TrackingData[tdnode.GetID()]
 
     nTransforms =  tdnode.GetNumberOfTransformNodes()
+    
     for i in range(nTransforms):
       inputNode = tdnode.GetTransformNode(i)
-      if td.filteredTransformNodes[i] == None:
-        td.filteredTransformNodes[i] = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLLinearTransformNode')
-      if td.transformProcessorNodes[i] == None:
-        td.transformProcessorNodes[i] = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLTransformProcessorNode')
-
-      td.filteredTransformNodes[i].SetName('%s_filtered' % inputNode.GetName())
       
-      tpnode = td.transformProcessorNodes[i]
-      tpnode.SetProcessingMode(slicer.vtkMRMLTransformProcessorNode.PROCESSING_MODE_STABILIZE)
-      tpnode.SetStabilizationCutOffFrequency(7.50)
-      tpnode.SetStabilizationEnabled(1)
-      tpnode.SetUpdateModeToAuto()
-      tpnode.SetAndObserveInputUnstabilizedTransformNode(inputNode)
-      tpnode.SetAndObserveOutputTransformNode(td.filteredTransformNodes[i])
+      if td.filteredTransformNodes[i] == None:
+        filteredNodeID = str(inputNode.GetAttribute('MRTracking.filteredNode'))
+        if filteredNodeID != '':
+          td.filteredTransformNodes[i] = slicer.mrmlScene.GetNodeByID(filteredNodeID)
+          
+        if td.filteredTransformNodes[i] == None and createNew:
+          td.filteredTransformNodes[i] = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLLinearTransformNode')
+          inputNode.SetAttribute('MRTracking.filteredNode', td.filteredTransformNodes[i].GetID())
+          
+      if td.transformProcessorNodes[i] == None:
+        processorNodeID = str(inputNode.GetAttribute('MRTracking.processorNode'))
+        if processorNodeID != '':
+          td.transformProcessorNodes[i] = slicer.mrmlScene.GetNodeByID(processorNodeID)
+        if td.transformProcessorNodes[i] == None and createNew:
+          td.transformProcessorNodes[i] = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLTransformProcessorNode')
+          inputNode.SetAttribute('MRTracking.processorNode', td.transformProcessorNodes[i].GetID())
+
+      if td.filteredTransformNodes[i]:
+        td.filteredTransformNodes[i].SetName('%s_filtered' % inputNode.GetName())
+        
+      if td.transformProcessorNodes[i]:
+        tpnode = td.transformProcessorNodes[i]
+        tpnode.SetProcessingMode(slicer.vtkMRMLTransformProcessorNode.PROCESSING_MODE_STABILIZE)
+        tpnode.SetStabilizationCutOffFrequency(7.50)
+        tpnode.SetStabilizationEnabled(1)
+        tpnode.SetUpdateModeToAuto()
+        tpnode.SetAndObserveInputUnstabilizedTransformNode(inputNode)
+        tpnode.SetAndObserveOutputTransformNode(td.filteredTransformNodes[i])
     
       
   def activateTracking(self):
