@@ -580,10 +580,11 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
 
     self.registration = None
 
-    #self.dataProcessingTimer = qt.QTimer(self)
-
     # Create a parameter node
     self.parameterNode = self.getParameterNode()
+
+    # Time to monitor data integrity
+    self.monitoringTimer = qt.QTimer()
 
     self.addObservers()
     
@@ -606,6 +607,46 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
     self.currentTrackingDataNodeID = ''
     #del self.registration
     
+    self.stopTimer()
+
+    
+  def startTimer(self):
+
+    # The following section adds a timer-driven observer
+    # NOTE: The timer interval is set to 1000 ms as assumed in TrackerStabilizer (see vtkSlicerTrackerStabilizerLogic.cxx)
+    if self.monitoringTimer.isActive() == False:
+      self.monitoringTimer.timeout.connect(self.monitorDataTrackingBundle)
+      self.monitoringTimer.start(1000)
+      print("Timer started.")
+      return True
+    else:
+      return False  # Could not add observer.
+
+    
+  def stopTimer(self):
+    if self.monitoringTime.isActive() == True:
+      self.monitoringTimer.stop()
+
+      
+  def monitorDataTrackingBundle(self):
+
+    print('monitorDataTrackingBundle(self)')
+    
+    # Check if the transform nodes under the tracking data bundles points
+    # are associated with the bundle node.
+    
+    tdlist = slicer.util.getNodesByClass("vtkMRMLIGTLTrackingDataBundleNode")
+    count = 0
+    for tdnode in tdlist:
+      if not tdnode:
+        continue
+      nTrans = tdnode.GetNumberOfTransformNodes()
+      for i in range(nTrans):
+        tnode = tdnode.GetTransformNode(i)
+        if tnode:
+          tnode.SetAttribute('MRTracking.trackingDataBundle', tdnode.GetID())
+      count = count + 1
+      
     
   def setRegistration(self, reg):
     self.registration = reg
@@ -861,11 +902,6 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
         self.registration.updatePoints()
 
         
-  #def processIncomingNodes(self):
-  #  print('processIncomingNodes()')
-  #  pass
-    
-      
   def updateCatheterNode(self, tdnode, index):
     #print("updateCatheterNode(%s, %d) is called" % (tdnode.GetID(), index) )
     # node shoud be vtkMRMLIGTLTrackingDataBundleNode
@@ -1091,22 +1127,24 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
     if str(callData.GetAttribute("ModuleName")) == self.moduleName:
       print ("parameterNode added")
 
-    # Check if the transform nodes under the tracking data bundles points
-    # are associated with the bundle node.
-    if callData.GetClassName() == 'vtkMRMLLinearTransformNode':
-      tdlist = slicer.util.getNodesByClass("vtkMRMLIGTLTrackingDataBundleNode")
-      for tdnode in tdlist:
-        if not tdnode:
-          continue
-        nTrans = tdnode.GetNumberOfTransformNodes()
-        for i in range(nTrans):
-          tnode = tdnode.GetTransformNode(i)
-          if tnode:
-            tnode.SetAttribute('MRTracking.trackingDataBundle', tdnode.GetID())
+    if callData.GetClassName() == 'vtkMRMLIGTLTrackingDataBundleNode':
+      self.startTimer()
+
+    ## Check if the transform nodes under the tracking data bundles points
+    ## are associated with the bundle node.
+    #if callData.GetClassName() == 'vtkMRMLLinearTransformNode':
+    #  tdlist = slicer.util.getNodesByClass("vtkMRMLIGTLTrackingDataBundleNode")
+    #  for tdnode in tdlist:
+    #    if not tdnode:
+    #      continue
+    #    nTrans = tdnode.GetNumberOfTransformNodes()
+    #    for i in range(nTrans):
+    #      tnode = tdnode.GetTransformNode(i)
+    #      if tnode:
+    #        tnode.SetAttribute('MRTracking.trackingDataBundle', tdnode.GetID())
 
       
   #def onNodeRemovedEvent(self, caller, event, obj=None):
-
 
   ## TODO: slicer.vtkMRMLScene.StartSaveEvent is not captured... 
   #def onSceneStartSaveEvent(self, caller, event, obj=None):
@@ -1128,19 +1166,6 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
   #        tnode.SetAttribute('MRTracking.trackingDataBundle', tdnode.GetID())
           
     
-    ##TODO: Check if there are any overlapping names under the tracking data nodes in the scene.
-    #nameDict = {}
-    #
-    #tdlist = slicer.util.getNodesByClass("vtkMRMLIGTLTrackingDataBundleNode")
-    #for tdnode in tdlist:
-    #  nTrans = tdnode.GetNumberOfTransformNodes()
-    #  for i in range(nTrans):
-    #    tnode = tdnode.GetTransformNode(i)
-    #  
-    #  
-    #  if not (tdnode.GetID() in self.TrackingData):
-    
-  
   def onSceneImportedEvent(self, caller, event, obj=None):
     print ("onSceneImportedEvent()")
 
@@ -1153,8 +1178,8 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
       if not (tdnode.GetID() in self.TrackingData):
         self.addNewTrackingData(tdnode)
 
-    ## Because vtkMRMLIGTLTrackingDataBundleNode does not recover the child transforms
-    ## we add them based on the attributes in each child transform. (see onSceneStartSaveEvent())
+    # Because vtkMRMLIGTLTrackingDataBundleNode does not recover the child transforms
+    # we add them based on the attributes in each child transform. (see onSceneStartSaveEvent())
 
     tlist = slicer.util.getNodesByClass("vtkMRMLLinearTransformNode")
     for tnode in tlist:
@@ -1169,8 +1194,7 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
         tnode.GetMatrixTransformToParent(matrix)
         print("Adding new tracking node to the bundle: %s" % tnode.GetName())
         tdnode.UpdateTransformNode(tnode.GetName(), matrix)
-        # Sincce UpdateTransformNode creates a new transform node, discard the old one:
-        # Remove filtered node and processor node
+        
         filteredNodeID = str(tnode.GetAttribute('MRTracking.filteredNode'))
         if filteredNodeID != '':
           filteredNode = slicer.mrmlScene.GetNodeByID(filteredNodeID)
@@ -1181,6 +1205,8 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
           processorNode = slicer.mrmlScene.GetNodeByID(processorNodeID)
           slicer.mrmlScene.RemoveNode(processorNode)
 
+        # Sincce UpdateTransformNode creates a new transform node, discard the old one:
+        # Remove filtered node and processor node
         slicer.mrmlScene.RemoveNode(tnode)
         
         ## TODO: Set filtered transforms? 
@@ -1189,6 +1215,7 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
   def onSceneClosedEvent(self, caller, event, obj=None):
     
     print ("onSceneClosedEvent()")
+    self.stopTimer()
     self.clean()
 
 
@@ -1263,20 +1290,7 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
       else:
         return False  # Could not add observer.
 
-    ##
-    ## The following section adds a timer-driven observer
-    ## NOTE: The timer interval is set to 15 ms as assumed in TrackerStabilizer (see vtkSlicerTrackerStabilizerLogic.cxx)
-    #if tdnode:
-    #  if self.dataProcessingTimer.isActive() == False:
-    #    self.dataProcessingTimer.timeout.connect(self.processIncomingNodes)
-    #    self.dataProcessingTimer.start(15)
-    #    print("Timer started")
-    #    return True
-    #  else:
-    #    return False  # Could not add observer.
-    
       
-  
   def deactivateTracking(self):
     
     td = self.TrackingData[self.currentTrackingDataNodeID]

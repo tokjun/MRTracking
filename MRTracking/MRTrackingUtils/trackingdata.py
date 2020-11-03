@@ -51,11 +51,11 @@ class TrackingData:
     self.defaultCoilPositions['"NavX-Ch0"'] = [[0,20,40,60],[0,20,40,60]]
     self.defaultCoilPositions['"NavX-Ch1"'] = [[0,20,40,60],[0,20,40,60]]
     self.defaultCoilPositions['"WWTracker"'] = [[10,30,50,70],[10,30,50,70]]
-
+    
 
   def __del__(self):
     print("TrackingData.__del__() is called.")
-    
+
     
   def setID(self, id):
     self.ID = id
