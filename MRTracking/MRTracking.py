@@ -624,14 +624,12 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
 
     
   def stopTimer(self):
-    if self.monitoringTime.isActive() == True:
+    if self.monitoringTimer.isActive() == True:
       self.monitoringTimer.stop()
 
       
   def monitorDataTrackingBundle(self):
 
-    print('monitorDataTrackingBundle(self)')
-    
     # Check if the transform nodes under the tracking data bundles points
     # are associated with the bundle node.
     
@@ -1173,43 +1171,47 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
 
     # Look for tracking data ("vtkMRMLIGTLTrackingDataBundleNode") in the imported scene.
     tdlist = slicer.util.getNodesByClass("vtkMRMLIGTLTrackingDataBundleNode")
+
+    if len(tdlist) > 0:
     
-    for tdnode in tdlist:
-      if not (tdnode.GetID() in self.TrackingData):
-        self.addNewTrackingData(tdnode)
-
-    # Because vtkMRMLIGTLTrackingDataBundleNode does not recover the child transforms
-    # we add them based on the attributes in each child transform. (see onSceneStartSaveEvent())
-
-    tlist = slicer.util.getNodesByClass("vtkMRMLLinearTransformNode")
-    for tnode in tlist:
-      if not tnode:
-        continue
-      nodeID = str(tnode.GetAttribute('MRTracking.trackingDataBundle'))
-      if nodeID == '':
-        continue
-      tdnode = slicer.mrmlScene.GetNodeByID(nodeID)
-      if tdnode:
-        matrix = vtk.vtkMatrix4x4()
-        tnode.GetMatrixTransformToParent(matrix)
-        print("Adding new tracking node to the bundle: %s" % tnode.GetName())
-        tdnode.UpdateTransformNode(tnode.GetName(), matrix)
-        
-        filteredNodeID = str(tnode.GetAttribute('MRTracking.filteredNode'))
-        if filteredNodeID != '':
-          filteredNode = slicer.mrmlScene.GetNodeByID(filteredNodeID)
-          slicer.mrmlScene.RemoveNode(filteredNode)
+      for tdnode in tdlist:
+        if not (tdnode.GetID() in self.TrackingData):
+          self.addNewTrackingData(tdnode)
+      
+      # Because vtkMRMLIGTLTrackingDataBundleNode does not recover the child transforms
+      # we add them based on the attributes in each child transform. (see onSceneStartSaveEvent())
+      
+      tlist = slicer.util.getNodesByClass("vtkMRMLLinearTransformNode")
+      for tnode in tlist:
+        if not tnode:
+          continue
+        nodeID = str(tnode.GetAttribute('MRTracking.trackingDataBundle'))
+        if nodeID == '':
+          continue
+        tdnode = slicer.mrmlScene.GetNodeByID(nodeID)
+        if tdnode:
+          matrix = vtk.vtkMatrix4x4()
+          tnode.GetMatrixTransformToParent(matrix)
+          print("Adding new tracking node to the bundle: %s" % tnode.GetName())
+          tdnode.UpdateTransformNode(tnode.GetName(), matrix)
           
-        processorNodeID = str(tnode.GetAttribute('MRTracking.processorNode'))
-        if processorNodeID != '':
-          processorNode = slicer.mrmlScene.GetNodeByID(processorNodeID)
-          slicer.mrmlScene.RemoveNode(processorNode)
-
-        # Sincce UpdateTransformNode creates a new transform node, discard the old one:
-        # Remove filtered node and processor node
-        slicer.mrmlScene.RemoveNode(tnode)
-        
-        ## TODO: Set filtered transforms? 
+          filteredNodeID = str(tnode.GetAttribute('MRTracking.filteredNode'))
+          if filteredNodeID != '':
+            filteredNode = slicer.mrmlScene.GetNodeByID(filteredNodeID)
+            slicer.mrmlScene.RemoveNode(filteredNode)
+            
+          processorNodeID = str(tnode.GetAttribute('MRTracking.processorNode'))
+          if processorNodeID != '':
+            processorNode = slicer.mrmlScene.GetNodeByID(processorNodeID)
+            slicer.mrmlScene.RemoveNode(processorNode)
+      
+          # Sincce UpdateTransformNode creates a new transform node, discard the old one:
+          # Remove filtered node and processor node
+          slicer.mrmlScene.RemoveNode(tnode)
+          
+          ## TODO: Set filtered transforms?
+          
+      self.startTimer()
 
       
   def onSceneClosedEvent(self, caller, event, obj=None):
@@ -1317,7 +1319,10 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
 
       
   def isTrackingActive(self):
-    td = self.TrackingData[self.currentTrackingDataNodeID]
-    return td.isActive()
+    if self.currentTrackingDataNodeID != '':
+      td = self.TrackingData[self.currentTrackingDataNodeID]
+      return td.isActive()
+    else:
+      return False
     
       
