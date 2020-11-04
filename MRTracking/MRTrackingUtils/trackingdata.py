@@ -215,49 +215,140 @@ class TrackingData:
       settings.setValue(self.logic.widget.moduleName + '/' + 'Opacity.' + str(name) + '.' + str(index), self.opacity[index])
       settings.setValue(self.logic.widget.moduleName + '/' + 'Radius.' + str(name) + '.' + str(index), self.radius[index])
       settings.setValue(self.logic.widget.moduleName + '/' + 'ModelColor.' + str(name) + '.' + str(index), self.modelColor[index])
-    
 
+
+  class ParamError(Exception):
+    """Exception raised for errors in obtaining value from the parameter node.
+
+    Attributes:
+        key -- the key used to obtain the value
+        message -- explanation of the error
+    """   
+    def __init__(self, key, message='The value cannot be obtained.'):
+      self.key  = key
+      self.message = message
+      super().__init__(self.message + 'Parameter: ' + key)
+    
+      
+  def getParamFloat(self, tag):
+    paramNode = self.logic.getParameterNode()
+    if paramNode == None:
+      raise self.ParamError(tag)
+
+    paramStr = paramNode.GetParameter(tag)
+    if paramStr != '':
+      return float(paramStr)
+    else:
+      raise self.ParamError(tag)
+
+    
+  def getParamBool(self, tag):
+    paramNode = self.logic.getParameterNode()
+    if paramNode == None:
+      raise self.ParamError(tag)
+    
+    paramStr = paramNode.GetParameter(tag)
+    if paramStr != '':
+      return bool(int(paramStr))
+    else:
+      raise self.ParamError(tag)
+    
+    
+  def getParamStr(self, tag):
+    paramNode = self.logic.getParameterNode()
+    if paramNode == None:
+      raise self.ParamError(tag)
+
+    paramStr = paramNode.GetParameter(tag)
+    if paramStr != '':
+      return str(paramStr)
+    else:
+      raise self.ParamError(tag)
+
+    
+  def getParamFloatArray(self, tag):
+    paramNode = self.logic.getParameterNode()
+    if paramNode == None:
+      raise self.ParamError(tag)
+
+    paramStr = paramNode.GetParameter(tag)
+    if paramStr != '':
+      return [float(f) for f in paramStr]
+    else:
+      raise self.ParamError(tag)
+
+    
+  def getParamBoolArray(self, tag):
+    paramNode = self.logic.getParameterNode()
+    if paramNode == None:
+      raise self.ParamError(tag)
+
+    paramStr = paramNode.GetParameter(tag)
+    if paramStr != '':
+      return [bool(int(i)) for i in paramStr]
+    else:
+      raise self.ParamError(tag)
+
+      
   def loadConfigFromParameterNode(self):
 
     print('Loading config from the parameter node')
     
-    paramNode = self.logic.getParameterNode()
-    #self.curveNodeID = str(paramNode.GetParameter("TD.curveNodeID" % self.ID))
-    #self.showCoilLabel = paramNode.GetParameter("TD.%s.showCoilLabel" % self.ID)
-    
-    for index in range(2):
-      self.opacity[index] = float(paramNode.GetParameter("TD.%s.opacity.%s" % (self.ID, index)))
-      self.radius[index] = float(paramNode.GetParameter("TD.%s.radius.%s" % (self.ID, index)))
+    try:
+      #self.curveNodeID = str(paramNode.GetParameter("TD.curveNodeID" % self.ID))
+      self.curveNodeID = self.getParamStr("TD.%s.curveNodeID" % self.ID)
+      #self.showCoilLabel = paramNode.GetParameter("TD.%s.showCoilLabel" % self.ID)
+      self.showCoilLabel = self.getParamBool("TD.%s.showCoilLabel" % self.ID)
       
-      paramStr = paramNode.GetParameter("TD.%s.modelColor.%s" % (self.ID, index))
-      if paramStr != None:
-        self.color[index] = [float(f) for f in paramStr]
-      
-      self.tipLength[index] = float(paramNode.GetParameter("TD.%s.tipLength.%s" % (self.ID, index)))
-      paramStr = paramNode.GetParameter("TD.%s.coilPosition.%s" % (self.ID, index))
-      if paramStr != None:
-        self.coilPositions[index] = [float(f) for f in paramStr]
-
-      nodeID = str(paramNode.GetParameter("TD.%s.tipModelNode.%s" % (self.ID, index)))
-      if nodeID != '':
-        self.tipModelNode[index] = slicer.mrmlScene.GetNodeByID(nodeID)
-
-      nodeID = str(paramNode.GetParameter("TD.%s.tipTransformNode.%s" % (self.ID, index)))
-      if nodeID != '':
-        self.tipTransformNode[index] = slicer.mrmlScene.GetNodeByID(nodeID)
+      for index in range(2):
+        #self.opacity[index] = float(paramNode.GetParameter("TD.%s.opacity.%s" % (self.ID, index)))
+        #self.radius[index] = float(paramNode.GetParameter("TD.%s.radius.%s" % (self.ID, index)))
+        self.opacity[index] = self.getParamFloat("TD.%s.opacity.%s" % (self.ID, index))
+        self.radius[index] = self.getParameFloat("TD.%s.radius.%s" % (self.ID, index))
         
-      self.activeCoils[index] = paramNode.GetParameter("TD.%s.activeCoils.%s" % (self.ID, index))
-      self.coilOrder[index] = paramNode.GetParameter("TD.%s.coilOrder.%s" % (self.ID, index))
-
-    for dir in range(3):
-      paramNode.GetParameter("TD.%s.axisDirection.%s" % (self.ID, dir), str(self.axisDirections[dir]))
+        #paramStr = paramNode.GetParameter("TD.%s.modelColor.%s" % (self.ID, index))
+        #if paramStr != None:
+        #  self.color[index] = [float(f) for f in paramStr]
+        self.color[index] = self.getParamFloatArray("TD.%s.modelColor.%s" % (self.ID, index))
+        
+        #self.tipLength[index] = float(paramNode.GetParameter("TD.%s.tipLength.%s" % (self.ID, index)))
+        self.tipLength[index] = self.getParamFloat("TD.%s.tipLength.%s" % (self.ID, index))
+        
+        #paramStr = paramNode.GetParameter("TD.%s.coilPosition.%s" % (self.ID, index))
+        #if paramStr != None:
+        #  self.coilPositions[index] = [float(f) for f in paramStr]
+        self.coilPositions[index] = self.getParamFloatArray("TD.%s.tipLength.%s" % (self.ID, index))
       
+        #nodeID = str(paramNode.GetParameter("TD.%s.tipModelNode.%s" % (self.ID, index)))
+        nodeID = self.getParamStr("TD.%s.tipModelNode.%s" % (self.ID, index))
+        if nodeID != '':
+          self.tipModelNode[index] = slicer.mrmlScene.GetNodeByID(nodeID)
+      
+        #nodeID = str(paramNode.GetParameter("TD.%s.tipTransformNode.%s" % (self.ID, index)))
+        nodeID = self.getParamStr("TD.%s.tipTransformNode.%s" % (self.ID, index))
+        if nodeID != '':
+          self.tipTransformNode[index] = slicer.mrmlScene.GetNodeByID(nodeID)
+          
+        #self.activeCoils[index] = paramNode.GetParameter("TD.%s.activeCoils.%s" % (self.ID, index))
+        self.activeCoils[index] = self.getParamBoolArray("TD.%s.activeCoils.%s" % (self.ID, index))
+        
+        #self.coilOrder[index] = paramNode.GetParameter("TD.%s.coilOrder.%s" % (self.ID, index))
+        self.coilOrder[index] = self.getParamBool("TD.%s.coilOrder.%s" % (self.ID, index))
+        
+      for dir in range(3):
+        #paramNode.GetParameter("TD.%s.axisDirection.%s" % (self.ID, dir), str(self.axisDirections[dir]))
+        self.axisDirections[dir] = self.getParamFloat("TD.%s.axisDirection.%s" % (self.ID, dir))
+
+    except self.ParamError as pe:
+      
+      print('Error in loading configuration from the parameter node: ' + pe.key)
+
 
   def setCurveNodeID(self, id):
     
     self.curveNodeID = id
     if self.logic:
-      self.logic.getParameterNode().SetParameter("TD.curveNodeID" % self.ID, id)
+      self.logic.getParameterNode().SetParameter("TD.%s.curveNodeID" % self.ID, id)
       return 1
     return 0
 
