@@ -1210,6 +1210,9 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
           slicer.mrmlScene.RemoveNode(tnode)
           
           ## TODO: Set filtered transforms?
+
+      for tdnode in tdlist:
+        self.TrackingData[tdnode.GetID()].loadConfigFromParameterNode()
           
       self.startTimer()
 

@@ -217,6 +217,42 @@ class TrackingData:
       settings.setValue(self.logic.widget.moduleName + '/' + 'ModelColor.' + str(name) + '.' + str(index), self.modelColor[index])
     
 
+  def loadConfigFromParameterNode(self):
+
+    print('Loading config from the parameter node')
+    
+    paramNode = self.logic.getParameterNode()
+    #self.curveNodeID = str(paramNode.GetParameter("TD.curveNodeID" % self.ID))
+    #self.showCoilLabel = paramNode.GetParameter("TD.%s.showCoilLabel" % self.ID)
+    
+    for index in range(2):
+      self.opacity[index] = float(paramNode.GetParameter("TD.%s.opacity.%s" % (self.ID, index)))
+      self.radius[index] = float(paramNode.GetParameter("TD.%s.radius.%s" % (self.ID, index)))
+      
+      paramStr = paramNode.GetParameter("TD.%s.modelColor.%s" % (self.ID, index))
+      if paramStr != None:
+        self.color[index] = [float(f) for f in paramStr]
+      
+      self.tipLength[index] = float(paramNode.GetParameter("TD.%s.tipLength.%s" % (self.ID, index)))
+      paramStr = paramNode.GetParameter("TD.%s.coilPosition.%s" % (self.ID, index))
+      if paramStr != None:
+        self.coilPositions[index] = [float(f) for f in paramStr]
+
+      nodeID = str(paramNode.GetParameter("TD.%s.tipModelNode.%s" % (self.ID, index)))
+      if nodeID != '':
+        self.tipModelNode[index] = slicer.mrmlScene.GetNodeByID(nodeID)
+
+      nodeID = str(paramNode.GetParameter("TD.%s.tipTransformNode.%s" % (self.ID, index)))
+      if nodeID != '':
+        self.tipTransformNode[index] = slicer.mrmlScene.GetNodeByID(nodeID)
+        
+      self.activeCoils[index] = paramNode.GetParameter("TD.%s.activeCoils.%s" % (self.ID, index))
+      self.coilOrder[index] = paramNode.GetParameter("TD.%s.coilOrder.%s" % (self.ID, index))
+
+    for dir in range(3):
+      paramNode.GetParameter("TD.%s.axisDirection.%s" % (self.ID, dir), str(self.axisDirections[dir]))
+      
+
   def setCurveNodeID(self, id):
     
     self.curveNodeID = id
