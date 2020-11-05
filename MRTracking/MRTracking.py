@@ -438,12 +438,13 @@ class MRTrackingWidget(ScriptedLoadableModuleWidget):
   def onTrackingDataSelected(self):
     tdnode = self.trackingDataSelector.currentNode()    
     tdata = self.logic.switchCurrentTrackingData(tdnode)
-    self.updateTrackingDataGUI(tdata)
-
-    if tdata.eventTag != '':
-      self.activeTrackingCheckBox.checked == True
-    else:
-      self.activeTrackingCheckBox.checked == False
+    if tdata:
+      self.updateTrackingDataGUI(tdata)
+      
+      if tdata.eventTag != '':
+        self.activeTrackingCheckBox.checked == True
+      else:
+        self.activeTrackingCheckBox.checked == False
       
       
   def onRejectRegistration(self):
@@ -523,6 +524,8 @@ class MRTrackingWidget(ScriptedLoadableModuleWidget):
 
   def updateTrackingDataGUI(self, tdata):
     # Enable/disable GUI components based on the state machine
+    if tdata == None:
+      return
     
     if self.logic.isTrackingActive():
       self.activeTrackingCheckBox.checked = True
@@ -1009,6 +1012,9 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
     if curveNode.GetNumberOfControlPoints() < 2:
       return
 
+    #
+    # TODO: the tip model should be managed in a seprate class. 
+    #
     if td.tipPoly[index]==None:
       td.tipPoly[index] = vtk.vtkPolyData()
     
@@ -1215,6 +1221,9 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
         self.TrackingData[tdnode.GetID()].loadConfigFromParameterNode()
           
       self.startTimer()
+
+    # If a tracking data is in the TrackingData selector, update the tracking data GUI accordingly.
+    self.widget.onTrackingDataSelected()
 
       
   def onSceneClosedEvent(self, caller, event, obj=None):
