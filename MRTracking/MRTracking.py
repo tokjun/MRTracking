@@ -324,6 +324,31 @@ class MRTrackingWidget(ScriptedLoadableModuleWidget):
     #self.cutoffFrequencySliderWidget.setToolTip("")
     stabilizerLayout.addRow("Cut-off frequency: ",  self.cutoffFrequencySliderWidget)
 
+    #--------------------------------------------------
+    # Egram 
+    #
+    egramGroupBox = ctk.ctkCollapsibleGroupBox()
+    egramGroupBox.title = "Egram Data"
+    egramGroupBox.collapsed = True
+    
+    catheterFormLayout.addWidget(egramGroupBox)
+    egramLayout = qt.QFormLayout(egramGroupBox)
+
+    self.egramDataSelector = [None] * self.nCath;
+    
+    for cath in range(self.nCath):
+      self.egramDataSelector[cath] = slicer.qMRMLNodeComboBox()
+      self.egramDataSelector[cath].nodeTypes = ( ("vtkMRMLTextNode"), "" )
+      self.egramDataSelector[cath].selectNodeUponCreation = True
+      self.egramDataSelector[cath].addEnabled = True
+      self.egramDataSelector[cath].removeEnabled = False
+      self.egramDataSelector[cath].noneEnabled = False
+      self.egramDataSelector[cath].showHidden = True
+      self.egramDataSelector[cath].showChildNodeTypes = False
+      self.egramDataSelector[cath].setMRMLScene( slicer.mrmlScene )
+      self.egramDataSelector[cath].setToolTip( "Incoming Egram data for Cath0" )
+
+      egramLayout.addRow("Egram Cath%d: " % cath, self.egramDataSelector[cath])
 
     #--------------------------------------------------
     # Save Configuration
@@ -343,6 +368,39 @@ class MRTrackingWidget(ScriptedLoadableModuleWidget):
     
     catheterFormLayout.addWidget(trackingDataSaveFrame)
     
+    #--------------------------------------------------
+    # Surface Model & Mapping
+    #--------------------------------------------------
+    
+    mappingCollapsibleButton = ctk.ctkCollapsibleButton()
+    mappingCollapsibleButton.text = "Surface Model Mapping"
+    self.layout.addWidget(mappingCollapsibleButton)
+
+    mappingLayout = qt.QFormLayout(mappingCollapsibleButton)
+    
+    self.egramRecordPointsSelector = slicer.qMRMLNodeComboBox()
+    self.egramRecordPointsSelector.nodeTypes = ( ("vtkMRMLMarkupsFiducialNode"), "" )
+    self.egramRecordPointsSelector.selectNodeUponCreation = True
+    self.egramRecordPointsSelector.addEnabled = True
+    self.egramRecordPointsSelector.removeEnabled = False
+    self.egramRecordPointsSelector.noneEnabled = True
+    self.egramRecordPointsSelector.showHidden = True
+    self.egramRecordPointsSelector.showChildNodeTypes = False
+    self.egramRecordPointsSelector.setMRMLScene( slicer.mrmlScene )
+    self.egramRecordPointsSelector.setToolTip( "Fiducials for recording Egram data" )
+    mappingLayout.addRow("Points: ", self.egramRecordPointsSelector)
+
+    # Minimum interval between two consecutive registrations
+    self.pointRecordingDistanceSliderWidget = ctk.ctkSliderWidget()
+    self.pointRecordingDistanceSliderWidget.singleStep = 0.1
+    self.pointRecordingDistanceSliderWidget.minimum = 0.0
+    self.pointRecordingDistanceSliderWidget.maximum = 20.0
+    self.pointRecordingDistanceSliderWidget.value = 0.0
+    #self.minIntervalSliderWidget.setToolTip("")
+
+    mappingLayout.addRow("Min. Distance: ",  self.pointRecordingDistanceSliderWidget)
+
+
     #--------------------------------------------------
     # Image Reslice
     #--------------------------------------------------
@@ -376,6 +434,12 @@ class MRTrackingWidget(ScriptedLoadableModuleWidget):
     #--------------------------------------------------
     self.trackingDataSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onTrackingDataSelected)
     self.activeTrackingCheckBox.connect('clicked(bool)', self.onActiveTracking)
+
+    for cath in range(self.nCath):
+      self.egramDataSelector[cath].connect("currentNodeChanged(vtkMRMLNode*)", self.onEgramDataSelected)
+
+    self.egramRecordPointsSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onEgramRecordPointsSelected)
+    self.pointRecordingDistanceSliderWidget.connect("valueChanged(double)", self.pointRecordingDistanceChanged)
 
     for cath in range(self.nCath):
       ## JT: I'd leave this widget in the comment, because it might be useful to show the predicted in the future.
@@ -445,8 +509,21 @@ class MRTrackingWidget(ScriptedLoadableModuleWidget):
         self.activeTrackingCheckBox.checked == True
       else:
         self.activeTrackingCheckBox.checked == False
+
+  def onEgramDataSelected(self):
+    tdnode = self.trackingDataSelector.currentNode()
+    for cath in range(self.nCath):
+      edatanode = self.egramDataSelector[cath].currentNode()
+      self.logic.setEgramDataNode(tdnode, cath, edatanode)
       
-      
+  def onEgramRecordPointsSelected(self):
+    mfnode = self.egramRecordPointsSelector.currentNode()
+    self.logic.setEgramRecordMarkupsNode(mfnode)
+    
+  def pointRecordingDistanceChanged(self):
+    d = self.pointRecordingDistanceSliderWidget.value
+    self.logic.setPointRecordingDistance(d)
+    
   def onRejectRegistration(self):
     self.logic.acceptNewMatrix(self, False)
 
@@ -581,6 +658,10 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
     self.currentTrackingDataNodeID = ''
     self.TrackingData = {}
 
+    self.egramRecordMarkupsNode = None
+    self.pointRecordingDistance = 0.0
+    self.prevEgramPoint = numpy.array([0.0, 0.0, 0.0])
+
     self.registration = None
 
     # Create a parameter node
@@ -592,6 +673,7 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
     self.addObservers()
     
 
+    
   def addObservers(self):
     # Add observers
     self.scene.AddObserver(slicer.vtkMRMLScene.NodeAddedEvent, self.onNodeAddedEvent)
@@ -695,8 +777,25 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
       self.addNewTrackingData(tdnode)
 
     return self.TrackingData[tdnode.GetID()]
-  
 
+  
+  def setEgramDataNode(self, tdnode, cath, edatanode):
+    if not tdnode:
+      return
+    if not (tdnode.GetID() in self.TrackingData):
+      print('Error - Current TrackingData is not valid')
+
+    self.TrackingData[tdnode.GetID()].egramDataNode[cath] = edatanode
+
+
+  def setEgramRecordMarkupsNode(self, mfnode):
+    self.egramRecordMarkupsNode = mfnode
+
+    
+  def setPointRecordingDistance(self, d):
+    self.pointRecordingDistance = d
+
+    
   def getCurrentTrackingData(self):
     return self.TrackingData[self.currentTrackingDataNodeID]
   
@@ -944,7 +1043,7 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
         p.SetY(0.0)
         p.SetZ(0.0)
         curveNode.AddControlPoint(p, "P_%d" % i)
-        
+
     lastCoil = nCoils - 1
     fFlip = False
     if index == 0:
@@ -952,6 +1051,8 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
     else: # index == 1:
       fFlip = (not td.coilOrder[1])
 
+    egramPoint = None;
+      
     j = 0
     for i in range(nCoils):
       if mask[i]:
@@ -969,6 +1070,9 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
         if fFlip:
           coilID = lastCoil - j
         curveNode.SetNthControlPointPosition(coilID, v[0] * td.axisDirections[0], v[1] * td.axisDirections[1], v[2] * td.axisDirections[2])
+        if coilID == 0:
+          egramPoint = v;
+          
         j += 1
 
     #print('curveNode.GetNumberOfPointsPerInterpolatingSegment(): %d' % curveNode.GetNumberOfPointsPerInterpolatingSegment())
@@ -976,6 +1080,20 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
     
     self.updateCatheter(tdnode, index)
 
+    # Egram data
+    if index == 0 and egramPoint != None:
+      p = numpy.array(egramPoint)
+      d = numpy.linalg.norm(p-self.prevEgramPoint)
+      if d > self.pointRecordingDistance:
+        self.prevEgramPoint = p
+        egram = td.getEgramData(index)
+        if fFlip:
+          egram.reverse()
+
+        if self.egramRecordMarkupsNode:
+          id = self.egramRecordMarkupsNode.AddFiducial(egramPoint[0] * td.axisDirections[0], egramPoint[1] * td.axisDirections[1], egramPoint[2] * td.axisDirections[2])
+          self.egramRecordMarkupsNode.SetNthControlPointDescription(id, '%f' % egram[0])
+          
     
   def updateCatheter(self, tdnode, index):
 

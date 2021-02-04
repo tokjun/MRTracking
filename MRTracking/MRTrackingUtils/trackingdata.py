@@ -34,6 +34,9 @@ class TrackingData:
     self.showCoilLabel = False
     self.coilOrder = [True, True]
 
+    # Egram data
+    self.egramDataNode = [None, None]
+    
     # Coordinate system
     self.axisDirections = [1.0, 1.0, 1.0]
     
@@ -468,3 +471,22 @@ class TrackingData:
 
   def loadParameters(self, parameterNode):
     pass
+
+
+  def getEgramData(self, cath):
+
+    r = []
+    
+    if self.egramDataNode[cath]:
+      text = self.egramDataNode[cath].GetText()
+      list = text.split(',')
+    
+      for v in list:
+        r.append(float(v))
+        
+    return r
+
+      
+    
+      
+    
