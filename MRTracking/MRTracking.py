@@ -400,6 +400,12 @@ class MRTrackingWidget(ScriptedLoadableModuleWidget):
 
     mappingLayout.addRow("Min. Distance: ",  self.pointRecordingDistanceSliderWidget)
 
+    self.resetPointButton = qt.QPushButton()
+    self.resetPointButton.setCheckable(False)
+    self.resetPointButton.text = 'Erase Points'
+    self.resetPointButton.setToolTip("Erase all the points recorded for surface mapping.")
+
+    mappingLayout.addRow(" ",  self.resetPointButton)
 
     #--------------------------------------------------
     # Image Reslice
@@ -440,6 +446,7 @@ class MRTrackingWidget(ScriptedLoadableModuleWidget):
 
     self.egramRecordPointsSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onEgramRecordPointsSelected)
     self.pointRecordingDistanceSliderWidget.connect("valueChanged(double)", self.pointRecordingDistanceChanged)
+    self.resetPointButton.connect('clicked(bool)', self.onResetPointRecording)
 
     for cath in range(self.nCath):
       ## JT: I'd leave this widget in the comment, because it might be useful to show the predicted in the future.
@@ -523,6 +530,9 @@ class MRTrackingWidget(ScriptedLoadableModuleWidget):
   def pointRecordingDistanceChanged(self):
     d = self.pointRecordingDistanceSliderWidget.value
     self.logic.setPointRecordingDistance(d)
+
+  def onResetPointRecording(self):
+    self.logic.resetPointRecording()
     
   def onRejectRegistration(self):
     self.logic.acceptNewMatrix(self, False)
@@ -796,6 +806,11 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
     self.pointRecordingDistance = d
 
     
+  def resetPointRecording(self):
+    if self.egramRecordMarkupsNode:
+      self.egramRecordMarkupsNode.RemoveAllControlPoints()
+
+      
   def getCurrentTrackingData(self):
     return self.TrackingData[self.currentTrackingDataNodeID]
   
