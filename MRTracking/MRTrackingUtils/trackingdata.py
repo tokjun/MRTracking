@@ -5,6 +5,7 @@
 
 import qt
 import slicer
+import numpy
 
 class TrackingData:
 
@@ -36,6 +37,14 @@ class TrackingData:
 
     # Egram data
     self.egramDataNode = [None, None]
+
+    # Point Recording
+    self.pointRecording = [False, False]
+    self.pointRecordingMarkupsNode = [None, None]
+    self.pointRecordingDistance = [0.0, 0.0]
+    self.prevRecordedPoint = [None, None]
+    self.prevRecordedPoint[0] = numpy.array([0.0, 0.0, 0.0])
+    self.prevRecordedPoint[1] = numpy.array([0.0, 0.0, 0.0])
     
     # Coordinate system
     self.axisDirections = [1.0, 1.0, 1.0]
