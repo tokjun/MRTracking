@@ -56,6 +56,18 @@ class MRTrackingSurfaceMapping():
     self.egramRecordPointsSelector.setToolTip( "Fiducials for recording Egram data" )
     mappingLayout.addRow("Points: ", self.egramRecordPointsSelector)
 
+    self.modelSelector = slicer.qMRMLNodeComboBox()
+    self.modelSelector.nodeTypes = ( ("vtkMRMLModelNode"), "" )
+    self.modelSelector.selectNodeUponCreation = True
+    self.modelSelector.addEnabled = True
+    self.modelSelector.removeEnabled = True
+    self.modelSelector.noneEnabled = True
+    self.modelSelector.showHidden = True
+    self.modelSelector.showChildNodeTypes = False
+    self.modelSelector.setMRMLScene( slicer.mrmlScene )
+    self.modelSelector.setToolTip( "Surface model node" )
+    mappingLayout.addRow("Model: ", self.modelSelector)
+
     # Minimum interval between two consective points
     self.pointRecordingDistanceSliderWidget = ctk.ctkSliderWidget()
     self.pointRecordingDistanceSliderWidget.singleStep = 0.1
@@ -87,6 +99,7 @@ class MRTrackingSurfaceMapping():
 
     self.mappingTrackingDataSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onMappingTrackingDataSelected)
     self.egramRecordPointsSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onEgramRecordPointsSelected)
+    self.modelSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onModelSelected)
     self.pointRecordingDistanceSliderWidget.connect("valueChanged(double)", self.pointRecordingDistanceChanged)
     self.resetPointButton.connect('clicked(bool)', self.onResetPointRecording)
     
@@ -124,8 +137,29 @@ class MRTrackingSurfaceMapping():
     td = self.getTrackingData()
     if td == None:
       return
-    td.pointRecordingMarkupsNode[self.cath] = self.egramRecordPointsSelector.currentNode()
-    
+    fnode = self.egramRecordPointsSelector.currentNode()
+    if fnode:
+      td.pointRecordingMarkupsNode[self.cath] = fnode
+      fdnode = fnode.GetDisplayNode()
+      if fdnode == None:
+        fdnode = slicer.mrmlScene.CreateNodeByClass('vtkMRMLMarkupsFiducialDisplayNode')
+        slicer.mrmlScene.AddNode(fdnode)
+        fnode.SetAndObserveDisplayNodeID(fdnode.GetID())
+      if fnode:
+        fdnode.SetTextScale(0.0)  # Hide the label
+
+  def onModelSelected(self):
+    mnode = self.modelSelector.currentNode()
+    if mnode:
+      dnode = mnode.GetDisplayNode()
+      if dnode == None:
+        dnode = slicer.mrmlScene.CreateNodeByClass('vtkMRMLModelDisplayNode')
+        slicer.mrmlScene.AddNode(dnode)
+        mnode.SetAndObserveDisplayNodeID(dnode.GetID())
+      if dnode:
+        dnode.SetVisibility(1)
+        dnode.SetOpacity(0.5)
+        
   def pointRecordingDistanceChanged(self):
     d = self.pointRecordingDistanceSliderWidget.value
     td = self.getTrackingData()    
@@ -149,10 +183,29 @@ class MRTrackingSurfaceMapping():
     if td == None:
       return
     if self.activeOnRadioButton.checked:
+      # Add observer
+      fnode = td.pointRecordingMarkupsNode[self.cath]
+      if fnode:
+        tag = fnode.AddObserver(slicer.vtkMRMLMarkupsNode.PointModifiedEvent, self.controlPointsUpdated, 2)
+        fnode.SetAttribute('SurfaceMapping.ObserverTag', str(tag))
       td.pointRecording[self.cath] = True
+      
     else:
       td.pointRecording[self.cath] = False
+      fnode = td.pointRecordingMarkupsNode[self.cath]
+      if fnode:
+        tag = fnode.GetAttribute('SurfaceMapping.ObserverTag')
+        if tag != None:
+          fnode.RemoveObserver(int(tag))
+          fnode.SetAttribute('SurfaceMapping.ObserverTag', None)
 
+  def controlPointsUpdated(self,caller,event):
+    td = self.getTrackingData()
+    # Update the surface model
+    fnode = td.pointRecordingMarkupsNode[self.cath]
+    mnode = self.modelSelector.currentNode()
+    mtmlogic = slicer.modules.markupstomodel.logic()
     
-    
+    if (fnode != None) and (mnode != None) and (mtmlogic != None):
+      mtmlogic.UpdateClosedSurfaceModel(fnode, mnode)
         
