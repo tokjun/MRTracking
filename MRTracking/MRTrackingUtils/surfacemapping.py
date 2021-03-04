@@ -1,6 +1,9 @@
 import ctk
 import qt
 import slicer
+import vtk
+import numpy
+import scipy.interpolate
 
 #------------------------------------------------------------
 #
@@ -16,6 +19,9 @@ class MRTrackingSurfaceMapping():
     self.nCath = 2
     self.cath = 0
     self.currentTrackingDataNode = None
+    self.scalarBarWidget = None
+    self.lookupTable = None
+    self.defaultEgramValueRange = [0.0, 20.0]
 
   def buildGUI(self, parent):
 
@@ -97,11 +103,31 @@ class MRTrackingSurfaceMapping():
 
     mappingLayout.addRow(" ",  self.resetPointButton)
 
+    self.mapModelButton = qt.QPushButton()
+    self.mapModelButton.setCheckable(False)
+    self.mapModelButton.text = 'Color Map'
+    self.mapModelButton.setToolTip("Map the surface model with Egram Data.")
+
+    mappingLayout.addRow(" ",  self.mapModelButton)
+
+    #-- Color range
+    self.colorRangeWidget = ctk.ctkRangeWidget()
+    self.colorRangeWidget.setToolTip("Set color range")
+    self.colorRangeWidget.setDecimals(2)
+    self.colorRangeWidget.singleStep = 0.05
+    self.colorRangeWidget.minimumValue = self.defaultEgramValueRange[0]
+    self.colorRangeWidget.maximumValue = self.defaultEgramValueRange[1]
+    self.colorRangeWidget.minimum = 0.0
+    self.colorRangeWidget.maximum = 100.0
+    mappingLayout.addRow("Color range: ", self.colorRangeWidget)
+    
     self.mappingTrackingDataSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onMappingTrackingDataSelected)
     self.egramRecordPointsSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onEgramRecordPointsSelected)
     self.modelSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onModelSelected)
     self.pointRecordingDistanceSliderWidget.connect("valueChanged(double)", self.pointRecordingDistanceChanged)
     self.resetPointButton.connect('clicked(bool)', self.onResetPointRecording)
+    self.mapModelButton.connect('clicked(bool)', self.onMapModel)
+    self.colorRangeWidget.connect('valuesChanged(double, double)', self.onUpdateColorRange)
     
     for cath in range(self.nCath):    
       self.cathRadioButton[cath].connect('clicked(bool)', self.onSelectCath)
@@ -172,7 +198,121 @@ class MRTrackingSurfaceMapping():
     markupsNode = td.pointRecordingMarkupsNode[self.cath]
     if markupsNode:
       markupsNode.RemoveAllControlPoints()
-  
+
+  def onMapModel(self):
+    td = self.getTrackingData()
+    #markupsNode = td.pointRecordingMarkupsNode[self.cath]
+    markupsNode = self.egramRecordPointsSelector.currentNode()
+    modelNode = self.modelSelector.currentNode()
+    
+    if markupsNode and modelNode:
+
+      # Copy markups to numpy array
+      nPoints = markupsNode.GetNumberOfFiducials()
+      points = numpy.ndarray(shape=(nPoints, 3))
+      values = numpy.ndarray(shape=(nPoints, 1))
+      pos = [0.0]*3
+      
+      for i in range(nPoints):
+        markupsNode.GetNthFiducialPosition(i, pos)
+        points[i][0] = pos[0] # X
+        points[i][1] = pos[1] # Y
+        points[i][2] = pos[2] # Z
+        values[i] = markupsNode.GetNthControlPointDescription(i)
+      
+      poly = modelNode.GetPolyData()
+      polyDataNormals = vtk.vtkPolyDataNormals()
+      
+      if vtk.VTK_MAJOR_VERSION <= 5:
+        polyDataNormals.SetInput(poly)
+      else:
+        polyDataNormals.SetInputData(poly)
+      
+      polyDataNormals.ComputeCellNormalsOn()
+      polyDataNormals.Update()
+      polyData = polyDataNormals.GetOutput()
+      
+      # Copy obtain points from the surface map
+      nPoints = polyData.GetNumberOfPoints()
+      nCells = polyData.GetNumberOfCells()
+      pSurface=[0.0, 0.0, 0.0]
+      minDistancePoint = [0.0, 0.0, 0.0]
+      
+      # Create a list of points on the surface
+      surfacePoints = numpy.ndarray(shape=(nPoints, 3))
+      
+      pointValue = vtk.vtkDoubleArray()
+      pointValue.SetName("Colors")
+      pointValue.SetNumberOfComponents(1)
+      pointValue.SetNumberOfTuples(nPoints)
+      pointValue.Reset()
+      pointValue.FillComponent(0,0.0);
+      
+      p=[0.0, 0.0, 0.0]
+      for id in range(nPoints):
+        polyData.GetPoint(id, p)
+        surfacePoints[id][0] = p[0]
+        surfacePoints[id][1] = p[1]
+        surfacePoints[id][2] = p[2]
+        
+      grid = scipy.interpolate.griddata(points, values, surfacePoints, method='linear')
+
+      for id in range(nPoints):
+        pointValue.InsertValue(id, grid[id])
+      
+      modelNode.AddPointScalars(pointValue)
+      modelNode.SetActivePointScalars("Colors", vtk.vtkDataSetAttributes.SCALARS)
+      modelNode.Modified()
+      displayNode = modelNode.GetModelDisplayNode()
+      displayNode.SetActiveScalarName("Colors")
+      displayNode.SetAndObserveColorNodeID('vtkMRMLColorTableNodeFileColdToHotRainbow.txt')
+      displayNode.SetScalarRangeFlag(0) # Manual
+      displayNode.SetScalarRange(self.defaultEgramValueRange[0], self.defaultEgramValueRange[1])
+      displayNode.SetScalarVisibility(1)
+      
+      if self.scalarBarWidget == None:
+        self.createScalarBar();
+      self.scalarBarWidget.SetEnabled(1)
+
+      
+  def onUpdateColorRange(self, min, max):
+    
+    modelNode = self.modelSelector.currentNode()
+    
+    if modelNode:
+      dispNode = modelNode.GetDisplayNode()
+      dispNode.SetScalarRange(min, max)
+      dispNode.Modified()
+
+    if self.lookupTable:
+      self.lookupTable.SetRange(min, max)      
+      
+      
+  def createScalarBar(self):
+    
+    if self.scalarBarWidget == None: 
+      self.scalarBarWidget = vtk.vtkScalarBarWidget()
+
+      actor = self.scalarBarWidget.GetScalarBarActor()
+      actor.SetOrientationToVertical()
+      actor.SetNumberOfLabels(11)
+      actor.SetTitle("Egram")
+      actor.SetLabelFormat(" %#8.3f")
+      actor.SetPosition(0.1, 0.1)
+      actor.SetWidth(0.1)
+      actor.SetHeight(0.8)
+      
+      layout = slicer.app.layoutManager()
+      view = layout.threeDWidget(0).threeDView()
+      renderer = layout.activeThreeDRenderer()
+      self.scalarBarWidget.SetInteractor(renderer.GetRenderWindow().GetInteractor())
+
+    colorTable = slicer.mrmlScene.GetNodeByID('vtkMRMLColorTableNodeFileColdToHotRainbow.txt')
+    self.lookupTable = colorTable.GetLookupTable()
+    self.lookupTable.SetRange(self.defaultEgramValueRange[0], self.defaultEgramValueRange[1])
+    self.scalarBarWidget.GetScalarBarActor().SetLookupTable(self.lookupTable)
+    
+
   def onSelectCath(self):
     for cath in range(self.nCath):
       if self.cathRadioButton[cath].checked:
@@ -208,4 +348,11 @@ class MRTrackingSurfaceMapping():
     
     if (fnode != None) and (mnode != None) and (mtmlogic != None):
       mtmlogic.UpdateClosedSurfaceModel(fnode, mnode)
-        
+
+      
+
+
+    
+
+    
+
