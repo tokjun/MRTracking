@@ -3,7 +3,8 @@ import qt
 import slicer
 import vtk
 import numpy
-import scipy.interpolate
+from scipy.interpolate import Rbf
+#from scipy.interpolate import griddata
 
 #------------------------------------------------------------
 #
@@ -209,15 +210,21 @@ class MRTrackingSurfaceMapping():
 
       # Copy markups to numpy array
       nPoints = markupsNode.GetNumberOfFiducials()
-      points = numpy.ndarray(shape=(nPoints, 3))
-      values = numpy.ndarray(shape=(nPoints, 1))
+      #points = numpy.ndarray(shape=(nPoints, 3))
+      pointsX = numpy.ndarray(shape=(nPoints, ))
+      pointsY = numpy.ndarray(shape=(nPoints, ))
+      pointsZ = numpy.ndarray(shape=(nPoints, ))
+      values = numpy.ndarray(shape=(nPoints, ))
       pos = [0.0]*3
       
       for i in range(nPoints):
         markupsNode.GetNthFiducialPosition(i, pos)
-        points[i][0] = pos[0] # X
-        points[i][1] = pos[1] # Y
-        points[i][2] = pos[2] # Z
+        #points[i][0] = pos[0] # X
+        #points[i][1] = pos[1] # Y
+        #points[i][2] = pos[2] # Z
+        pointsX[i] = pos[0] # X
+        pointsY[i] = pos[1] # Y
+        pointsZ[i] = pos[2] # Z
         values[i] = markupsNode.GetNthControlPointDescription(i)
       
       poly = modelNode.GetPolyData()
@@ -239,7 +246,10 @@ class MRTrackingSurfaceMapping():
       minDistancePoint = [0.0, 0.0, 0.0]
       
       # Create a list of points on the surface
-      surfacePoints = numpy.ndarray(shape=(nPoints, 3))
+      #surfacePoints = numpy.ndarray(shape=(nPoints, 3))
+      surfacePointsX = numpy.ndarray(shape=(nPoints,))
+      surfacePointsY = numpy.ndarray(shape=(nPoints,))
+      surfacePointsZ = numpy.ndarray(shape=(nPoints,))
       
       pointValue = vtk.vtkDoubleArray()
       pointValue.SetName("Colors")
@@ -251,11 +261,19 @@ class MRTrackingSurfaceMapping():
       p=[0.0, 0.0, 0.0]
       for id in range(nPoints):
         polyData.GetPoint(id, p)
-        surfacePoints[id][0] = p[0]
-        surfacePoints[id][1] = p[1]
-        surfacePoints[id][2] = p[2]
-        
-      grid = scipy.interpolate.griddata(points, values, surfacePoints, method='linear')
+        #surfacePoints[id][0] = p[0]
+        #surfacePoints[id][1] = p[1]
+        #surfacePoints[id][2] = p[2]
+        surfacePointsX[id] = p[0]
+        surfacePointsY[id] = p[1]
+        surfacePointsZ[id] = p[2]
+
+      # Linear interpolation
+      #grid = griddata(points, values, surfacePoints, method='linear')
+
+      # Radial basis function (RBF) interplation
+      rbfi = Rbf(pointsX, pointsY, pointsZ, values)  # radial basis function interpolator instance
+      grid = rbfi(surfacePointsX, surfacePointsY, surfacePointsZ)
 
       for id in range(nPoints):
         pointValue.InsertValue(id, grid[id])
