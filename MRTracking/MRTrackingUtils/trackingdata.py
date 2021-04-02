@@ -36,7 +36,8 @@ class TrackingData:
     self.coilOrder = [True, True]
 
     # Egram data
-    self.egramDataNode = [None, None]
+    #self.egramDataNode = [None, None]
+    self.egramDataNode = None
 
     # Point Recording
     self.pointRecording = [False, False]
@@ -482,18 +483,44 @@ class TrackingData:
     pass
 
 
-  def getEgramData(self, cath):
+  #def getEgramData(self, cath):
+  #
+  #  r = []
+  #  
+  #  if self.egramDataNode[cath]:
+  #    text = self.egramDataNode[cath].GetText()
+  #    list = text.split(',')
+  #  
+  #    for v in list:
+  #      r.append(float(v))
+  #      
+  #  return r
 
-    r = []
+  def getEgramData(self):
+    #
+    # Get Egram data in a table. The function returns 'header' and 'table as
+    # 1-D and 2-D lists respectively. For example, the values are organized as:
+    #
+    #     ['Max (mV)',  'Min (mV)',  'LAT (ms)']    <- variable names (header)
+    #  ------------------------------------------
+    #    [[ 16.002,      -15.334,     75.002   ]    <- values for the 1st channel (table[0])  
+    #     [ 15.058,      -16.026,     830.019  ]    <- values for the 2nd channel (table[1])
+    #     [ 17.252,      -18.490,     765.018  ]    <- values for the 3rd channel (table[2])
+    #     [ 15.413,      -16.287,     695.016  ]]   <- values for the 4th channel (table[3])
     
-    if self.egramDataNode[cath]:
-      text = self.egramDataNode[cath].GetText()
-      list = text.split(',')
-    
-      for v in list:
-        r.append(float(v))
+    table = []
+    header = None
+    if self.egramDataNode:
+      text = self.egramDataNode.GetText()
+      for line in text.splitlines():
+        cols = line.split(',')
+        if header == None:
+          header = cols
+        else:
+          values = [float(s) for s in cols]
+          table.append(values)
         
-    return r
+    return (header, table)
 
       
     

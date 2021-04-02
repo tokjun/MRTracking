@@ -335,21 +335,18 @@ class MRTrackingWidget(ScriptedLoadableModuleWidget):
     catheterFormLayout.addWidget(egramGroupBox)
     egramLayout = qt.QFormLayout(egramGroupBox)
 
-    self.egramDataSelector = [None] * self.nCath;
-    
-    for cath in range(self.nCath):
-      self.egramDataSelector[cath] = slicer.qMRMLNodeComboBox()
-      self.egramDataSelector[cath].nodeTypes = ( ("vtkMRMLTextNode"), "" )
-      self.egramDataSelector[cath].selectNodeUponCreation = True
-      self.egramDataSelector[cath].addEnabled = True
-      self.egramDataSelector[cath].removeEnabled = False
-      self.egramDataSelector[cath].noneEnabled = False
-      self.egramDataSelector[cath].showHidden = True
-      self.egramDataSelector[cath].showChildNodeTypes = False
-      self.egramDataSelector[cath].setMRMLScene( slicer.mrmlScene )
-      self.egramDataSelector[cath].setToolTip( "Incoming Egram data for Cath0" )
+    self.egramDataSelector = slicer.qMRMLNodeComboBox()
+    self.egramDataSelector.nodeTypes = ( ("vtkMRMLTextNode"), "" )
+    self.egramDataSelector.selectNodeUponCreation = True
+    self.egramDataSelector.addEnabled = True
+    self.egramDataSelector.removeEnabled = False
+    self.egramDataSelector.noneEnabled = False
+    self.egramDataSelector.showHidden = True
+    self.egramDataSelector.showChildNodeTypes = False
+    self.egramDataSelector.setMRMLScene( slicer.mrmlScene )
+    self.egramDataSelector.setToolTip( "Incoming Egram data" )
 
-      egramLayout.addRow("Egram Cath%d: " % cath, self.egramDataSelector[cath])
+    egramLayout.addRow("Egram Cath%d: " % cath, self.egramDataSelector)
 
     #--------------------------------------------------
     # Save Configuration
@@ -415,8 +412,7 @@ class MRTrackingWidget(ScriptedLoadableModuleWidget):
     self.trackingDataSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onTrackingDataSelected)
     self.activeTrackingCheckBox.connect('clicked(bool)', self.onActiveTracking)
 
-    for cath in range(self.nCath):
-      self.egramDataSelector[cath].connect("currentNodeChanged(vtkMRMLNode*)", self.onEgramDataSelected)
+    self.egramDataSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onEgramDataSelected)
 
     #self.egramRecordPointsSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onEgramRecordPointsSelected)
     #self.pointRecordingDistanceSliderWidget.connect("valueChanged(double)", self.pointRecordingDistanceChanged)
@@ -493,9 +489,8 @@ class MRTrackingWidget(ScriptedLoadableModuleWidget):
 
   def onEgramDataSelected(self):
     tdnode = self.trackingDataSelector.currentNode()
-    for cath in range(self.nCath):
-      edatanode = self.egramDataSelector[cath].currentNode()
-      self.logic.setEgramDataNode(tdnode, cath, edatanode)
+    edatanode = self.egramDataSelector.currentNode()
+    self.logic.setEgramDataNode(tdnode, edatanode)
       
   def onRejectRegistration(self):
     self.logic.acceptNewMatrix(self, False)
@@ -752,13 +747,12 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
     return self.TrackingData[tdnode.GetID()]
 
   
-  def setEgramDataNode(self, tdnode, cath, edatanode):
+  def setEgramDataNode(self, tdnode, edatanode):
     if not tdnode:
       return
     if not (tdnode.GetID() in self.TrackingData):
       print('Error - Current TrackingData is not valid')
-
-    self.TrackingData[tdnode.GetID()].egramDataNode[cath] = edatanode
+    self.TrackingData[tdnode.GetID()].egramDataNode = edatanode
 
 
   # def setEgramRecordMarkupsNode(self, mfnode):
@@ -1062,14 +1056,48 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
       d = numpy.linalg.norm(p-td.prevRecordedPoint[index])
       if d > td.pointRecordingDistance[index]:
         td.prevRecordedPoint[index] = p
-        egram = td.getEgramData(index)
+        #egram = td.getEgramData(index)
+        (egramHeader, egramTable) = td.getEgramData()
+        # TODO: Make sure if the following 'flip' is correctly working
         if fFlip:
-          egram.reverse()
+          egramTable.reverse()
 
         prMarkupsNode = td.pointRecordingMarkupsNode[index]
         if prMarkupsNode:
           id = prMarkupsNode.AddFiducial(egramPoint[0] * td.axisDirections[0], egramPoint[1] * td.axisDirections[1], egramPoint[2] * td.axisDirections[2])
-          prMarkupsNode.SetNthControlPointDescription(id, '%f' % egram[0])
+          #prMarkupsNode.SetNthControlPointDescription(id, '%f' % egram[0])
+          mask = td.activeCoils[index]
+          if fFlip:
+            mask.reverse()
+          # Find the first active coil
+          # TODO: Make sure that this is correct
+          ch = 0
+          for a in mask:
+            if a:
+              break
+            ch = ch + 1
+          if ch >= len(mask) or ch >= len(egramTable):
+            print('Error: no active channel. ch = ' + ch)
+          egramValues = egramTable[ch]
+          desc = None
+          for v in egramValues:
+            if desc:
+              desc = desc + ',' + str(v)
+            else:
+              desc = str(v)
+          prMarkupsNode.SetNthControlPointDescription(id, desc)
+
+          # If the header is not registered to the markup node, do it now
+          ev = prMarkupsNode.GetAttribute('MRTracking.EgramParamList')
+          if ev == None:
+            attr= None
+            for eh in egramHeader:
+              if attr:
+                attr = attr + ',' + str(eh)
+              else:
+                attr = str(eh)
+            prMarkupsNode.SetAttribute('MRTracking.EgramParamList', attr)
+            prMarkupsNode.Modified();
           
     
   def updateCatheter(self, tdnode, index):

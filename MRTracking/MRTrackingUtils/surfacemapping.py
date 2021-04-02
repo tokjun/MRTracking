@@ -104,6 +104,11 @@ class MRTrackingSurfaceMapping():
 
     mappingLayout.addRow(" ",  self.resetPointButton)
 
+    self.paramSelector = qt.QComboBox()
+    self.paramSelector.addItem('None')
+    
+    mappingLayout.addRow("Egram Param",  self.paramSelector)
+    
     self.mapModelButton = qt.QPushButton()
     self.mapModelButton.setCheckable(False)
     self.mapModelButton.text = 'Color Map'
@@ -118,8 +123,8 @@ class MRTrackingSurfaceMapping():
     self.colorRangeWidget.singleStep = 0.05
     self.colorRangeWidget.minimumValue = self.defaultEgramValueRange[0]
     self.colorRangeWidget.maximumValue = self.defaultEgramValueRange[1]
-    self.colorRangeWidget.minimum = 0.0
-    self.colorRangeWidget.maximum = 100.0
+    self.colorRangeWidget.minimum = -50.0
+    self.colorRangeWidget.maximum = 50.0
     mappingLayout.addRow("Color range: ", self.colorRangeWidget)
     
     self.mappingTrackingDataSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onMappingTrackingDataSelected)
@@ -127,6 +132,7 @@ class MRTrackingSurfaceMapping():
     self.modelSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onModelSelected)
     self.pointRecordingDistanceSliderWidget.connect("valueChanged(double)", self.pointRecordingDistanceChanged)
     self.resetPointButton.connect('clicked(bool)', self.onResetPointRecording)
+    #self.paramSelector.connect('currentTextChanged(QString)', self.onParamSelected)
     self.mapModelButton.connect('clicked(bool)', self.onMapModel)
     self.colorRangeWidget.connect('valuesChanged(double, double)', self.onUpdateColorRange)
     
@@ -144,7 +150,6 @@ class MRTrackingSurfaceMapping():
   # GUI Slots
 
   def getTrackingData(self):
-    print("getTrackingData()")
     if self.mrTrackingLogic == None:
       return None
     tdnode = self.currentTrackingDataNode
@@ -159,7 +164,8 @@ class MRTrackingSurfaceMapping():
       td.pointRecording[self.cath] = False      
       self.activeOffRadioButton.checked = 1
     self.currentTrackingDataNode = self.mappingTrackingDataSelector.currentNode()
-  
+
+    
   def onEgramRecordPointsSelected(self):
     td = self.getTrackingData()
     if td == None:
@@ -174,6 +180,7 @@ class MRTrackingSurfaceMapping():
         fnode.SetAndObserveDisplayNodeID(fdnode.GetID())
       if fnode:
         fdnode.SetTextScale(0.0)  # Hide the label
+        
 
   def onModelSelected(self):
     mnode = self.modelSelector.currentNode()
@@ -216,6 +223,35 @@ class MRTrackingSurfaceMapping():
       pointsZ = numpy.ndarray(shape=(nPoints, ))
       values = numpy.ndarray(shape=(nPoints, ))
       pos = [0.0]*3
+
+      # Obtain the parameter to map
+      paramStr = self.paramSelector.currentText
+      paramIndex = -1
+      if paramStr != '' and paramStr != 'None':
+        paramListStr = markupsNode.GetAttribute('MRTracking.EgramParamList')
+        if paramListStr:
+          paramList = paramListStr.split(',')
+          i = 0
+          for p in paramList: # Check the index
+            if p == paramStr:
+              paramIndex = i
+            i = i + 1
+
+      if paramIndex < 0: # 'None' is selected
+        return
+      
+      if paramStr == 'Max(mV)':
+        self.colorRangeWidget.minimum = -50.0
+        self.colorRangeWidget.maximum = 50.0
+      elif paramStr == 'Min(mV)':
+        self.colorRangeWidget.minimum = -50.0
+        self.colorRangeWidget.maximum = 50.0
+      elif paramStr == 'LAT(ms)':
+        self.colorRangeWidget.minimum = -1000.0
+        self.colorRangeWidget.maximum = 1000.0
+      else: # Default
+        self.colorRangeWidget.minimum = -100.0
+        self.colorRangeWidget.maximum = 100.0
       
       for i in range(nPoints):
         markupsNode.GetNthFiducialPosition(i, pos)
@@ -225,7 +261,10 @@ class MRTrackingSurfaceMapping():
         pointsX[i] = pos[0] # X
         pointsY[i] = pos[1] # Y
         pointsZ[i] = pos[2] # Z
-        values[i] = markupsNode.GetNthControlPointDescription(i)
+        desc = markupsNode.GetNthControlPointDescription(i)
+        paramsStr = desc.split(',')
+        params = [float(s) for s in paramsStr]
+        values[i] = params[paramIndex]
       
       poly = modelNode.GetPolyData()
       polyDataNormals = vtk.vtkPolyDataNormals()
@@ -291,6 +330,9 @@ class MRTrackingSurfaceMapping():
       if self.scalarBarWidget == None:
         self.createScalarBar();
       self.scalarBarWidget.SetEnabled(1)
+      
+      actor = self.scalarBarWidget.GetScalarBarActor()
+      actor.SetTitle(paramStr)
 
       
   def onUpdateColorRange(self, min, max):
@@ -344,18 +386,26 @@ class MRTrackingSurfaceMapping():
       # Add observer
       fnode = td.pointRecordingMarkupsNode[self.cath]
       if fnode:
-        tag = fnode.AddObserver(slicer.vtkMRMLMarkupsNode.PointModifiedEvent, self.controlPointsUpdated, 2)
-        fnode.SetAttribute('SurfaceMapping.ObserverTag', str(tag))
+        # Two observers are registered. The PointModifiedEvent is used to handle new points, whereas
+        # the ModifiedEvent is used to capture the change of Egram parameter list (in the attribute)
+        tag1 = fnode.AddObserver(slicer.vtkMRMLMarkupsNode.PointModifiedEvent, self.controlPointsUpdated, 2)
+        tag2 = fnode.AddObserver(vtk.vtkCommand.ModifiedEvent, self.controlPointsNodeUpdated, 2)
+        fnode.SetAttribute('SurfaceMapping.ObserverTag.PointModified', str(tag1))
+        fnode.SetAttribute('SurfaceMapping.ObserverTag.Modified', str(tag2))
       td.pointRecording[self.cath] = True
       
     else:
       td.pointRecording[self.cath] = False
       fnode = td.pointRecordingMarkupsNode[self.cath]
       if fnode:
-        tag = fnode.GetAttribute('SurfaceMapping.ObserverTag')
+        tag = fnode.GetAttribute('SurfaceMapping.ObserverTag.PointModified')
         if tag != None:
           fnode.RemoveObserver(int(tag))
-          fnode.SetAttribute('SurfaceMapping.ObserverTag', None)
+          fnode.SetAttribute('SurfaceMapping.ObserverTag.PointModified', None)
+        tag = fnode.GetAttribute('SurfaceMapping.ObserverTag.Modified')
+        if tag != None:
+          fnode.RemoveObserver(int(tag))
+          fnode.SetAttribute('SurfaceMapping.ObserverTag.Modified', None)
 
   def controlPointsUpdated(self,caller,event):
     td = self.getTrackingData()
@@ -367,8 +417,26 @@ class MRTrackingSurfaceMapping():
     if (fnode != None) and (mnode != None) and (mtmlogic != None):
       mtmlogic.UpdateClosedSurfaceModel(fnode, mnode)
 
-      
+  def controlPointsNodeUpdated(self,caller,event):
+    td = self.getTrackingData()
+    fnode = td.pointRecordingMarkupsNode[self.cath]
+    paramListStr = fnode.GetAttribute('MRTracking.EgramParamList')
+    if paramListStr:
+      print(paramListStr)
+      paramList = paramListStr.split(',')
+      print(paramList)
+      if len(paramList) != self.paramSelector.count - 1: # Note: The QComboBox has 'None' has the first item.
+        self.paramSelector.clear()
+        self.paramSelector.addItem('None')
+        for p in paramList:
+          self.paramSelector.addItem(p)
+      else:
+        i = 1
+        for p in paramList:
+          self.paramSelector.setItemText(i, p)
+          i = i + 1
 
+    
 
     
 
