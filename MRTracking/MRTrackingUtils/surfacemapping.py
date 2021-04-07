@@ -85,6 +85,19 @@ class MRTrackingSurfaceMapping():
 
     mappingLayout.addRow("Min. Distance: ",  self.pointRecordingDistanceSliderWidget)
 
+    self.forceConvexCheckBox = qt.QCheckBox()
+    self.forceConvexCheckBox.checked = 0
+    self.forceConvexCheckBox.text = "Force convex"
+    self.smoothingCheckBox = qt.QCheckBox()
+    self.smoothingCheckBox.checked = 1
+    self.smoothingCheckBox.text = "Smoothing"
+
+    self.surfaceBoxLayout = qt.QHBoxLayout()
+    self.surfaceBoxLayout.addWidget(self.forceConvexCheckBox)
+    self.surfaceBoxLayout.addWidget(self.smoothingCheckBox)
+    
+    mappingLayout.addRow("Surface:", self.surfaceBoxLayout)
+    
     activeBoxLayout = qt.QHBoxLayout()
     self.activeGroup = qt.QButtonGroup()
     self.activeOnRadioButton = qt.QRadioButton("ON")
@@ -131,6 +144,10 @@ class MRTrackingSurfaceMapping():
     self.egramRecordPointsSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onEgramRecordPointsSelected)
     self.modelSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onModelSelected)
     self.pointRecordingDistanceSliderWidget.connect("valueChanged(double)", self.pointRecordingDistanceChanged)
+
+    self.forceConvexCheckBox.connect('toggled(bool)', self.onSurfacePropertyChanged)
+    self.smoothingCheckBox.connect('toggled(bool)', self.onSurfacePropertyChanged)
+    
     self.resetPointButton.connect('clicked(bool)', self.onResetPointRecording)
     #self.paramSelector.connect('currentTextChanged(QString)', self.onParamSelected)
     self.mapModelButton.connect('clicked(bool)', self.onMapModel)
@@ -193,6 +210,11 @@ class MRTrackingSurfaceMapping():
       if dnode:
         dnode.SetVisibility(1)
         dnode.SetOpacity(0.5)
+
+
+  def onSurfacePropertyChanged(self):
+    self.controlPointsUpdated()
+
         
   def pointRecordingDistanceChanged(self):
     d = self.pointRecordingDistanceSliderWidget.value
@@ -201,12 +223,14 @@ class MRTrackingSurfaceMapping():
       return
     td.pointRecordingDistance[self.cath] = d
 
+    
   def onResetPointRecording(self):
     td = self.getTrackingData()
     markupsNode = td.pointRecordingMarkupsNode[self.cath]
     if markupsNode:
       markupsNode.RemoveAllControlPoints()
 
+      
   def onMapModel(self):
     td = self.getTrackingData()
     #markupsNode = td.pointRecordingMarkupsNode[self.cath]
@@ -378,6 +402,7 @@ class MRTrackingSurfaceMapping():
       if self.cathRadioButton[cath].checked:
         self.cath = cath
 
+        
   def onActive(self):
     td = self.getTrackingData()
     if td == None:
@@ -407,7 +432,8 @@ class MRTrackingSurfaceMapping():
           fnode.RemoveObserver(int(tag))
           fnode.SetAttribute('SurfaceMapping.ObserverTag.Modified', None)
 
-  def controlPointsUpdated(self,caller,event):
+          
+  def controlPointsUpdated(self,caller=None,event=None):
     td = self.getTrackingData()
     # Update the surface model
     fnode = td.pointRecordingMarkupsNode[self.cath]
@@ -415,7 +441,11 @@ class MRTrackingSurfaceMapping():
     mtmlogic = slicer.modules.markupstomodel.logic()
     
     if (fnode != None) and (mnode != None) and (mtmlogic != None):
-      mtmlogic.UpdateClosedSurfaceModel(fnode, mnode)
+      #mtmlogic.UpdateClosedSurfaceModel(fnode, mnode)
+      fForceConvex = self.forceConvexCheckBox.checked;
+      fSmoothing = self.smoothingCheckBox.checked
+      mtmlogic.UpdateClosedSurfaceModel(fnode, mnode, fSmoothing, fForceConvex)
+      
 
   def controlPointsNodeUpdated(self,caller,event):
     td = self.getTrackingData()
@@ -435,8 +465,6 @@ class MRTrackingSurfaceMapping():
         for p in paramList:
           self.paramSelector.setItemText(i, p)
           i = i + 1
-
-    
 
     
 
