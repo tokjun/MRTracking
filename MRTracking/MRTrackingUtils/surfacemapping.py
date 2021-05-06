@@ -444,7 +444,7 @@ class MRTrackingSurfaceMapping():
       #mtmlogic.UpdateClosedSurfaceModel(fnode, mnode)
       fForceConvex = self.forceConvexCheckBox.checked;
       fSmoothing = self.smoothingCheckBox.checked
-      mtmlogic.UpdateClosedSurfaceModel(fnode, mnode, fSmoothing, fForceConvex)
+      mtmlogic.UpdateClosedSurfaceModel(fnode, mnode, fSmoothing, fForceConvex, 15.0)
       
 
   def controlPointsNodeUpdated(self,caller,event):
