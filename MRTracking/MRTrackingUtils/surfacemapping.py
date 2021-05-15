@@ -117,6 +117,13 @@ class MRTrackingSurfaceMapping():
 
     mappingLayout.addRow(" ",  self.resetPointButton)
 
+    self.generateSurfaceButton = qt.QPushButton()
+    self.generateSurfaceButton.setCheckable(False)
+    self.generateSurfaceButton.text = 'Generate Surface Map'
+    self.generateSurfaceButton.setToolTip("Generate a surface model from the collected points.")
+
+    mappingLayout.addRow(" ",  self.generateSurfaceButton)
+    
     self.paramSelector = qt.QComboBox()
     self.paramSelector.addItem('None')
     
@@ -149,6 +156,8 @@ class MRTrackingSurfaceMapping():
     self.smoothingCheckBox.connect('toggled(bool)', self.onSurfacePropertyChanged)
     
     self.resetPointButton.connect('clicked(bool)', self.onResetPointRecording)
+    self.generateSurfaceButton.connect('clicked(bool)', self.onGenerateSurface)
+    
     #self.paramSelector.connect('currentTextChanged(QString)', self.onParamSelected)
     self.mapModelButton.connect('clicked(bool)', self.onMapModel)
     self.colorRangeWidget.connect('valuesChanged(double, double)', self.onUpdateColorRange)
@@ -229,6 +238,15 @@ class MRTrackingSurfaceMapping():
     markupsNode = td.pointRecordingMarkupsNode[self.cath]
     if markupsNode:
       markupsNode.RemoveAllControlPoints()
+
+      
+  def onGenerateSurface(self):
+    td = self.getTrackingData()
+    markupsNode = td.pointRecordingMarkupsNode[self.cath]
+    modelNode = self.modelSelector.currentNode()
+    
+    if markupsNode:
+      generateSurfaceModel(markupsNode, modelNode)
 
       
   def onMapModel(self):
@@ -466,7 +484,107 @@ class MRTrackingSurfaceMapping():
           self.paramSelector.setItemText(i, p)
           i = i + 1
 
+
+  def generateSurfaceModel(self, markupsNode, modelNode):
+
+    svnode = slicer.mrmlScene.CreateNodeByClass('vtkMRMLScalarVolumeNode')
+
+    ## Generate a scalar volume node
+    # Get the bounding box
+    bounds = [0.0] * 6
+    markupsNode.GetBounds(bounds)
+    
+    #b = np.array(bounds)
+    #b = b.reshape((3,2))
+    #origin = np.mean(b, axis=1)
+    #
+    ## Calculate the size of the volume
+    #fov = np.max(b[:,1]-b[:0]) * 1.5 # 1.5 times larger than the bounding box
+    #spacing = [fov/256]*3
+    #
+    ## Set parameters
+    #parameters = {}
+    #parameters['OutputVolume'] = svnode.GetID()
+    #parameters['FillValue']    = '0.00'
+    #parameters['Dimension']    = '3'
+    #parameters['Size']         = '256, 256, 256'
+    #parameters['Origin']       = center
+    #parameters['Spacing']      = spacing
+    #parameters['Direction']    = '1.00, 0.00, 0.00, 0.00, 1.00, 0.00, 0.00, 0.00, 1.00'
+    #
+    ## Execute
+    #imageMaker = slicer.modules.imagemaker
+    #cliNode = slicer.cli.runSync(imagemaker, None, parameters)
+    ## Process results
+    #if cliNode.GetStatus() & cliNode.ErrorsMask:
+    #  # error
+    #  errorText = cliNode.GetErrorText()
+    #  slicer.mrmlScene.RemoveNode(cliNode)
+    #  raise ValueError("CLI execution failed: " + errorText)
+    ## success
+    #slicer.mrmlScene.RemoveNode(cliNode)
+
+    poly = fiducialsToPoly(markupsNode)
+    
+    #Note: Altenatively, vtkImageEllipsoidSource may be used to generate a volume.
+    # Generate density field from points
+    # Use fixed radius
+    dens = vtk.vtkPointDensityFilter()
+    dens.SetInputConnection()
+    dens.SetSampleDimensions(256,256,256)
+    dens.SetDensityEstimateToFixedRadius()
+    dens.SetRadius(2)
+    #dens.SetDensityEstimateToRelativeRadius()
+    #dens.SetRelativeRadius(2.5)
+    #dens.SetDensityFormToVolumeNormalized()
+    dens.SetDensityFormToNumberOfPoints()
+    dens.SetModelBounds(bounds)
+    dens.ComputeGradientOn()
+    dens.Update()
+    
+    # Crete an image node - geometric parameters (origin, spacing) must be moved to the node object
+    imnode = slicer.vtkMRMLScalarVolumeNode()
+    imdata = dens.GetOutput()
+    imnode.SetAndObserveImageData(imdata)
+    imnode.SetOrigin(imdata.GetOrigin())
+    imnode.SetSpacing(imdata.GetSpacing())
+    imdata.SetOrigin([0.0, 0.0, 0.0])
+    imdata.SetSpacing([1.0, 1.0, 1.0])
+    
     
 
+  def fiducialsToPoly(self, markupsNode, poly):
     
+    pd = vtk.vtkPolyData()
+    points = vtk.vtkPoints()
+    cells = vtk.vtkCellArray()
+    connectivity = vtk.vtkIntArray()
+    connectivity.SetName('Connectivity')
+    #stress = vtk.vtkFloatArray()
+    #stress.SetName('Stress')
 
+    nPoints = markupsNode.GetNumberOfFiducials()
+    
+    pos = [0.0]*3
+    
+    for i in range(nPoints):
+      markupsNode.GetNthFiducialPosition(i, pos)
+      points.InsertNextPoint(p[0], p[1], p[2])
+      #stress.InsertNextTuple1(float(v[5]))
+      #connectivity.InsertNextTuple1(float(v[4]))
+
+    #for line in iter(lambda: f.readline(), ""):
+    #  v = line.split(',')
+    #  cell = vtk.vtkTriangle()
+    #  Ids = cell.GetPointIds()
+    #  for kId in range(len(v)):
+    #    Ids.SetId(kId,int(v[kId]))
+    #  cells.InsertNextCell(cell)
+    #f.close()
+
+    pd.SetPoints(points)
+    #pd.SetPolys(cells)
+    #pd.GetPointData().AddArray(stress)
+    #pd.GetPointData().AddArray(connectivity)
+
+    return pd
