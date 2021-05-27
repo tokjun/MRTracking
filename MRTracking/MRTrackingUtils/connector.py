@@ -18,13 +18,11 @@ class MRTrackingIGTLConnector():
     self.portSpinBox = None
     self. activeConnectionCheckBox = None 
     
-  def buildGUI(self, parent):
+  def buildGUI(self, parent, minimal=False, createNode=False):
 
-    connectorGroupBox = ctk.ctkCollapsibleGroupBox()
-    connectorGroupBox.title = self.cname
-    parent.addWidget(connectorGroupBox)
-    connectorFormLayout = qt.QFormLayout(connectorGroupBox)
-    
+    # 
+    # If 'minimal' is set to True, buildGUI() creates a shrinked GUI to save space.
+    #
     
     if self.connectorSelector == None:
       self.connectorSelector = slicer.qMRMLNodeComboBox()
@@ -37,23 +35,48 @@ class MRTrackingIGTLConnector():
       self.connectorSelector.showChildNodeTypes = False
       self.connectorSelector.setMRMLScene( slicer.mrmlScene )
       self.connectorSelector.setToolTip( "Establish a connection with the server" )
-      connectorFormLayout.addRow("Connector: ", self.connectorSelector)
-
+        
     if self.portSpinBox == None:
       self.portSpinBox = qt.QSpinBox()
       self.portSpinBox.objectName = 'PortSpinBox'
       self.portSpinBox.setMaximum(64000)
       self.portSpinBox.setValue(self.port)
       self.portSpinBox.setToolTip("Port number of the server")
-      connectorFormLayout.addRow("Port: ", self.portSpinBox)
-
-    # check box to trigger transform conversion
+      
     if self.activeConnectionCheckBox == None:
       self.activeConnectionCheckBox = qt.QCheckBox()
       self.activeConnectionCheckBox.checked = 0
       self.activeConnectionCheckBox.enabled = 0
       self.activeConnectionCheckBox.setToolTip("Activate OpenIGTLink connection")
+      
+    if minimal == False:
+      
+      connectorGroupBox = ctk.ctkCollapsibleGroupBox()
+      connectorGroupBox.title = self.cname
+      parent.addWidget(connectorGroupBox)
+      connectorFormLayout = qt.QFormLayout(connectorGroupBox)
+      connectorFormLayout.addRow("Connector: ", self.connectorSelector)
+      connectorFormLayout.addRow("Port: ", self.portSpinBox)
       connectorFormLayout.addRow("Active: ", self.activeConnectionCheckBox)
+
+    else:
+
+      connectorFormLayout = parent
+      
+      frame = qt.QFrame()
+      boxLayout = qt.QHBoxLayout(frame)
+      boxLayout.addWidget(self.connectorSelector)
+      boxLayout.addWidget(self.portSpinBox)
+      boxLayout.addWidget(self.activeConnectionCheckBox)
+      connectorFormLayout.addRow(self.cname + ": ", frame)
+
+    if createNode:
+      cnode = slicer.mrmlScene.CreateNodeByClass('vtkMRMLIGTLConnectorNode')
+      cnode.SetName(self.cname)
+      cnode.SetTypeServer(self.port)
+      slicer.mrmlScene.AddNode(cnode)
+      self.connectorSelector.setCurrentNode(cnode)
+      self.onConnectorSelected()
 
 
     #--------------------------------------------------

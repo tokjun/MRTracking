@@ -89,13 +89,13 @@ class MRTrackingWidget(ScriptedLoadableModuleWidget):
     # Connection
     #--------------------------------------------------
 
-    self.igtlConnector1 = MRTrackingIGTLConnector("Connector 1 (MRI)")
+    self.igtlConnector1 = MRTrackingIGTLConnector("Connector 1  (MRI)")
     self.igtlConnector1.port = 18944
-    self.igtlConnector1.buildGUI(connectionFormLayout)
+    self.igtlConnector1.buildGUI(connectionFormLayout, minimal=True, createNode=True)
 
     self.igtlConnector2 = MRTrackingIGTLConnector("Connector 2 (NavX)")
     self.igtlConnector2.port = 18945
-    self.igtlConnector2.buildGUI(connectionFormLayout)
+    self.igtlConnector2.buildGUI(connectionFormLayout, minimal=True, createNode=True)
     
     #--------------------------------------------------
     # Tracking Node
