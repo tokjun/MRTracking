@@ -34,7 +34,7 @@ class MRTrackingSurfaceMapping():
     self.mappingTrackingDataSelector = slicer.qMRMLNodeComboBox()
     self.mappingTrackingDataSelector.nodeTypes = ( ("vtkMRMLIGTLTrackingDataBundleNode"), "" )
     self.mappingTrackingDataSelector.selectNodeUponCreation = True
-    self.mappingTrackingDataSelector.addEnabled = True
+    self.mappingTrackingDataSelector.addEnabled = False
     self.mappingTrackingDataSelector.removeEnabled = False
     self.mappingTrackingDataSelector.noneEnabled = False
     self.mappingTrackingDataSelector.showHidden = True
@@ -87,19 +87,6 @@ class MRTrackingSurfaceMapping():
 
     mappingLayout.addRow("Min. Distance: ",  self.pointRecordingDistanceSliderWidget)
 
-    self.forceConvexCheckBox = qt.QCheckBox()
-    self.forceConvexCheckBox.checked = 0
-    self.forceConvexCheckBox.text = "Force convex"
-    self.smoothingCheckBox = qt.QCheckBox()
-    self.smoothingCheckBox.checked = 1
-    self.smoothingCheckBox.text = "Smoothing"
-
-    self.surfaceBoxLayout = qt.QHBoxLayout()
-    self.surfaceBoxLayout.addWidget(self.forceConvexCheckBox)
-    self.surfaceBoxLayout.addWidget(self.smoothingCheckBox)
-    
-    mappingLayout.addRow("Surface:", self.surfaceBoxLayout)
-    
     activeBoxLayout = qt.QHBoxLayout()
     self.activeGroup = qt.QButtonGroup()
     self.activeOnRadioButton = qt.QRadioButton("ON")
@@ -165,8 +152,8 @@ class MRTrackingSurfaceMapping():
     self.modelSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onModelSelected)
     self.pointRecordingDistanceSliderWidget.connect("valueChanged(double)", self.pointRecordingDistanceChanged)
 
-    self.forceConvexCheckBox.connect('toggled(bool)', self.onSurfacePropertyChanged)
-    self.smoothingCheckBox.connect('toggled(bool)', self.onSurfacePropertyChanged)
+    #self.forceConvexCheckBox.connect('toggled(bool)', self.onSurfacePropertyChanged)
+    #self.smoothingCheckBox.connect('toggled(bool)', self.onSurfacePropertyChanged)
     
     self.resetPointButton.connect('clicked(bool)', self.onResetPointRecording)
     self.generateSurfaceButton.connect('clicked(bool)', self.onGenerateSurface)
@@ -234,8 +221,8 @@ class MRTrackingSurfaceMapping():
         dnode.SetOpacity(0.5)
 
 
-  def onSurfacePropertyChanged(self):
-    self.controlPointsUpdated()
+  #def onSurfacePropertyChanged(self):
+  #  self.controlPointsUpdated()
 
         
   def pointRecordingDistanceChanged(self):
@@ -445,40 +432,20 @@ class MRTrackingSurfaceMapping():
       if fnode:
         # Two observers are registered. The PointModifiedEvent is used to handle new points, whereas
         # the ModifiedEvent is used to capture the change of Egram parameter list (in the attribute)
-        tag1 = fnode.AddObserver(slicer.vtkMRMLMarkupsNode.PointModifiedEvent, self.controlPointsUpdated, 2)
-        tag2 = fnode.AddObserver(vtk.vtkCommand.ModifiedEvent, self.controlPointsNodeUpdated, 2)
-        fnode.SetAttribute('SurfaceMapping.ObserverTag.PointModified', str(tag1))
-        fnode.SetAttribute('SurfaceMapping.ObserverTag.Modified', str(tag2))
+        tag = fnode.AddObserver(vtk.vtkCommand.ModifiedEvent, self.controlPointsNodeUpdated, 2)
+        fnode.SetAttribute('SurfaceMapping.ObserverTag.Modified', str(tag))
       td.pointRecording[self.cath] = True
       
     else:
       td.pointRecording[self.cath] = False
       fnode = td.pointRecordingMarkupsNode[self.cath]
       if fnode:
-        tag = fnode.GetAttribute('SurfaceMapping.ObserverTag.PointModified')
-        if tag != None:
-          fnode.RemoveObserver(int(tag))
-          fnode.SetAttribute('SurfaceMapping.ObserverTag.PointModified', None)
         tag = fnode.GetAttribute('SurfaceMapping.ObserverTag.Modified')
         if tag != None:
           fnode.RemoveObserver(int(tag))
           fnode.SetAttribute('SurfaceMapping.ObserverTag.Modified', None)
 
           
-  def controlPointsUpdated(self,caller=None,event=None):
-    td = self.getTrackingData()
-    # Update the surface model
-    fnode = td.pointRecordingMarkupsNode[self.cath]
-    mnode = self.modelSelector.currentNode()
-    mtmlogic = slicer.modules.markupstomodel.logic()
-    
-    if (fnode != None) and (mnode != None) and (mtmlogic != None):
-      #mtmlogic.UpdateClosedSurfaceModel(fnode, mnode)
-      fForceConvex = self.forceConvexCheckBox.checked;
-      fSmoothing = self.smoothingCheckBox.checked
-      mtmlogic.UpdateClosedSurfaceModel(fnode, mnode, fSmoothing, fForceConvex, 15.0)
-      
-
   def controlPointsNodeUpdated(self,caller,event):
     td = self.getTrackingData()
     fnode = td.pointRecordingMarkupsNode[self.cath]
@@ -545,6 +512,7 @@ class MRTrackingSurfaceMapping():
     # Crete an image node - geometric parameters (origin, spacing) must be moved to the node object
     #imnode = slicer.vtkMRMLScalarVolumeNode()
     imnode = slicer.mrmlScene.CreateNodeByClass('vtkMRMLScalarVolumeNode')
+    imnode.SetName('MRTracking_SurfaceMap_tmp')
     imdata = dens.GetOutput()
     imnode.SetAndObserveImageData(imdata)
     imnode.SetOrigin(imdata.GetOrigin())
@@ -593,6 +561,8 @@ class MRTrackingSurfaceMapping():
 
     poly = self.marchingCubes(imdata)
     modelNode.SetAndObservePolyData(poly)
+
+    slicer.mrmlScene.RemoveNode(imnode)
     
     
   def fiducialsToPoly(self, markupsNode):
