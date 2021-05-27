@@ -3,6 +3,8 @@ import qt
 import slicer
 import vtk
 import numpy
+import sitkUtils
+import SimpleITK as sitk
 from scipy.interpolate import Rbf
 #from scipy.interpolate import griddata
 
@@ -117,6 +119,17 @@ class MRTrackingSurfaceMapping():
 
     mappingLayout.addRow(" ",  self.resetPointButton)
 
+
+    # Point distance factor is used to generate a surface model from the point cloud
+    self.pointDistanceFactorSliderWidget = ctk.ctkSliderWidget()
+    self.pointDistanceFactorSliderWidget.singleStep = 0.1
+    self.pointDistanceFactorSliderWidget.minimum = 0.0
+    self.pointDistanceFactorSliderWidget.maximum = 20.0
+    self.pointDistanceFactorSliderWidget.value = 8.0
+    #self.minIntervalSliderWidget.setToolTip("")
+
+    mappingLayout.addRow("Point Disntace Factor: ",  self.pointDistanceFactorSliderWidget)
+    
     self.generateSurfaceButton = qt.QPushButton()
     self.generateSurfaceButton.setCheckable(False)
     self.generateSurfaceButton.text = 'Generate Surface Map'
@@ -244,9 +257,10 @@ class MRTrackingSurfaceMapping():
     td = self.getTrackingData()
     markupsNode = td.pointRecordingMarkupsNode[self.cath]
     modelNode = self.modelSelector.currentNode()
+    pdf = self.pointDistanceFactorSliderWidget.value
     
     if markupsNode:
-      self.generateSurfaceModel(markupsNode, modelNode)
+      self.generateSurfaceModel(markupsNode, modelNode, pdf)
 
       
   def onMapModel(self):
@@ -485,7 +499,7 @@ class MRTrackingSurfaceMapping():
           i = i + 1
 
 
-  def generateSurfaceModel(self, markupsNode, modelNode):
+  def generateSurfaceModel(self, markupsNode, modelNode, pointDistanceFactor):
 
     svnode = slicer.mrmlScene.CreateNodeByClass('vtkMRMLScalarVolumeNode')
 
@@ -498,37 +512,13 @@ class MRTrackingSurfaceMapping():
     b = b.reshape((3,2))
     origin = numpy.mean(b, axis=1)
     fov = numpy.abs(b[:,1]-b[:,0])
-    fov = fov * 1.2 # 1.2 times larger than the bounding box
-    b[:,0] = origin - fov/2.0
-    b[:,1] = origin + fov/2.0
+    fovMax = numpy.max(fov)
+    boundingBoxRange = (fovMax * 1.5)/2.0 # 1.5 times larger than the bounding box; from the center to the end (1/2 of each dimension)
+    b[:,0] = origin - boundingBoxRange
+    b[:,1] = origin + boundingBoxRange
     bounds = b.reshape(-1)
+    res = 256
     
-    # Calculate the size of the volume
-    #fov = numpy.max(b[:,1]-b[:0]) * 1.5 # 1.5 times larger than the bounding box
-    #spacing = [fov/256]*3
-    #
-    ## Set parameters
-    #parameters = {}
-    #parameters['OutputVolume'] = svnode.GetID()
-    #parameters['FillValue']    = '0.00'
-    #parameters['Dimension']    = '3'
-    #parameters['Size']         = '256, 256, 256'
-    #parameters['Origin']       = center
-    #parameters['Spacing']      = spacing
-    #parameters['Direction']    = '1.00, 0.00, 0.00, 0.00, 1.00, 0.00, 0.00, 0.00, 1.00'
-    #
-    ## Execute
-    #imageMaker = slicer.modules.imagemaker
-    #cliNode = slicer.cli.runSync(imagemaker, None, parameters)
-    ## Process results
-    #if cliNode.GetStatus() & cliNode.ErrorsMask:
-    #  # error
-    #  errorText = cliNode.GetErrorText()
-    #  slicer.mrmlScene.RemoveNode(cliNode)
-    #  raise ValueError("CLI execution failed: " + errorText)
-    ## success
-    #slicer.mrmlScene.RemoveNode(cliNode)
-
     poly = self.fiducialsToPoly(markupsNode)
     
     #Note: Altenatively, vtkImageEllipsoidSource may be used to generate a volume.
@@ -536,9 +526,14 @@ class MRTrackingSurfaceMapping():
     # Use fixed radius
     dens = vtk.vtkPointDensityFilter()
     dens.SetInputData(poly)
-    dens.SetSampleDimensions(256,256,256)
+
+    # TODO - is the resolution good enoguh?
+    dens.SetSampleDimensions(res, res, res)
     dens.SetDensityEstimateToFixedRadius()
-    dens.SetRadius(2)
+    # TODO - Does this radius work for every case?
+    pixelSize = boundingBoxRange * 2 / res
+    radius = pixelSize
+    dens.SetRadius(radius)
     #dens.SetDensityEstimateToRelativeRadius()
     #dens.SetRelativeRadius(2.5)
     #dens.SetDensityFormToVolumeNormalized()
@@ -558,6 +553,48 @@ class MRTrackingSurfaceMapping():
     imdata.SetSpacing([1.0, 1.0, 1.0])
     slicer.mrmlScene.AddNode(imnode)
 
+    image  = sitkUtils.PullVolumeFromSlicer(imnode.GetID())
+    binImage = sitk.BinaryThreshold(image, lowerThreshold=1.0, upperThreshold=256, insideValue=1, outsideValue=0)
+
+    # Calculate the radius parameter for dilation and erosion
+    radiusInPixel = int(numpy.ceil(pointDistanceFactor / pixelSize))
+    if radiusInPixel < 1.0:
+      radiusInPixel = 1
+    
+    # Dilate the target label 
+    dilateFilter = sitk.BinaryDilateImageFilter()
+    dilateFilter.SetBoundaryToForeground(False)
+    dilateFilter.SetKernelRadius(radiusInPixel)
+    dilateFilter.SetKernelType(sitk.sitkBall)
+    dilateFilter.SetForegroundValue(1)
+    dilateFilter.SetBackgroundValue(0)
+    dilateImage = dilateFilter.Execute(binImage)
+
+    # Fill holes in the target label
+    fillHoleFilter = sitk.BinaryFillholeImageFilter()
+    fillHoleFilter.SetForegroundValue(1)
+    fillHoleFilter.SetFullyConnected(True)
+    fillHoleImage = fillHoleFilter.Execute(dilateImage)
+    
+    # Erode the label
+    erodeFilter = sitk.BinaryErodeImageFilter()
+    erodeFilter.SetBoundaryToForeground(False)
+    erodeFilter.SetKernelType(sitk.sitkBall)
+    erodeFilter.SetKernelRadius(radiusInPixel-1) # 1 pixel smaller than the radius for dilation.
+    erodeFilter.SetForegroundValue(1)
+    erodeFilter.SetBackgroundValue(0)
+    erodeImage = erodeFilter.Execute(fillHoleImage)
+    
+    sitkUtils.PushVolumeToSlicer(erodeImage, imnode.GetName(), 0, True)
+    imdata = imnode.GetImageData()
+
+    imdata.SetOrigin(imnode.GetOrigin())
+    imdata.SetSpacing(imnode.GetSpacing())
+
+    poly = self.marchingCubes(imdata)
+    modelNode.SetAndObservePolyData(poly)
+    
+    
   def fiducialsToPoly(self, markupsNode):
     
     pd = vtk.vtkPolyData()
@@ -565,8 +602,6 @@ class MRTrackingSurfaceMapping():
     cells = vtk.vtkCellArray()
     connectivity = vtk.vtkIntArray()
     connectivity.SetName('Connectivity')
-    #stress = vtk.vtkFloatArray()
-    #stress.SetName('Stress')
 
     nPoints = markupsNode.GetNumberOfFiducials()
     
@@ -575,21 +610,50 @@ class MRTrackingSurfaceMapping():
     for i in range(nPoints):
       markupsNode.GetNthFiducialPosition(i, pos)
       points.InsertNextPoint(pos[0], pos[1], pos[2])
-      #stress.InsertNextTuple1(float(v[5]))
-      #connectivity.InsertNextTuple1(float(v[4]))
-
-    #for line in iter(lambda: f.readline(), ""):
-    #  v = line.split(',')
-    #  cell = vtk.vtkTriangle()
-    #  Ids = cell.GetPointIds()
-    #  for kId in range(len(v)):
-    #    Ids.SetId(kId,int(v[kId]))
-    #  cells.InsertNextCell(cell)
-    #f.close()
 
     pd.SetPoints(points)
-    #pd.SetPolys(cells)
-    #pd.GetPointData().AddArray(stress)
-    #pd.GetPointData().AddArray(connectivity)
-
+    
     return pd
+
+
+  def marchingCubes(self, imageData):
+    
+    mc = vtk.vtkMarchingCubes()
+    mc.SetInputData(imageData)
+    mc.ComputeNormalsOff()
+    mc.ComputeGradientsOff()
+    mc.SetValue(0, 1.0)
+    mc.Update()
+    
+    # To remain largest region
+    confilter =vtk.vtkPolyDataConnectivityFilter()
+    confilter.SetInputData(mc.GetOutput())
+    confilter.SetExtractionModeToLargestRegion()
+    confilter.Update()
+
+    #smoothFilter = vtk.vtkSmoothPolyDataFilter()
+    #smoothFilter.SetInputConnection(confilter.GetOutputPort())
+    #smoothFilter.SetNumberOfIterations(15)
+    #smoothFilter.SetRelaxationFactor(0.1)
+    #smoothFilter.FeatureEdgeSmoothingOff()
+    #smoothFilter.BoundarySmoothingOn()
+    #smoothFilter.Update()
+
+    smoothFilter2 = vtk.vtkWindowedSincPolyDataFilter()
+    smoothFilter2.SetInputConnection(confilter.GetOutputPort())
+    smoothFilter2.SetNumberOfIterations(10)
+    smoothFilter2.BoundarySmoothingOff()
+    smoothFilter2.FeatureEdgeSmoothingOff()
+    smoothFilter2.SetFeatureAngle(120)
+    smoothFilter2.SetPassBand(0.001)
+    smoothFilter2.NonManifoldSmoothingOn()
+    smoothFilter2.NormalizeCoordinatesOn()
+    smoothFilter2.Update()
+    
+    decimate = vtk.vtkDecimatePro()
+    decimate.SetInputData(smoothFilter2.GetOutput())
+    decimate.SetTargetReduction(0.1)
+    decimate.PreserveTopologyOn()
+    decimate.Update()
+    
+    return decimate.GetOutput()
