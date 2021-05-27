@@ -246,7 +246,7 @@ class MRTrackingSurfaceMapping():
     modelNode = self.modelSelector.currentNode()
     
     if markupsNode:
-      generateSurfaceModel(markupsNode, modelNode)
+      self.generateSurfaceModel(markupsNode, modelNode)
 
       
   def onMapModel(self):
@@ -494,12 +494,17 @@ class MRTrackingSurfaceMapping():
     bounds = [0.0] * 6
     markupsNode.GetBounds(bounds)
     
-    #b = np.array(bounds)
-    #b = b.reshape((3,2))
-    #origin = np.mean(b, axis=1)
-    #
-    ## Calculate the size of the volume
-    #fov = np.max(b[:,1]-b[:0]) * 1.5 # 1.5 times larger than the bounding box
+    b = numpy.array(bounds)
+    b = b.reshape((3,2))
+    origin = numpy.mean(b, axis=1)
+    fov = numpy.abs(b[:,1]-b[:,0])
+    fov = fov * 1.2 # 1.2 times larger than the bounding box
+    b[:,0] = origin - fov/2.0
+    b[:,1] = origin + fov/2.0
+    bounds = b.reshape(-1)
+    
+    # Calculate the size of the volume
+    #fov = numpy.max(b[:,1]-b[:0]) * 1.5 # 1.5 times larger than the bounding box
     #spacing = [fov/256]*3
     #
     ## Set parameters
@@ -524,13 +529,13 @@ class MRTrackingSurfaceMapping():
     ## success
     #slicer.mrmlScene.RemoveNode(cliNode)
 
-    poly = fiducialsToPoly(markupsNode)
+    poly = self.fiducialsToPoly(markupsNode)
     
     #Note: Altenatively, vtkImageEllipsoidSource may be used to generate a volume.
     # Generate density field from points
     # Use fixed radius
     dens = vtk.vtkPointDensityFilter()
-    dens.SetInputConnection()
+    dens.SetInputData(poly)
     dens.SetSampleDimensions(256,256,256)
     dens.SetDensityEstimateToFixedRadius()
     dens.SetRadius(2)
@@ -543,17 +548,17 @@ class MRTrackingSurfaceMapping():
     dens.Update()
     
     # Crete an image node - geometric parameters (origin, spacing) must be moved to the node object
-    imnode = slicer.vtkMRMLScalarVolumeNode()
+    #imnode = slicer.vtkMRMLScalarVolumeNode()
+    imnode = slicer.mrmlScene.CreateNodeByClass('vtkMRMLScalarVolumeNode')
     imdata = dens.GetOutput()
     imnode.SetAndObserveImageData(imdata)
     imnode.SetOrigin(imdata.GetOrigin())
     imnode.SetSpacing(imdata.GetSpacing())
     imdata.SetOrigin([0.0, 0.0, 0.0])
     imdata.SetSpacing([1.0, 1.0, 1.0])
-    
-    
+    slicer.mrmlScene.AddNode(imnode)
 
-  def fiducialsToPoly(self, markupsNode, poly):
+  def fiducialsToPoly(self, markupsNode):
     
     pd = vtk.vtkPolyData()
     points = vtk.vtkPoints()
@@ -569,7 +574,7 @@ class MRTrackingSurfaceMapping():
     
     for i in range(nPoints):
       markupsNode.GetNthFiducialPosition(i, pos)
-      points.InsertNextPoint(p[0], p[1], p[2])
+      points.InsertNextPoint(pos[0], pos[1], pos[2])
       #stress.InsertNextTuple1(float(v[5]))
       #connectivity.InsertNextTuple1(float(v[4]))
 
