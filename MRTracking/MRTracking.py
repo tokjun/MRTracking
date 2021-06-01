@@ -588,7 +588,6 @@ class MRTrackingWidget(ScriptedLoadableModuleWidget):
       self.catheterRegPointsLineEdit[cath].text = str[:-1] # Remove the last ','
       
     self.showCoilLabelCheckBox.checked = tdata.showCoilLabel
-    
 
     for ch in range(self.nChannel):
       self.coilCheckBox[0][ch].checked = tdata.activeCoils[0][ch]
@@ -608,6 +607,8 @@ class MRTrackingWidget(ScriptedLoadableModuleWidget):
       self.coordinateSPlusRadioButton.checked = 1
     else:
       self.coordinateSMinusRadioButton.checked = 1
+
+    self.egramDataSelector.setCurrentNode(tdata.egramDataNode)
 
       
 #------------------------------------------------------------
