@@ -9,11 +9,44 @@
 # Tracking classes is the number of catheters they manage; the Catheter class only
 # manages one catheter whereas the TrackingData class manages two. 
 #
-
-import qt
+from qt import QObject, Signal, Slot
 import slicer
 import numpy
 
+class CatheterCollection(QObject):
+
+  updateCatheter = Signal()
+  
+  def __init__(self):
+
+    self.catheterList = []
+
+    
+  def add(self, cath):
+      
+    if isinstance(cath, Catheter):
+      self.catheterList.append(cath)
+
+    self.updateCatheter.emit()
+
+
+  def getNumberOfCatheters(self):
+
+    return len(self.catheterList)
+  
+  
+  def getCatheter(self, index):
+
+    if index >= 0 and index < self.getNumberOfCatheters():
+      return self.catheterList[index]
+
+    return None
+
+  
+
+
+
+  
 class Catheter:
 
   def __init__(self, name='Cath'):

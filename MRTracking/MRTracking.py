@@ -8,6 +8,7 @@ from MRTrackingUtils.connector import *
 from MRTrackingUtils.surfacemapping import *
 from MRTrackingUtils.reslice import *
 from MRTrackingUtils.registration import *
+from MRTrackingUtils.qcomboboxcatheter import *
 import numpy
 import functools
 
@@ -96,7 +97,7 @@ class MRTrackingWidget(ScriptedLoadableModuleWidget):
     self.igtlConnector2 = MRTrackingIGTLConnector("Connector 2 (NavX)")
     self.igtlConnector2.port = 18945
     self.igtlConnector2.buildGUI(connectionFormLayout, minimal=True, createNode=True)
-    
+
     #--------------------------------------------------
     # Tracking Node
     #--------------------------------------------------
@@ -127,6 +128,10 @@ class MRTrackingWidget(ScriptedLoadableModuleWidget):
     self.trackingDataSelector.setToolTip( "Incoming tracking data" )
     trackingDataSelectorLayout.addRow("TrackingData: ", self.trackingDataSelector)
 
+    self.catheterComboBox = QComboBoxCatheter()
+    trackingDataSelectorLayout.addRow("Test: ", self.catheterComboBox)
+
+    
     self.activeTrackingCheckBox = qt.QCheckBox()
     self.activeTrackingCheckBox.checked = 0
     self.activeTrackingCheckBox.enabled = 1
