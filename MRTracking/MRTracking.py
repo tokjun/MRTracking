@@ -130,7 +130,8 @@ class MRTrackingWidget(ScriptedLoadableModuleWidget):
 
     self.catheterComboBox = QComboBoxCatheter()
     trackingDataSelectorLayout.addRow("Test: ", self.catheterComboBox)
-
+    self.logic.catheters.clear()
+    self.catheterComboBox.setCatheterCollection(self.logic.catheters)
     
     self.activeTrackingCheckBox = qt.QCheckBox()
     self.activeTrackingCheckBox.checked = 0
@@ -414,6 +415,7 @@ class MRTrackingWidget(ScriptedLoadableModuleWidget):
     #--------------------------------------------------
     # Connections
     #--------------------------------------------------
+
     self.trackingDataSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onTrackingDataSelected)
     self.activeTrackingCheckBox.connect('clicked(bool)', self.onActiveTracking)
 
@@ -631,6 +633,8 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
 
     self.currentTrackingDataNodeID = ''
     self.TrackingData = {}
+
+    self.catheters = CatheterCollection()
 
     #self.egramRecordMarkupsNode = None
     #self.pointRecordingDistance = 0.0

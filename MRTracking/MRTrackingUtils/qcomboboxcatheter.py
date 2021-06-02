@@ -1,49 +1,76 @@
 import qt
 from MRTrackingUtils.catheter import *
-from qt import QComboBox
+from qt import QComboBox, QInputDialog, Slot
 
 class QComboBoxCatheter(QComboBox):
 
+  # Signals
+    
   def __init__(self):
       
     super(QComboBoxCatheter, self).__init__()
     
     self.addDefaultItems()
-    self.catheterList = []
+    self.collection = None
     self.prevIndex = 0
+    self.addingDefaultItems = False
 
-    self.connect('currentIndexChanged(int)', self.onItemSelected)
+    self.currentIndexChanged.connect(self.onItemSelected) # Signal 'currentIndexChanged(int)'
+
     
+  def setCatheterCollection(self, collection):
+
+    # Remove the existing signal/slot connection
+    if self.collection:
+      self.collection.cleared.disconnect(self.onCatheterCleared)
+      self.collection.added.disconnect(self.onCatheterAdded)
+      self.collection.removed.disconnect(self.onCatheterRemoved)
+      pass
+      
+    self.collection = collection
+    self.updateItems()
+
+    self.collection.cleared.connect(self.onCatheterCleared)
+    self.collection.added.connect(self.onCatheterAdded)
+    self.collection.removed.connect(self.onCatheterRemoved)
+
     
+  def updateItems(self):
+
+    if self.collection == None:
+      return False
+
+    # Turn off the signal while updating
+    self.clearAll()
+    
+    n = self.collection.getNumberOfCatheters()
+    for i in range(n):
+      c = self.collection.getCatheter(i)
+      self.insertItem(self.count-4, c.name)
+
+  
   def addDefaultItems(self):
 
+    self.disableAddition = True
     self.insertSeparator(0)
     self.addItem('None')
     self.addItem('Create New Catheter')
-    
+    self.disableAddition = False
 
-  def clear():
-      
-    super(QComboBoxCatheter, self).clear()
+    
+  def clearAll(self):
+    self.clear()
     self.addDefaultItems()
 
+      
+  def getCurrentCatheter(self):
+
+    if self.collection == None:
+      return False
     
-  def addCatheter(self, cath):
-      
-    if isinstance(cath, Catheter):
-      self.catheterList.append(cath)
-      self.insertItem(len(self.catheterList)-1, cath.name)
-      self.prevIndex = self.count - 4      # Last regular item (Note: self.count - 3 is a separator)
-      self.setCurrentIndex(self.prevIndex)
-        
-    return len(self.catheterList)
-
-
-  def getCatheter(self, name):
-      
-    for c in self.catheterList:
-      if c.name == name:
-        return c
+    index = self.currentIndex()
+    return self.collection.getCatheter(index)
+    
 
     
   def onItemSelected(self, index):
@@ -53,15 +80,50 @@ class QComboBoxCatheter(QComboBox):
       print('None selected')
       pass   # Do nothing
     elif index == self.count - 1: # Special item: 'Create New Catheter'
-      self.setCurrentIndex(self.count - 2)     # Tentatively set to 'None'
-      self.createNewCatheter()
+      if self.disableAddition == False and self.itemText(index) == 'Create New Catheter':
+        self.setCurrentIndex(self.count - 2)     # Tentatively set to 'None'
+        self.createNewCatheter()
     else:                         # Regular item
       self.prevIndex = index
       print('%s is selected' % index)
 
       
   def createNewCatheter(self):
-    print('Create New Catheter selected')
-    newCath = Catheter('Cath1')
 
-    self.addCatheter(newCath)
+    print("createNewCatheter(self)")
+    if self.collection == None:
+      return False
+    
+    text = QInputDialog.getText(self, "Catheter Name Dialog", "Catheter Name:")
+    if text:
+      newCath = Catheter(text)
+      self.collection.add(newCath)
+
+
+  @Slot()
+  def onCatheterCleared(self):
+    self.clearAll()
+
+    
+  @Slot(int)
+  def onCatheterAdded(self, index):
+
+    cath = self.collection.getCatheter(index)
+    if cath == None:
+      print('Error: Could not add a catheter to the ComboBox.')
+      return
+    
+    self.insertItem(self.count-4, cath.name)
+    self.prevIndex = self.count-4      # Last regular item (Note: self.count - 3 is a separator)
+    self.setCurrentIndex(self.prevIndex)
+    
+
+  @Slot(int)
+  def onCatheterRemoved(self, index):
+
+    if self.collection == None:
+      return False
+    
+    self.removeItem(index)
+    self.setCurrentIndex(self.count-2) # Select 'None'
+    

@@ -13,23 +13,79 @@ from qt import QObject, Signal, Slot
 import slicer
 import numpy
 
-class CatheterCollection(QObject):
 
-  updateCatheter = Signal()
+class CatheterCollection(QObject):
   
+  # CatheterCollection class manages Catheter class instances. The primary purpose of this
+  # class is to update GUI elements (e.g., QComboBoxCatheter) when any of the Catheter class
+  # instances is updated. This is achieved by the following signals:
+  
+  cleared = Signal()    # Emitted when the list is cleared.
+  added = Signal(int)   # Emitted when a catheter is added.
+  removed = Signal(int) # Emitted when a catheter is removed.
+
+  # The following slots are defined in QComboBoxCatheter and connected to the above signals
+  # from QComboBoxCatheter.setCatheterCollection():
+  #
+  #   @Slot()
+  #   def onCatheterCleared(self)
+  #
+  #   @Slot(int)
+  #   def onCatheterAdded(self, index)
+  #
+  #   @Slot(int)
+  #   def onCatheterRemoved(self, index)
+
   def __init__(self):
 
+    super(CatheterCollection, self).__init__(None)
+
     self.catheterList = []
+    print('CatheterCollection is initiated.')
 
     
   def add(self, cath):
       
-    if isinstance(cath, Catheter):
-      self.catheterList.append(cath)
+    self.catheterList.append(cath)
+    self.added.emit(len(self.catheterList)-1)
 
-    self.updateCatheter.emit()
+    
+  def remove(self, cath):
 
+    obj = None
+    index = -1
+    if isinstance(cath, Catheter):     # If a class instance is given
+      obj = cath
+      index = self.catheterList.index(cath)
+    elif isinstance(cath, int):        # If an index is given
+      if cath >= 0 and cath < len(self.catheterList):
+        obj = self.catheterList[cath]
+        index = cath
 
+    if obj:
+      try:
+        self.catheterList.remove(obj)
+        self.removed.emit(index)
+      except ValueError:
+        print('Could not remove the object: %s' % cath.name)
+      
+  def clear(self):
+    self.catheterList.clear()
+    self.cleared.emit()
+
+        
+  def getIndex(self, cath):
+
+    index = 0
+    for c in self.catheterList:
+      if cath == c:
+        return index
+      index = index + 1
+
+    # Couldn't find
+    return -1
+
+  
   def getNumberOfCatheters(self):
 
     return len(self.catheterList)
@@ -41,8 +97,6 @@ class CatheterCollection(QObject):
       return self.catheterList[index]
 
     return None
-
-  
 
 
 
