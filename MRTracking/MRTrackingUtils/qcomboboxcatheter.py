@@ -68,9 +68,15 @@ class QComboBoxCatheter(QComboBox):
     if self.collection == None:
       return False
     
-    index = self.currentIndex()
+    index = self.currentIndex
     return self.collection.getCatheter(index)
-    
+
+  
+  def getCatheter(self, index):
+    if index >= 0 and index < self.collection.getNumberOfCatheters():
+      return self.collection.getCatheter(index)
+    else:
+      None
 
     
   def onItemSelected(self, index):
@@ -113,7 +119,7 @@ class QComboBoxCatheter(QComboBox):
       print('Error: Could not add a catheter to the ComboBox.')
       return
     
-    self.insertItem(self.count-4, cath.name)
+    self.insertItem(self.count-3, cath.name)
     self.prevIndex = self.count-4      # Last regular item (Note: self.count - 3 is a separator)
     self.setCurrentIndex(self.prevIndex)
     

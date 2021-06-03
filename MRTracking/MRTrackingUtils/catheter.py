@@ -12,6 +12,7 @@
 from qt import QObject, Signal, Slot
 import slicer
 import numpy
+import vtk
 
 
 class CatheterCollection(QObject):
@@ -41,12 +42,15 @@ class CatheterCollection(QObject):
     super(CatheterCollection, self).__init__(None)
 
     self.catheterList = []
+    self.lastID = 0;
     print('CatheterCollection is initiated.')
 
     
   def add(self, cath):
-      
+
     self.catheterList.append(cath)
+    self.catheterID = self.lastID
+    self.lastID = self.lastID + 1
     self.added.emit(len(self.catheterList)-1)
 
     
@@ -99,7 +103,6 @@ class CatheterCollection(QObject):
     return None
 
 
-
   
 class Catheter:
 
@@ -110,7 +113,8 @@ class Catheter:
     
     #slicer.mrmlScene.AddObserver(slicer.vtkMRMLScene.NodeRemovedEvent, self.onNodeRemovedEvent)
     self.name = name
-    self.ID = ''           # Tracking node ID associated with this catheter.
+    self.catheterID = None
+    self.trackingDataNodeID = ''           # Tracking node ID associated with this catheter.
     self.logic = None
     self.widget = None
     self.eventTag = ''
@@ -150,13 +154,16 @@ class Catheter:
     # Filtering
     self.transformProcessorNodes = [None] * self.MAX_COILS
     self.filteredTransformNodes = [None] * self.MAX_COILS
+    
+    # Registration
+    self.registration = None
 
     ## Default values for self.coilPositions:
     self.defaultCoilPositions = {}
     self.defaultCoilPositions['"NavX-Ch0"'] = [0,20,40,60]
     self.defaultCoilPositions['"NavX-Ch1"'] = [0,20,40,60]
     self.defaultCoilPositions['"WWTracker"'] = [10,30,50,70]
-    
+
 
   def __del__(self):
     print("Catheter.__del__() is called.")
@@ -165,8 +172,10 @@ class Catheter:
     self.name = name
     
   def setID(self, id):
-    self.ID = id
+    self.trackingDataNodeID = id
 
+  def setTrackingDataNodeID(self, id):
+    self.setID(id)
 
   def setLogic(self, logic):
     self.logic = logic
@@ -178,6 +187,399 @@ class Catheter:
     else:
       return True
 
+
+  def activateTracking(self):
+    
+    #
+    # The following section adds an observer invoked by an NodeModifiedEvent
+    # NOTE on 09/10/2020: This mechanism does not work well for the tracker stabilizer. 
+    #
+    tdnode = slicer.mrmlScene.GetNodeByID(self.trackingDataNodeID)
+    
+    if tdnode:
+      # Since TrackingDataBundle does not invoke ModifiedEvent, obtain the first child node
+      if tdnode.GetNumberOfTransformNodes() > 0:
+        # Create transform nodes for filtered tracking data
+        self.setFilteredTransforms(tdnode, self.activeCoils)
+
+        ## TODO: Using the first node to trigger the event may cause a timing issue.
+        ## TODO: Using the filtered transform node will invoke the event handler every 15 ms as fixed in
+        ##       TrackerStabilizer module. It is not guaranteed that every tracking data is used when
+        ##       the tracking frame rate is higher than 66.66 fps (=1000ms/15ms). 
+        #childNode = tdnode.GetTransformNode(0)
+        childNode = td.filteredTransformNodes[0]
+        
+        childNode.SetAttribute('MRTracking.' + self.catheterID + '.parent', tdnode.GetID())
+        td.eventTag = childNode.AddObserver(vtk.vtkCommand.ModifiedEvent, self.onIncomingNodeModifiedEvent)
+        print("Observer for TrackingDataBundleNode added.")
+        return True
+      else:
+        return False  # Could not add observer.
+
+
+  def deactivateTracking(self):
+    
+    tdnode = slicer.mrmlScene.GetNodeByID(self.trackingDataNodeID)
+    
+    if tdnode:
+      if tdnode.GetNumberOfTransformNodes() > 0 and td.eventTag != '':
+        childNode = tdnode.GetTransformNode(0)
+        childNode.RemoveObserver(td.eventTag)
+        td.eventTag = ''
+        return True
+      else:
+        return False
+
+      
+      
+  def setFilteredTransforms(self, tdnode, activeCoils, createNew=True):
+    #
+    # To fileter the transforms under the TrackingDataBundleNode, prepare transform nodes
+    # to store the filtered transforms.
+    #
+    nTransforms =  tdnode.GetNumberOfTransformNodes()
+    
+    for i in range(nTransforms):
+
+      ## Skip if the coil is not active
+      #if self.activeCoils[i] == False:
+      #  continue
+      
+      inputNode = tdnode.GetTransformNode(i)
+
+      # TODO: The following code does not work if two Catheter instances use the same coil channels
+      # on the same TrackingData node. Needs to include the Catheter instance name or the unique catheterID
+      # in the attribute key.
+      if self.filteredTransformNodes[i] == None:
+        filteredNodeID = str(inputNode.GetAttribute('MRTracking.filteredNode'))
+        if filteredNodeID != '':
+          self.filteredTransformNodes[i] = slicer.mrmlScene.GetNodeByID(filteredNodeID)
+          
+        if self.filteredTransformNodes[i] == None and createNew:
+          self.filteredTransformNodes[i] = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLLinearTransformNode')
+          inputNode.SetAttribute('MRTracking.filteredNode', self.filteredTransformNodes[i].GetID())
+          
+      if self.transformProcessorNodes[i] == None:
+        processorNodeID = str(inputNode.GetAttribute('MRTracking.processorNode'))
+        if processorNodeID != '':
+          self.transformProcessorNodes[i] = slicer.mrmlScene.GetNodeByID(processorNodeID)
+        if self.transformProcessorNodes[i] == None and createNew:
+          self.transformProcessorNodes[i] = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLTransformProcessorNode')
+          inputNode.SetAttribute('MRTracking.processorNode', self.transformProcessorNodes[i].GetID())
+
+      if self.filteredTransformNodes[i]:
+        self.filteredTransformNodes[i].SetName(inputNode.GetName() + '_filtered')
+        
+      if self.transformProcessorNodes[i]:
+        self.transformProcessorNodes[i].SetName(inputNode.GetName() + '_processor')
+        tpnode = self.transformProcessorNodes[i]
+        tpnode.SetProcessingMode(slicer.vtkMRMLTransformProcessorNode.PROCESSING_MODE_STABILIZE)
+        tpnode.SetStabilizationCutOffFrequency(7.50)
+        tpnode.SetStabilizationEnabled(1)
+        tpnode.SetUpdateModeToAuto()
+        tpnode.SetAndObserveInputUnstabilizedTransformNode(inputNode)
+        tpnode.SetAndObserveOutputTransformNode(self.filteredTransformNodes[i])
+
+        
+  def onIncomingNodeModifiedEvent(self, caller, event):
+
+    parentID = str(caller.GetAttribute('MRTracking.' + self.catheterID + '.parent'))
+    
+    if parentID == '':
+      return
+
+    tdnode = slicer.mrmlScene.GetNodeByID(parentID)
+
+    if tdnode and tdnode.GetClassName() == 'vtkMRMLIGTLTrackingDataBundleNode':
+      # Update coordinates in the fiducial node.
+      nCoils = tdnode.GetNumberOfTransformNodes()
+      fUpdate = False
+      if nCoils > 0:
+        # Update timestamp
+        # TODO: Should we check all time stamps under the tracking node?
+        tnode = tdnode.GetTransformNode(0)
+        mTime = tnode.GetTransformToWorldMTime()
+        if mTime > td.lastMTime:
+          currentTime = time.time()
+          td.lastMTime = mTime
+          td.lastTS = currentTime
+          fUpdate = True
+      
+      self.updateCatheterNode()
+
+      if fUpdate:
+        self.registration.updatePoints()
+
+
+  def updateCatheterNode(self):
+
+    tdnode = slicer.mrmlScene.GetNodeByID(self.trackingDataNodeID)
+    if tdnode == None:
+      print('updateCatheter(): Error - no TrackingDataNode.')
+      return
+    
+    curveNodeID = str(tdnode.GetAttribute('MRTracking.' + self.catheterID + '.CurveNode%d'))
+    curveNode = None
+    if curveNodeID != None:
+      curveNode = self.scene.GetNodeByID(curveNodeID)
+
+    if curveNode == None:
+      curveNode = self.scene.AddNewNodeByClass('vtkMRMLMarkupsCurveNode')
+      tdnode.SetAttribute('MRTracking.' + self.catheterID + '.CurveNode', curveNode.GetID())
+    
+    prevState = curveNode.StartModify()
+
+    # Update coordinates in the fiducial node.
+    nCoils = tdnode.GetNumberOfTransformNodes()
+  
+    if nCoils > 8: # Max. number of coils is 8.
+      nCoils = 8
+      
+    mask = self.activeCoils[0:nCoils]
+    
+    # Update time stamp
+    ## TODO: Ideally, the time stamp should come from the data source rather than 3D Slicer.
+    curveNode.SetAttribute('MRTracking.' + self.catheterID + '.lastTS', '%f' % td.lastTS)
+    
+    nActiveCoils = sum(mask)
+    
+    if curveNode.GetNumberOfControlPoints() != nActiveCoils:
+      curveNode.RemoveAllControlPoints()
+      for i in range(nActiveCoils):
+        p = vtk.vtkVector3d()
+        p.SetX(0.0)
+        p.SetY(0.0)
+        p.SetZ(0.0)
+        curveNode.AddControlPoint(p, "P_%d" % i)
+
+    lastCoil = nCoils - 1
+    fFlip = (not self.coilOrder)
+    egramPoint = None;
+      
+    j = 0
+    for i in range(nCoils):
+      if mask[i]:
+        tnode = self.filteredTransformNodes[i]
+        trans = tnode.GetTransformToParent()
+        v = trans.GetPosition()
+        
+        # Apply the registration transform, if activated. (GUI is defined in registration.py)
+        if self.registration and self.registration.applyTransform and (self.registration.applyTransform.GetID() == tdnode.GetID()):
+          if self.registration.registrationTransform:
+            v = self.registration.registrationTransform.TransformPoint(v)
+
+        coilID = j
+        if fFlip:
+          coilID = lastCoil - j
+        curveNode.SetNthControlPointPosition(coilID, v[0] * td.axisDirections[0], v[1] * td.axisDirections[1], v[2] * td.axisDirections[2])
+        if coilID == 0:
+          egramPoint = v;
+          
+        j += 1
+
+    curveNode.EndModify(prevState)
+    
+    self.updateCatheter()
+
+    # Egram data
+    if (egramPoint != None) and (self.pointRecording == True):
+      p = numpy.array(egramPoint)
+      d = numpy.linalg.norm(p-self.prevRecordedPoint)
+      if d > self.pointRecordingDistance:
+        self.prevRecordedPoint = p
+        #egram = self.getEgramData(index)
+        (egramHeader, egramTable) = self.getEgramData()
+        # TODO: Make sure if the following 'flip' is correctly working
+        if fFlip:
+          egramTable.reverse()
+
+        prMarkupsNode = self.pointRecordingMarkupsNode
+        if prMarkupsNode:
+          id = prMarkupsNode.AddFiducial(egramPoint[0] * self.axisDirections[0], egramPoint[1] * self.axisDirections[1], egramPoint[2] * self.axisDirections[2])
+          #prMarkupsNode.SetNthControlPointDescription(id, '%f' % egram[0])
+          mask = self.activeCoils
+          if fFlip:
+            mask.reverse()
+          # Find the first active coil
+          # TODO: Make sure that this is correct
+          ch = 0
+          for a in mask:
+            if a:
+              break
+            ch = ch + 1
+          if ch >= len(mask) or ch >= len(egramTable):
+            print('Error: no active channel. ch = ' + ch)
+          egramValues = egramTable[ch]
+          desc = None
+          for v in egramValues:
+            if desc:
+              desc = desc + ',' + str(v)
+            else:
+              desc = str(v)
+          prMarkupsNode.SetNthControlPointDescription(id, desc)
+
+          # If the header is not registered to the markup node, do it now
+          ev = prMarkupsNode.GetAttribute('MRTracking.' + self.catheterID + '.EgramParamList')
+          if ev == None:
+            attr= None
+            for eh in egramHeader:
+              if attr:
+                attr = attr + ',' + str(eh)
+              else:
+                attr = str(eh)
+            prMarkupsNode.SetAttribute('MRTracking.' + self.catheterID + '.EgramParamList', attr)
+            prMarkupsNode.Modified();
+
+
+  def updateCatheter(self):
+
+    tdnode = slicer.mrmlScene.GetNodeByID(self.trackingDataNodeID)
+    if tdnode == None:
+      print('updateCatheter(): Error - no TrackingDataNode.')
+      return
+    
+    curveNode = None
+    curveNodeID = str(tdnode.GetAttribute('MRTracking.' + self.catheterID + '.CurveNode%d'))
+    if curveNodeID != None:
+      curveNode = self.scene.GetNodeByID(curveNodeID)
+
+    if curveNode == None:
+      return
+
+    curveDisplayNode = curveNode.GetDisplayNode()
+    if curveDisplayNode:
+      prevState = curveDisplayNode.StartModify()
+      curveDisplayNode.SetSelectedColor(self.modelColor)
+      curveDisplayNode.SetColor(self.modelColor)
+      curveDisplayNode.SetOpacity(self.opacity)
+      #curveDisplayNode.SliceIntersectionVisibilityOn()
+      curveDisplayNode.Visibility2DOn()
+      curveDisplayNode.EndModify(prevState)
+      # Show/hide labels for coils
+      curveDisplayNode.SetPointLabelsVisibility(self.showCoilLabel);
+      curveDisplayNode.SetUseGlyphScale(False)
+      curveDisplayNode.SetGlyphSize(self.radius*4.0)
+      curveDisplayNode.SetLineThickness(0.5)  # Thickness is defined as a scale from the glyph size.
+    
+    # Add a extended tip
+    # make sure that there is more than one points
+    if curveNode.GetNumberOfControlPoints() < 2:
+      return
+
+    #
+    # TODO: the tip model should be managed in a seprate class. 
+    #
+    if self.tipPoly==None:
+      self.tipPoly = vtk.vtkPolyData()
+    
+    if self.tipModelNode == None:
+      self.tipModelNode = self.scene.AddNewNodeByClass('vtkMRMLModelNode')
+      self.tipModelNode.SetName('Tip')
+      tdnode.SetAttribute('MRTracking.' + self.catheterID + '.tipModel%d', self.tipModelNode.GetID())
+        
+    if self.tipTransformNode == None:
+      self.tipTransformNode = self.scene.AddNewNodeByClass('vtkMRMLLinearTransformNode')
+      self.tipTransformNode.SetName('TipTransform')
+      tdnode.SetAttribute('MRTracking.' + self.catheterID + '.tipTransform', self.tipTransformNode.GetID())
+
+    ## The 'curve end point matrix' (normal vectors + the curve end position)
+    matrix = vtk.vtkMatrix4x4()
+    
+    ## Assuming that the tip is at index=0 
+    n10 = [0.0, 0.0, 0.0]
+    p0  = [0.0, 0.0, 0.0]
+    cpi = curveNode.GetCurvePointIndexFromControlPointIndex(0)
+
+    curveNode.GetNthControlPointPosition(0, p0)
+    curveNode.GetCurvePointToWorldTransformAtPointIndex(cpi, matrix)
+    n10[0] = matrix.GetElement(0, 2)
+    n10[1] = matrix.GetElement(1, 2)
+    n10[2] = matrix.GetElement(2, 2)
+
+    # Tip location
+    # The sign for the normal vector is '-' because the normal vector point toward points
+    # with larger indecies.
+    pe = numpy.array(p0) - numpy.array(n10) * self.tipLength
+  
+    self.updateTipModelNode(self.tipModelNode, self.tipPoly, p0, pe, self.radius, self.modelColor, self.opacity)
+
+    ## Update the 'catheter tip matrix' (normal vectors + the catheter tip position)
+    ## Note that the catheter tip matrix is different from the curve end matrix
+    matrix.SetElement(0, 3, pe[0])
+    matrix.SetElement(1, 3, pe[1])
+    matrix.SetElement(2, 3, pe[2])
+    self.tipTransformNode.SetMatrixTransformToParent(matrix)
+    
+    #matrix = vtk.vtkMatrix4x4()
+    #matrix.DeepCopy((t[0], s[0], n10[0], pe[0],
+    #                 t[1], s[1], n10[1], pe[1],
+    #                 t[2], s[2], n10[2], pe[2],
+    #                 0, 0, 0, 1))
+
+    
+  def updateTipModelNode(self, tipModelNode, poly, p0, pe, radius, color, opacity):
+
+    points = vtk.vtkPoints()
+    cellArray = vtk.vtkCellArray()
+    points.SetNumberOfPoints(2)
+    cellArray.InsertNextCell(2)
+    
+    points.SetPoint(0, p0)
+    cellArray.InsertCellPoint(0)
+    points.SetPoint(1, pe)
+    cellArray.InsertCellPoint(1)
+
+    poly.Initialize()
+    poly.SetPoints(points)
+    poly.SetLines(cellArray)
+
+    tubeFilter = vtk.vtkTubeFilter()
+    tubeFilter.SetInputData(poly)
+    tubeFilter.SetRadius(radius)
+    tubeFilter.SetNumberOfSides(20)
+    tubeFilter.CappingOn()
+    tubeFilter.Update()
+
+    # Sphere represents the locator tip
+    sphere = vtk.vtkSphereSource()
+    sphere.SetRadius(radius*2.0)
+    sphere.SetCenter(pe)
+    sphere.Update()
+
+    apd = vtk.vtkAppendPolyData()
+
+    if vtk.VTK_MAJOR_VERSION <= 5:
+      apd.AddInput(sphere.GetOutput())
+      apd.AddInput(tubeFilter.GetOutput())
+    else:
+      apd.AddInputConnection(sphere.GetOutputPort())
+      apd.AddInputConnection(tubeFilter.GetOutputPort())
+    apd.Update()
+    
+    tipModelNode.SetAndObservePolyData(apd.GetOutput())
+    tipModelNode.Modified()
+
+    tipDispID = tipModelNode.GetDisplayNodeID()
+    if tipDispID == None:
+      tipDispNode = self.scene.AddNewNodeByClass('vtkMRMLModelDisplayNode')
+      tipDispNode.SetScene(self.scene)
+      tipModelNode.SetAndObserveDisplayNodeID(tipDispNode.GetID());
+      tipDispID = tipModelNode.GetDisplayNodeID()
+      
+    tipDispNode = self.scene.GetNodeByID(tipDispID)
+
+    prevState = tipDispNode.StartModify()
+    tipDispNode.SetColor(color)
+    tipDispNode.SetOpacity(opacity)
+    #tipDispNode.SliceIntersectionVisibilityOn()
+    tipDispNode.Visibility2DOn()
+    tipDispNode.SetSliceDisplayModeToIntersection()
+    tipDispNode.EndModify(prevState)
+
+            
+  #--------------------------------------------------
+  # Data I/O
+  #
     
   def loadDefaultConfig(self):
     self.loadDefaultCoilConfigulation()
@@ -405,6 +807,22 @@ class Catheter:
       print('Error in loading configuration from the parameter node: ' + pe.key)
 
 
+  def saveParameters(self, trackingDataName, parameterNode):
+
+    self.parameterNode.SetParameter("TD.%s.radius" % (trackingDataName), str(self.radius))
+    self.parameterNode.SetParameter("TD.%s.radius" % (trackingDataName), str(self.radius))
+    self.parameterNode.SetParameter("TD.%s.modelColor" % (trackingDataName), str(self.modelColor))
+    self.parameterNode.SetParameter("TD.%s.tipLength" % (tipLength), str(self.tipLenngth))
+    
+
+  def loadParameters(self, parameterNode):
+    pass
+
+
+  #--------------------------------------------------
+  # Parameter access
+  #
+      
   def setCurveNodeID(self, id):
     
     self.curveNodeID = id
@@ -526,18 +944,6 @@ class Catheter:
     return 0
 
     
-  def saveParameters(self, trackingDataName, parameterNode):
-
-    self.parameterNode.SetParameter("TD.%s.radius" % (trackingDataName), str(self.radius))
-    self.parameterNode.SetParameter("TD.%s.radius" % (trackingDataName), str(self.radius))
-    self.parameterNode.SetParameter("TD.%s.modelColor" % (trackingDataName), str(self.modelColor))
-    self.parameterNode.SetParameter("TD.%s.tipLength" % (tipLength), str(self.tipLenngth))
-    
-
-  def loadParameters(self, parameterNode):
-    pass
-
-
   #def getEgramData(self, cath):
   #
   #  r = []
