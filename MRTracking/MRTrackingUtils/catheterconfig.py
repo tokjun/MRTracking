@@ -384,7 +384,10 @@ class MRTrackingCatheterConfig():
     
   
   def onTrackingDataSelected(self):
-    tdnode = self.trackingDataSelector.currentNode()    
+    tdnode = self.trackingDataSelector.currentNode()
+    if self.currentCatheter:
+      self.currentCatheter.setTrackingDataNodeID(tdnode.GetID())
+    
 
   def onEgramDataSelected(self):
     tdnode = self.trackingDataSelector.currentNode()
@@ -557,7 +560,7 @@ class MRTrackingCatheterConfig():
     td = self.currentCatheter      
     if td:
       td.setTipLength(length)
-      self.updateCatheter()
+      td.updateCatheter()
 
         
   def setCoilPositions(self, array, save=False):
@@ -581,7 +584,7 @@ class MRTrackingCatheterConfig():
     if td:
       #td.radius[index] = diameter / 2.0
       td.setRadius(diameter / 2.0)
-      self.updateCatheter()
+      td.updateCatheter()
     
 
   def setCatheterOpacity(self, opacity):
@@ -589,7 +592,7 @@ class MRTrackingCatheterConfig():
     if td:
       #td.opacity[index] = opacity
       td.setOpacity(opacity)
-      self.updateCatheter()
+      td.updateCatheter()
 
         
   def setShowCoilLabel(self, show):
@@ -597,7 +600,7 @@ class MRTrackingCatheterConfig():
     if td:
       #td.showCoilLabel = show
       td.setShowCoilLabel(show)
-      self.updateCatheter()
+      td.updateCatheter()
         
     
   def setActiveCoils(self, coils0, coilOrder0):
@@ -611,7 +614,7 @@ class MRTrackingCatheterConfig():
       else:
         td.setCoilOrder(False)
 
-      self.updateCatheter()
+      td.updateCatheter()
         
     return True
 

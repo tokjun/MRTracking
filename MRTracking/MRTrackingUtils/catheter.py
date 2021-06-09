@@ -7,12 +7,22 @@
 # The Catheter class is designed to replace the TrackingData class, which manages data
 # and parameters to visualize catheters. The major difference between the Catheter and
 # Tracking classes is the number of catheters they manage; the Catheter class only
-# manages one catheter whereas the TrackingData class manages two. 
+# manages one catheter whereas the TrackingData class manages two.
 #
+# Ideally, the Catheter class should be implemented as an MRML node; however, this approach
+# is not possible, because the Python-wrapped VTK does not allow to override the methods in
+# the parent classes making it difficult to create an MRML node that works with some of
+# convenient features in Slicer, such as qMRMLNodeComboBox.
+# Instead, the Catheter class instance creates one parent vtkMRMLLinearTransformNode to keep
+# all the tracking transforms under one linear transform, and save all the parameters as
+# attributes.
+
+
 from qt import QObject, Signal, Slot
 import slicer
 import numpy
 import vtk
+import time
 
 
 class CatheterCollection(QObject):
@@ -49,7 +59,7 @@ class CatheterCollection(QObject):
   def add(self, cath):
 
     self.catheterList.append(cath)
-    self.catheterID = self.lastID
+    cath.catheterID = self.lastID
     self.lastID = self.lastID + 1
     self.added.emit(len(self.catheterList)-1)
 
@@ -108,7 +118,6 @@ class Catheter:
 
   def __init__(self, name='Cath'):
 
-    self.MAX_CATHETERS = 2
     self.MAX_COILS = 8
     
     #slicer.mrmlScene.AddObserver(slicer.vtkMRMLScene.NodeRemovedEvent, self.onNodeRemovedEvent)
@@ -119,6 +128,9 @@ class Catheter:
     self.widget = None
     self.eventTag = ''
 
+    self.numberOfCoils = 0
+    self.coildTransformNodeIDList = [None] * self.MAX_COILS
+    
     self.curveNodeID = ''  # TODO: Is this needed?
     self.lastMTime = 0
     
@@ -170,12 +182,13 @@ class Catheter:
 
   def setName(self, name):
     self.name = name
-    
+
+  # Will be obsolete
   def setID(self, id):
     self.trackingDataNodeID = id
 
   def setTrackingDataNodeID(self, id):
-    self.setID(id)
+    self.trackingDataNodeID = id    
 
   def setLogic(self, logic):
     self.logic = logic
@@ -197,6 +210,8 @@ class Catheter:
     tdnode = slicer.mrmlScene.GetNodeByID(self.trackingDataNodeID)
     
     if tdnode:
+      print('activateTracking(): Adding transforms..')
+      
       # Since TrackingDataBundle does not invoke ModifiedEvent, obtain the first child node
       if tdnode.GetNumberOfTransformNodes() > 0:
         # Create transform nodes for filtered tracking data
@@ -207,10 +222,10 @@ class Catheter:
         ##       TrackerStabilizer module. It is not guaranteed that every tracking data is used when
         ##       the tracking frame rate is higher than 66.66 fps (=1000ms/15ms). 
         #childNode = tdnode.GetTransformNode(0)
-        childNode = td.filteredTransformNodes[0]
+        childNode = self.filteredTransformNodes[0]
         
-        childNode.SetAttribute('MRTracking.' + self.catheterID + '.parent', tdnode.GetID())
-        td.eventTag = childNode.AddObserver(vtk.vtkCommand.ModifiedEvent, self.onIncomingNodeModifiedEvent)
+        childNode.SetAttribute('MRTracking.' + str(self.catheterID) + '.parent', tdnode.GetID())
+        self.eventTag = childNode.AddObserver(vtk.vtkCommand.ModifiedEvent, self.onIncomingNodeModifiedEvent)
         print("Observer for TrackingDataBundleNode added.")
         return True
       else:
@@ -222,15 +237,14 @@ class Catheter:
     tdnode = slicer.mrmlScene.GetNodeByID(self.trackingDataNodeID)
     
     if tdnode:
-      if tdnode.GetNumberOfTransformNodes() > 0 and td.eventTag != '':
+      if tdnode.GetNumberOfTransformNodes() > 0 and self.eventTag != '':
         childNode = tdnode.GetTransformNode(0)
-        childNode.RemoveObserver(td.eventTag)
-        td.eventTag = ''
+        childNode.RemoveObserver(self.eventTag)
+        self.eventTag = ''
         return True
       else:
         return False
 
-      
       
   def setFilteredTransforms(self, tdnode, activeCoils, createNew=True):
     #
@@ -256,6 +270,7 @@ class Catheter:
           self.filteredTransformNodes[i] = slicer.mrmlScene.GetNodeByID(filteredNodeID)
           
         if self.filteredTransformNodes[i] == None and createNew:
+          print('setFilteredTransforms(): Adding linear transform node.')
           self.filteredTransformNodes[i] = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLLinearTransformNode')
           inputNode.SetAttribute('MRTracking.filteredNode', self.filteredTransformNodes[i].GetID())
           
@@ -264,6 +279,7 @@ class Catheter:
         if processorNodeID != '':
           self.transformProcessorNodes[i] = slicer.mrmlScene.GetNodeByID(processorNodeID)
         if self.transformProcessorNodes[i] == None and createNew:
+          print('setFilteredTransforms(): Adding transform processor node.')
           self.transformProcessorNodes[i] = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLTransformProcessorNode')
           inputNode.SetAttribute('MRTracking.processorNode', self.transformProcessorNodes[i].GetID())
 
@@ -283,7 +299,7 @@ class Catheter:
         
   def onIncomingNodeModifiedEvent(self, caller, event):
 
-    parentID = str(caller.GetAttribute('MRTracking.' + self.catheterID + '.parent'))
+    parentID = str(caller.GetAttribute('MRTracking.' + str(self.catheterID) + '.parent'))
     
     if parentID == '':
       return
@@ -299,15 +315,15 @@ class Catheter:
         # TODO: Should we check all time stamps under the tracking node?
         tnode = tdnode.GetTransformNode(0)
         mTime = tnode.GetTransformToWorldMTime()
-        if mTime > td.lastMTime:
+        if mTime > self.lastMTime:
           currentTime = time.time()
-          td.lastMTime = mTime
-          td.lastTS = currentTime
+          self.lastMTime = mTime
+          self.lastTS = currentTime
           fUpdate = True
       
       self.updateCatheterNode()
 
-      if fUpdate:
+      if fUpdate and self.registration:
         self.registration.updatePoints()
 
 
@@ -317,15 +333,15 @@ class Catheter:
     if tdnode == None:
       print('updateCatheter(): Error - no TrackingDataNode.')
       return
-    
-    curveNodeID = str(tdnode.GetAttribute('MRTracking.' + self.catheterID + '.CurveNode%d'))
+
+    curveNodeID = str(tdnode.GetAttribute('MRTracking.' + str(self.catheterID) + '.CurveNode'))
     curveNode = None
     if curveNodeID != None:
-      curveNode = self.scene.GetNodeByID(curveNodeID)
+      curveNode = slicer.mrmlScene.GetNodeByID(curveNodeID)
 
     if curveNode == None:
-      curveNode = self.scene.AddNewNodeByClass('vtkMRMLMarkupsCurveNode')
-      tdnode.SetAttribute('MRTracking.' + self.catheterID + '.CurveNode', curveNode.GetID())
+      curveNode = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLMarkupsCurveNode')
+      tdnode.SetAttribute('MRTracking.' + str(self.catheterID) + '.CurveNode', curveNode.GetID())
     
     prevState = curveNode.StartModify()
 
@@ -339,7 +355,7 @@ class Catheter:
     
     # Update time stamp
     ## TODO: Ideally, the time stamp should come from the data source rather than 3D Slicer.
-    curveNode.SetAttribute('MRTracking.' + self.catheterID + '.lastTS', '%f' % td.lastTS)
+    curveNode.SetAttribute('MRTracking.' + str(self.catheterID) + '.lastTS', '%f' % self.lastTS)
     
     nActiveCoils = sum(mask)
     
@@ -371,7 +387,7 @@ class Catheter:
         coilID = j
         if fFlip:
           coilID = lastCoil - j
-        curveNode.SetNthControlPointPosition(coilID, v[0] * td.axisDirections[0], v[1] * td.axisDirections[1], v[2] * td.axisDirections[2])
+        curveNode.SetNthControlPointPosition(coilID, v[0] * self.axisDirections[0], v[1] * self.axisDirections[1], v[2] * self.axisDirections[2])
         if coilID == 0:
           egramPoint = v;
           
@@ -419,7 +435,7 @@ class Catheter:
           prMarkupsNode.SetNthControlPointDescription(id, desc)
 
           # If the header is not registered to the markup node, do it now
-          ev = prMarkupsNode.GetAttribute('MRTracking.' + self.catheterID + '.EgramParamList')
+          ev = prMarkupsNode.GetAttribute('MRTracking.' + str(self.catheterID) + '.EgramParamList')
           if ev == None:
             attr= None
             for eh in egramHeader:
@@ -427,7 +443,7 @@ class Catheter:
                 attr = attr + ',' + str(eh)
               else:
                 attr = str(eh)
-            prMarkupsNode.SetAttribute('MRTracking.' + self.catheterID + '.EgramParamList', attr)
+            prMarkupsNode.SetAttribute('MRTracking.' + str(self.catheterID) + '.EgramParamList', attr)
             prMarkupsNode.Modified();
 
 
@@ -439,9 +455,9 @@ class Catheter:
       return
     
     curveNode = None
-    curveNodeID = str(tdnode.GetAttribute('MRTracking.' + self.catheterID + '.CurveNode%d'))
+    curveNodeID = str(tdnode.GetAttribute('MRTracking.' + str(self.catheterID) + '.CurveNode'))
     if curveNodeID != None:
-      curveNode = self.scene.GetNodeByID(curveNodeID)
+      curveNode = slicer.mrmlScene.GetNodeByID(curveNodeID)
 
     if curveNode == None:
       return
@@ -473,14 +489,14 @@ class Catheter:
       self.tipPoly = vtk.vtkPolyData()
     
     if self.tipModelNode == None:
-      self.tipModelNode = self.scene.AddNewNodeByClass('vtkMRMLModelNode')
+      self.tipModelNode = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLModelNode')
       self.tipModelNode.SetName('Tip')
-      tdnode.SetAttribute('MRTracking.' + self.catheterID + '.tipModel%d', self.tipModelNode.GetID())
+      tdnode.SetAttribute('MRTracking.' + str(self.catheterID) + '.tipModel', self.tipModelNode.GetID())
         
     if self.tipTransformNode == None:
-      self.tipTransformNode = self.scene.AddNewNodeByClass('vtkMRMLLinearTransformNode')
+      self.tipTransformNode = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLLinearTransformNode')
       self.tipTransformNode.SetName('TipTransform')
-      tdnode.SetAttribute('MRTracking.' + self.catheterID + '.tipTransform', self.tipTransformNode.GetID())
+      tdnode.SetAttribute('MRTracking.' + str(self.catheterID) + '.tipTransform', self.tipTransformNode.GetID())
 
     ## The 'curve end point matrix' (normal vectors + the curve end position)
     matrix = vtk.vtkMatrix4x4()
@@ -561,12 +577,12 @@ class Catheter:
 
     tipDispID = tipModelNode.GetDisplayNodeID()
     if tipDispID == None:
-      tipDispNode = self.scene.AddNewNodeByClass('vtkMRMLModelDisplayNode')
-      tipDispNode.SetScene(self.scene)
+      tipDispNode = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLModelDisplayNode')
+      tipDispNode.SetScene(slicer.mrmlScene)
       tipModelNode.SetAndObserveDisplayNodeID(tipDispNode.GetID());
       tipDispID = tipModelNode.GetDisplayNodeID()
       
-    tipDispNode = self.scene.GetNodeByID(tipDispID)
+    tipDispNode = slicer.mrmlScene.GetNodeByID(tipDispID)
 
     prevState = tipDispNode.StartModify()
     tipDispNode.SetColor(color)
