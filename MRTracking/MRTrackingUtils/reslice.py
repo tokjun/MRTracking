@@ -30,19 +30,6 @@ class MRTrackingReslice(MRTrackingPanelBase):
 
     resliceLayout = qt.QFormLayout(frame)
 
-    # Tracking node selector
-    self.resliceTrackingDataSelector = slicer.qMRMLNodeComboBox()
-    self.resliceTrackingDataSelector.nodeTypes = ( ("vtkMRMLIGTLTrackingDataBundleNode"), "" )
-    self.resliceTrackingDataSelector.selectNodeUponCreation = True
-    self.resliceTrackingDataSelector.addEnabled = True
-    self.resliceTrackingDataSelector.removeEnabled = False
-    self.resliceTrackingDataSelector.noneEnabled = False
-    self.resliceTrackingDataSelector.showHidden = True
-    self.resliceTrackingDataSelector.showChildNodeTypes = False
-    self.resliceTrackingDataSelector.setMRMLScene( slicer.mrmlScene )
-    self.resliceTrackingDataSelector.setToolTip( "Tracking Data for Reslicing" )
-    resliceLayout.addRow("Tracking Data: ", self.resliceTrackingDataSelector)
-    
     self.resliceCathRadioButton = [None] * self.nCath
     self.resliceCathBoxLayout = qt.QHBoxLayout()
     self.resliceCathGroup = qt.QButtonGroup()
@@ -71,7 +58,6 @@ class MRTrackingReslice(MRTrackingPanelBase):
     self.resliceBoxLayout.addWidget(self.resliceCorCheckBox)
     resliceLayout.addRow("Plane:", self.resliceBoxLayout)
 
-    self.resliceTrackingDataSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onTrackingDataSelected)
     self.resliceAxCheckBox.connect('toggled(bool)', self.onResliceChecked)
     self.resliceSagCheckBox.connect('toggled(bool)', self.onResliceChecked)
     self.resliceCorCheckBox.connect('toggled(bool)', self.onResliceChecked)
@@ -84,15 +70,11 @@ class MRTrackingReslice(MRTrackingPanelBase):
   #--------------------------------------------------
   # GUI Slots
 
-  def onTrackingDataSelected(self):
-    
-    self.update()
-
-    
   def onSwitchCatheter(self):
     #
     # Should be implemented in the child class
     # 
+    self.update()
     pass
 
   def onResliceChecked(self):
@@ -121,11 +103,8 @@ class MRTrackingReslice(MRTrackingPanelBase):
 
     index = self.resliceCath
     
-    tdnode = self.resliceTrackingDataSelector.currentNode()
-    if tdnode == None:
-      return
-
-    tipTransformNodeID = tdnode.GetAttribute('MRTracking.tipTransform%d' % index)
+    #tipTransformNodeID = tdnode.GetAttribute('MRTracking.tipTransform%d' % index)
+    tipTransformNodeID = self.currentCatheter.tipTransformNode.GetID()
     if tipTransformNodeID == '':
       return
       

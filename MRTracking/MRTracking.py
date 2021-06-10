@@ -3,7 +3,7 @@ import unittest
 import time
 from __main__ import vtk, qt, ctk, slicer
 from slicer.ScriptedLoadableModule import *
-from MRTrackingUtils.trackingdata import *
+#from MRTrackingUtils.trackingdata import *
 from MRTrackingUtils.connector import *
 from MRTrackingUtils.surfacemapping import *
 from MRTrackingUtils.reslice import *
