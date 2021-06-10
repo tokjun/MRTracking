@@ -257,6 +257,8 @@ class MRTrackingFiducialRegistration():
     if self.fromCatheter == None:
       return
 
+    self.fromCatheter.registration = self
+    
     fiducialsNode = self.fromCatheter.getRegistrationFiducialNode()
     if fiducialsNode == None:
       fiducialsNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLMarkupsFiducialNode")
@@ -274,6 +276,8 @@ class MRTrackingFiducialRegistration():
     if self.toCatheter == None:
       return
 
+    self.toCatheter.registration = self
+    
     fiducialsNode = self.toCatheter.getRegistrationFiducialNode()
     if fiducialsNode == None:
       fiducialsNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLMarkupsFiducialNode")
