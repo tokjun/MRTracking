@@ -484,7 +484,7 @@ class MRTrackingCatheterConfig():
     # TODO: Should the following be moved to catheter.py?
 
     td = self.currentCatheter
-    tdnode = slicer.mrmlScene.GetNodeByID(td.trackingDataNode)
+    tdnode = slicer.mrmlScene.GetNodeByID(td.trackingDataNodeID)
     
     if td and tdnode:
       nTransforms = tdnode.GetNumberOfTransformNodes()

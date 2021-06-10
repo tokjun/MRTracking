@@ -129,7 +129,7 @@ class Catheter:
     self.eventTag = ''
 
     self.numberOfCoils = 0
-    self.coildTransformNodeIDList = [None] * self.MAX_COILS
+    self.childTransformNodeIDList = [None] * self.MAX_COILS
     
     self.curveNodeID = ''  # TODO: Is this needed?
     self.lastMTime = 0
@@ -221,7 +221,6 @@ class Catheter:
         ## TODO: Using the filtered transform node will invoke the event handler every 15 ms as fixed in
         ##       TrackerStabilizer module. It is not guaranteed that every tracking data is used when
         ##       the tracking frame rate is higher than 66.66 fps (=1000ms/15ms). 
-        #childNode = tdnode.GetTransformNode(0)
         childNode = self.filteredTransformNodes[0]
         
         childNode.SetAttribute('MRTracking.' + str(self.catheterID) + '.parent', tdnode.GetID())
@@ -265,23 +264,23 @@ class Catheter:
       # on the same TrackingData node. Needs to include the Catheter instance name or the unique catheterID
       # in the attribute key.
       if self.filteredTransformNodes[i] == None:
-        filteredNodeID = str(inputNode.GetAttribute('MRTracking.filteredNode'))
+        filteredNodeID = str(inputNode.GetAttribute('MRTracking.' + str(self.catheterID) + '.filteredNode'))
         if filteredNodeID != '':
           self.filteredTransformNodes[i] = slicer.mrmlScene.GetNodeByID(filteredNodeID)
           
         if self.filteredTransformNodes[i] == None and createNew:
           print('setFilteredTransforms(): Adding linear transform node.')
           self.filteredTransformNodes[i] = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLLinearTransformNode')
-          inputNode.SetAttribute('MRTracking.filteredNode', self.filteredTransformNodes[i].GetID())
+          inputNode.SetAttribute('MRTracking.' + str(self.catheterID) + '.filteredNode', self.filteredTransformNodes[i].GetID())
           
       if self.transformProcessorNodes[i] == None:
-        processorNodeID = str(inputNode.GetAttribute('MRTracking.processorNode'))
+        processorNodeID = str(inputNode.GetAttribute('MRTracking.' + str(self.catheterID) + '.processorNode'))
         if processorNodeID != '':
           self.transformProcessorNodes[i] = slicer.mrmlScene.GetNodeByID(processorNodeID)
         if self.transformProcessorNodes[i] == None and createNew:
           print('setFilteredTransforms(): Adding transform processor node.')
           self.transformProcessorNodes[i] = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLTransformProcessorNode')
-          inputNode.SetAttribute('MRTracking.processorNode', self.transformProcessorNodes[i].GetID())
+          inputNode.SetAttribute('MRTracking.' + str(self.catheterID) + '.processorNode', self.transformProcessorNodes[i].GetID())
 
       if self.filteredTransformNodes[i]:
         self.filteredTransformNodes[i].SetName(inputNode.GetName() + '_filtered')
@@ -296,7 +295,7 @@ class Catheter:
         tpnode.SetAndObserveInputUnstabilizedTransformNode(inputNode)
         tpnode.SetAndObserveOutputTransformNode(self.filteredTransformNodes[i])
 
-        
+
   def onIncomingNodeModifiedEvent(self, caller, event):
 
     parentID = str(caller.GetAttribute('MRTracking.' + str(self.catheterID) + '.parent'))
