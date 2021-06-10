@@ -24,18 +24,6 @@ class MRTrackingCatheterConfig(MRTrackingPanelBase):
     selectorLayout = qt.QFormLayout()
     layout.addLayout(selectorLayout)
     
-    self.trackingDataSelector = slicer.qMRMLNodeComboBox()
-    self.trackingDataSelector.nodeTypes = ( ("vtkMRMLIGTLTrackingDataBundleNode"), "" )
-    self.trackingDataSelector.selectNodeUponCreation = True
-    self.trackingDataSelector.addEnabled = True
-    self.trackingDataSelector.removeEnabled = False
-    self.trackingDataSelector.noneEnabled = False
-    self.trackingDataSelector.showHidden = True
-    self.trackingDataSelector.showChildNodeTypes = False
-    self.trackingDataSelector.setMRMLScene( slicer.mrmlScene )
-    self.trackingDataSelector.setToolTip( "Incoming tracking data" )
-    selectorLayout.addRow("Source: ", self.trackingDataSelector)
-    
     self.activeTrackingCheckBox = qt.QCheckBox()
     self.activeTrackingCheckBox.checked = 0
     self.activeTrackingCheckBox.enabled = 1
@@ -106,24 +94,36 @@ class MRTrackingCatheterConfig(MRTrackingPanelBase):
     self.catheterRegPointsLineEdit.styleSheet = "QLineEdit { background:transparent; }"
     configFormLayout.addRow("Cath Reg. Points: ", self.catheterRegPointsLineEdit)
 
-    #--------------------------------------------------
-    # Coil Selection
-    #
-    coilGroupBox = ctk.ctkCollapsibleGroupBox()
-    coilGroupBox.title = "Coil Selection"
-    coilGroupBox.collapsed = False
-    
-    layout.addWidget(coilGroupBox)
-    coilSelectionLayout = qt.QFormLayout(coilGroupBox)
-
     #
     # Check box to show/hide coil labels 
     #
     self.showCoilLabelCheckBox = qt.QCheckBox()
     self.showCoilLabelCheckBox.checked = 0
     self.showCoilLabelCheckBox.setToolTip("Show/hide coil labels")
-    coilSelectionLayout.addRow("Show Coil Labels: ", self.showCoilLabelCheckBox)
+    configFormLayout.addRow("Show Coil Labels: ", self.showCoilLabelCheckBox)
+    
+    #--------------------------------------------------
+    # Coil Selection
+    #
+    coilGroupBox = ctk.ctkCollapsibleGroupBox()
+    coilGroupBox.title = "Source & Coil Selection"
+    coilGroupBox.collapsed = False
+    
+    layout.addWidget(coilGroupBox)
+    coilSelectionLayout = qt.QFormLayout(coilGroupBox)
 
+    self.trackingDataSelector = slicer.qMRMLNodeComboBox()
+    self.trackingDataSelector.nodeTypes = ( ("vtkMRMLIGTLTrackingDataBundleNode"), "" )
+    self.trackingDataSelector.selectNodeUponCreation = True
+    self.trackingDataSelector.addEnabled = True
+    self.trackingDataSelector.removeEnabled = False
+    self.trackingDataSelector.noneEnabled = False
+    self.trackingDataSelector.showHidden = True
+    self.trackingDataSelector.showChildNodeTypes = False
+    self.trackingDataSelector.setMRMLScene( slicer.mrmlScene )
+    self.trackingDataSelector.setToolTip( "Incoming tracking data" )
+    coilSelectionLayout.addRow("Source: ", self.trackingDataSelector)
+    
     #
     # Coil seleciton check boxes
     #
@@ -553,7 +553,7 @@ class MRTrackingCatheterConfig(MRTrackingPanelBase):
         #  i = i + 1
       print(td.coilPositions)
       # Make sure that the registration class instance references the tracking data
-      self.registration.trackingData = self.TrackingData
+      #self.registration.trackingData = self.TrackingData
       self.setTipLength(td.coilPositions[0])  # The first coil position match the tip length
 
         

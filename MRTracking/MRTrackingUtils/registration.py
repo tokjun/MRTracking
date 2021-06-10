@@ -5,6 +5,7 @@ import vtk
 import functools
 import time
 import numpy
+from MRTrackingUtils.qcomboboxcatheter import *
 
 #------------------------------------------------------------
 #
@@ -17,12 +18,10 @@ class MRTrackingFiducialRegistration():
 
     self.label = label
     self.fiducialsVisible = False
-    self.trackingData = None
+    #self.trackingData = None
 
     # Circular buffers for registration poitns
-    self.fromFiducialsNode = None
-    self.toFiducialsNode = None
-    self.fromFiducialsTimeStamp = []
+    self.fromFiducialsTimeStamp = []  ## TODO: Should it be managed by the catheter node?
     self.toFiducialsTimeStamp = []
 
     # Transformation
@@ -31,7 +30,6 @@ class MRTrackingFiducialRegistration():
     self.applyTransform = None # Specifiy the data node under the transform -- TODO: Will be obsolete. Use 'transformedCatheter'
     self.transformedCatheter = None # Specifiy a Catheter class instance to which the registration transform is applied. (Replaces self.applyTransform)
     
-    self.mrTrackingLogic = None
     self.sizeCircularBuffer = 24 # 8 time points x 3 (x, y, z) = 24
     self.pCircularBuffer = 0
 
@@ -46,35 +44,33 @@ class MRTrackingFiducialRegistration():
 
     self.minInterval = 1.0           # seconds
     self.maxTimeDifference = 0.1     # seconds
+
+    self.catheters = None            # CatheterCollection
+
+    self.fromCatheter = None
+    self.toCatheter = None
+
     
+  def setCatheterCollection(self, cath):
+
+    self.catheters = cath
+
     
   def buildGUI(self, parent):
 
     registrationLayout = qt.QFormLayout(parent)
 
-    self.fromTrackingDataSelector = slicer.qMRMLNodeComboBox()
-    self.fromTrackingDataSelector.nodeTypes = ( ("vtkMRMLIGTLTrackingDataBundleNode"), "" )
-    self.fromTrackingDataSelector.selectNodeUponCreation = True
-    self.fromTrackingDataSelector.addEnabled = True
-    self.fromTrackingDataSelector.removeEnabled = False
-    self.fromTrackingDataSelector.noneEnabled = False
-    self.fromTrackingDataSelector.showHidden = True
-    self.fromTrackingDataSelector.showChildNodeTypes = False
-    self.fromTrackingDataSelector.setMRMLScene( slicer.mrmlScene )
-    self.fromTrackingDataSelector.setToolTip( "Tracking Data (From)" )
-    registrationLayout.addRow("TrackingData (From): ", self.fromTrackingDataSelector)
+    self.fromCatheterComboBox = QComboBoxCatheter()
+    self.fromCatheterComboBox.setCatheterCollection(self.catheters)
+    self.fromCatheterComboBox.currentIndexChanged.connect(self.onFromCatheterSelected)
+    
+    registrationLayout.addRow("Catheter (From): ", self.fromCatheterComboBox)
 
-    self.toTrackingDataSelector = slicer.qMRMLNodeComboBox()
-    self.toTrackingDataSelector.nodeTypes = ( ("vtkMRMLIGTLTrackingDataBundleNode"), "" )
-    self.toTrackingDataSelector.selectNodeUponCreation = True
-    self.toTrackingDataSelector.addEnabled = True
-    self.toTrackingDataSelector.removeEnabled = False
-    self.toTrackingDataSelector.noneEnabled = False
-    self.toTrackingDataSelector.showHidden = True
-    self.toTrackingDataSelector.showChildNodeTypes = False
-    self.toTrackingDataSelector.setMRMLScene( slicer.mrmlScene )
-    self.toTrackingDataSelector.setToolTip( "Tracking data (To)")
-    registrationLayout.addRow("TrackingData (To): ", self.toTrackingDataSelector)
+    self.toCatheterComboBox = QComboBoxCatheter()
+    self.toCatheterComboBox.setCatheterCollection(self.catheters)
+    self.toCatheterComboBox.currentIndexChanged.connect(self.onToCatheterSelected)
+    
+    registrationLayout.addRow("Catheter (From): ", self.toCatheterComboBox)
 
     # #
     # # Fiducial points used (either "tip only" or "all"
@@ -240,8 +236,6 @@ class MRTrackingFiducialRegistration():
     #
     # Connect signals and slots
     #
-    self.fromTrackingDataSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onTrackingDataFromSelected)
-    self.toTrackingDataSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onTrackingDataToSelected)
     self.collectButton.connect(qt.SIGNAL("clicked()"), self.onCollectPoints)
     self.clearButton.connect(qt.SIGNAL("clicked()"), self.onClearPoints)
     self.runButton.connect(qt.SIGNAL("clicked()"), self.onRunRegistration)
@@ -254,45 +248,39 @@ class MRTrackingFiducialRegistration():
     self.maxTimeDifferenceSliderWidget.connect("valueChanged(double)", self.onPointSelectionParametersChanged)
     self.minIntervalSliderWidget.connect("valueChanged(double)", self.onPointSelectionParametersChanged)
     self.pointExpirationSliderWidget.connect("valueChanged(double)", self.onPointSelectionParametersChanged)
-    
-  def onTrackingDataFromSelected(self):
 
-    fromTrackingNode = self.fromTrackingDataSelector.currentNode()
 
-    if fromTrackingNode == None:
-      self.fromFiducialsNode = None
-      return
-    
-    # Get/create fiducials node for "To" points
-    fromFiducialsNodeID = fromTrackingNode.GetAttribute('MRTracking.RegistrationPointsFrom')
-    if fromFiducialsNodeID:
-      self.fromFiducialsNode = slicer.mrmlScene.GetNodeByID(fromFiducialsNodeID)
-    else:
-      self.fromFiducialsNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLMarkupsFiducialNode")
-      self.fromFiducialsNode.SetName('RegistrationPointsFrom')
-      fromTrackingNode.SetAttribute('MRTracking.RegistrationPointsFrom', self.fromFiducialsNode.GetID())
+  def onFromCatheterSelected(self):
 
-    dnode = self.fromFiducialsNode.GetDisplayNode()
-    dnode.SetVisibility(self.fiducialsVisible)
+    self.fromCatheter = self.fromCatheterComboBox.getCurrentCatheter()
     
-  def onTrackingDataToSelected(self):
-
-    toTrackingNode = self.toTrackingDataSelector.currentNode()
-    
-    if toTrackingNode == None:
-      self.toFiducialsNode = None
+    if self.fromCatheter == None:
       return
 
-    # Get/create fiducials node for "From" points
-    toFiducialsNodeID = toTrackingNode.GetAttribute('MRTracking.RegistrationPointsTo')
-    if toFiducialsNodeID:
-      self.toFiducialsNode = slicer.mrmlScene.GetNodeByID(toFiducialsNodeID)
-    else:
-      self.toFiducialsNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLMarkupsFiducialNode")
-      self.toFiducialsNode.SetName('RegistrationPointsTo')
-      toTrackingNode.SetAttribute('MRTracking.RegistrationPointsTo', self.toFiducialsNode.GetID())
+    fiducialsNode = self.fromCatheter.getRegistrationFiducialNode()
+    if fiducialsNode == None:
+      fiducialsNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLMarkupsFiducialNode")
+      fiducialsNode.SetName('RegistrationPoints-' + str(self.fromCatheter.catheterID))
+      self.fromCatheter.setRegistrationFiducialNode(fiducialsNode.GetID())
       
-    dnode = self.toFiducialsNode.GetDisplayNode()
+    dnode = fiducialsNode.GetDisplayNode()
+    dnode.SetVisibility(self.fiducialsVisible)
+
+    
+  def onToCatheterSelected(self):
+
+    self.toCatheter = self.toCatheterComboBox.getCurrentCatheter()
+    
+    if self.toCatheter == None:
+      return
+
+    fiducialsNode = self.toCatheter.getRegistrationFiducialNode()
+    if fiducialsNode == None:
+      fiducialsNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLMarkupsFiducialNode")
+      fiducialsNode.SetName('RegistrationPoints-' + str(self.toCatheter.catheterID))
+      self.toCatheter.setRegistrationFiducialNode(fiducialsNode.GetID())
+      
+    dnode = fiducialsNode.GetDisplayNode()
     dnode.SetVisibility(self.fiducialsVisible)
 
     
@@ -307,13 +295,9 @@ class MRTrackingFiducialRegistration():
     if auto:
       fCollect = False # If auto=True, this function won't collect the points in default.
 
-    #print ("onCollectPoints(self)")
-    fromTrackingNode = self.fromTrackingDataSelector.currentNode()
-    toTrackingNode = self.toTrackingDataSelector.currentNode()
-
     ## TODO: Assuming to use the first curve. 
-    fromCurveNodeID = fromTrackingNode.GetAttribute('MRTracking.CurveNode0')
-    toCurveNodeID = toTrackingNode.GetAttribute('MRTracking.CurveNode0')
+    fromCurveNodeID =  self.fromCatheter.curveNodeID
+    toCurveNodeID = self.toCatheter.curveNodeID
 
     fromCurveNode = slicer.mrmlScene.GetNodeByID(fromCurveNodeID)
     toCurveNode = slicer.mrmlScene.GetNodeByID(toCurveNodeID)
@@ -329,26 +313,30 @@ class MRTrackingFiducialRegistration():
       msgBox.buttonClicked.connect(msgButtonClick)
       returnValue = msgBox.exec()
       return
-
-    if self.fromFiducialsNode:
-      dnode = self.fromFiducialsNode.GetDisplayNode()
+    
+    fromFiducialsNode = self.fromCatheter.getRegistrationFiducialNode()
+    
+    if fromFiducialsNode:
+      dnode = fromFiducialsNode.GetDisplayNode()
       dnode.SetVisibility(self.fiducialsVisible)
     else:
       print("Error: Fiducials Node for 'From' is not available.")
       return
-        
-    if self.toFiducialsNode:
-      dnode = self.toFiducialsNode.GetDisplayNode()
+
+    toFiducialsNode = self.toCatheter.getRegistrationFiducialNode()    
+    
+    if toFiducialsNode:
+      dnode = toFiducialsNode.GetDisplayNode()
       dnode.SetVisibility(self.fiducialsVisible)
     else:
       print("Error: Fiducials Node for 'To' is not available.")
       return
 
     ## Get TrackingData 
-    tdFrom = self.trackingData[fromTrackingNode.GetID()]
-    tdTo   = self.trackingData[toTrackingNode.GetID()]
-    coilPosFrom = tdFrom.coilPositions[0]
-    coilPosTo = tdTo.coilPositions[0]
+    tdFrom = self.fromCatheter
+    tdTo   = self.toCatheter
+    coilPosFrom = tdFrom.coilPositions
+    coilPosTo = tdTo.coilPositions
     
     #
     #              Tip     s[0]     s[1]       s[2]       s[3] ...
@@ -379,8 +367,10 @@ class MRTrackingFiducialRegistration():
     #
     
     # Match the number of coils
-    nCoilsFrom = fromTrackingNode.GetNumberOfTransformNodes()
-    nCoilsTo = toTrackingNode.GetNumberOfTransformNodes()
+    # nCoilsFrom = fromTrackingNode.GetNumberOfTransformNodes()
+    # nCoilsTo = toTrackingNode.GetNumberOfTransformNodes()
+    nCoilsFrom = self.fromCatheter.getNumberOfActiveCoils()
+    nCoilsTo = self.toCatheter.getNumberOfActiveCoils()
 
     # Check if the number of coils has changed
     if self.prevNCoilsFrom != nCoilsFrom:
@@ -449,8 +439,6 @@ class MRTrackingFiducialRegistration():
     
     for j in range(nCoils):
 
-      print ("t[%d] = %f" % (j, t[j]))
-      
       # 1. Find the two closest coils for Tracking 0 (s[k] and s[k+1]) from each coil for Tracking 1 t[j]
       
       while k < nCoils-1 and s[k+1] < t[j]:
@@ -472,6 +460,10 @@ class MRTrackingFiducialRegistration():
       # 3. Calculate the location of t[j] in the Tracking 0 space by interpolation.      
       # Calculate the curve length between the point s[k] and point s[k+1]
       clen = curve0Node.GetCurveLengthBetweenStartEndPointsWorld(pindex0, pindex1)
+
+      if b == 0.0:
+        print('MRTrackingFiducialRegistration(): Invalid catheter configuration.')
+        return
       
       pindexm =  curve0Node.GetCurvePointIndexAlongCurveWorld(pindex0, clen * a / b)
 
@@ -495,17 +487,17 @@ class MRTrackingFiducialRegistration():
 
 
       # 5. Record the coordinates
-      nFrom = self.fromFiducialsNode.GetNumberOfFiducials()
+      nFrom = fromFiducialsNode.GetNumberOfFiducials()
       
       if nFrom > self.sizeCircularBuffer: # Overwrite a previous point.
-        self.fromFiducialsNode.SetNthFiducialPosition(self.pCircularBuffer, posFrom[0], posFrom[1], posFrom[2])
-        self.toFiducialsNode.SetNthFiducialPosition(self.pCircularBuffer, posTo[0], posTo[1], posTo[2])
+        fromFiducialsNode.SetNthFiducialPosition(self.pCircularBuffer, posFrom[0], posFrom[1], posFrom[2])
+        toFiducialsNode.SetNthFiducialPosition(self.pCircularBuffer, posTo[0], posTo[1], posTo[2])
         self.fromFiducialsTimeStamp[self.pCircularBuffer] = curve0Time
         self.toFiducialsTimeStamp[self.pCircularBuffer] = curve1Time
         self.pCircularBuffer = (self.pCircularBuffer + 1) % self.sizeCircularBuffer
       else: # Add a new point
-        self.fromFiducialsNode.AddFiducial(posFrom[0], posFrom[1], posFrom[2])
-        self.toFiducialsNode.AddFiducial(posTo[0], posTo[1], posTo[2])
+        fromFiducialsNode.AddFiducial(posFrom[0], posFrom[1], posFrom[2])
+        toFiducialsNode.AddFiducial(posTo[0], posTo[1], posTo[2])
         self.fromFiducialsTimeStamp.append(curve0Time)
         self.toFiducialsTimeStamp.append(curve1Time)
 
@@ -515,30 +507,36 @@ class MRTrackingFiducialRegistration():
 
 
     # Check if it is ready for new registration
-    if self.fromFiducialsNode.GetNumberOfFiducials() >  self.minNumFiducials:
+    if fromFiducialsNode.GetNumberOfFiducials() >  self.minNumFiducials:
       return True
     
       
   def onClearPoints(self):
+
+    fromFiducialsNode = self.fromCatheter.getRegistrationFiducialNode()
+    toFiducialsNode = self.toCatheter.getRegistrationFiducialNode()
     
-    if self.fromFiducialsNode:
-      self.fromFiducialsNode.RemoveAllMarkups()
-      
-    if self.toFiducialsNode:
-      self.toFiducialsNode.RemoveAllMarkups()
+    if fromFiducialsNode:
+      fromFiducialsNode.RemoveAllMarkups()
+
+    if toFiducialsNode:
+      toFiducialsNode.RemoveAllMarkups()
 
       
   def onRunRegistration(self):
 
-    if self.fromFiducialsNode == None or self.toFiducialsNode == None:
+    fromFiducialsNode = self.fromCatheter.getRegistrationFiducialNode()
+    toFiducialsNode = self.toCatheter.getRegistrationFiducialNode()
+    
+    if fromFiducialsNode == None or toFiducialsNode == None:
       print('Error: no fiducial point is available.')
 
     ## Copy fiducials to vtkPoint
     fromPoints = vtk.vtkPoints()
     toPoints = vtk.vtkPoints()
 
-    nFrom = self.fromFiducialsNode.GetNumberOfFiducials()
-    nTo = self.toFiducialsNode.GetNumberOfFiducials()
+    nFrom = fromFiducialsNode.GetNumberOfFiducials()
+    nTo = toFiducialsNode.GetNumberOfFiducials()
 
     if nFrom != nTo:
       print("ERROR: The numbers of fixed and moving landmarks do not match.")
@@ -549,9 +547,9 @@ class MRTrackingFiducialRegistration():
 
     for i in range(nFrom):
       pos = [0.0]*3
-      self.fromFiducialsNode.GetNthFiducialPosition(i, pos)
+      fromFiducialsNode.GetNthFiducialPosition(i, pos)
       fromPoints.SetPoint(i, pos)
-      self.toFiducialsNode.GetNthFiducialPosition(i, pos)
+      toFiducialsNode.GetNthFiducialPosition(i, pos)
       toPoints.SetPoint(i, pos)
 
     # Rigid registration
@@ -644,12 +642,15 @@ class MRTrackingFiducialRegistration():
     else:
       self.fiducialsVisible = False
 
-    if self.fromFiducialsNode:
-      dnode = self.fromFiducialsNode.GetDisplayNode()
+    fromFiducialsNode = self.fromCatheter.getRegistrationFiducialNode()
+    toFiducialsNode = self.toCatheter.getRegistrationFiducialNode()
+    
+    if fromFiducialsNode:
+      dnode = fromFiducialsNode.GetDisplayNode()
       dnode.SetVisibility(self.fiducialsVisible)
         
-    if self.toFiducialsNode:
-      dnode = self.toFiducialsNode.GetDisplayNode()
+    if toFiducialsNode:
+      dnode = toFiducialsNode.GetDisplayNode()
       dnode.SetVisibility(self.fiducialsVisible)
 
 
@@ -660,14 +661,13 @@ class MRTrackingFiducialRegistration():
     tdnode = None
 
     if self.applyTransformOnRadioButton.checked == True:
-      self.applyTransform = self.fromTrackingDataSelector.currentNode()
+      self.applyTransform = self.fromCatheter
       tdnode = self.applyTransform
     else:
       tdnode = self.applyTransform
       self.applyTransform = None
 
-    self.mrTrackingLogic.updateCatheterNode(tdnode, 0)
-    self.mrTrackingLogic.updateCatheterNode(tdnode, 1)
+    self.fromCatheter.updateCatheterNode()
 
     
   def onAutoUpdateChanged(self):
@@ -686,11 +686,6 @@ class MRTrackingFiducialRegistration():
     self.pointExpiration = self.pointExpirationSliderWidget.value / 1000.0
     
       
-  def setMRTrackingLogic(self, t):
-    
-    self.mrTrackingLogic = t
-
-    
   def updatePoints(self):
 
     if self.autoUpdate:

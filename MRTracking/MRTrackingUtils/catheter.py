@@ -191,6 +191,8 @@ class Catheter:
     self.defaultCoilPositions['"NavX-Ch1"'] = [0,20,40,60]
     self.defaultCoilPositions['"WWTracker"'] = [10,30,50,70]
 
+    self.registrationFiducialNodeID = None     # MarkupsFiducialNode for poitn-based registration
+
 
   def __del__(self):
     print("Catheter.__del__() is called.")
@@ -256,7 +258,13 @@ class Catheter:
     else:
       return False
 
-      
+    
+  def getNumberOfActiveCoils(self):
+    
+    nActiveCoils = sum(self.activeCoils)    
+    return nActiveCoils
+
+    
   def setFilteredTransforms(self, tdnode, activeCoils, createNew=True):
     #
     # To fileter the transforms under the TrackingDataBundleNode, prepare transform nodes
@@ -1008,7 +1016,20 @@ class Catheter:
         
     return (header, table)
 
-      
+
+  def setRegistrationFiducialNode(self, nodeID):
     
-      
+    self.registrationFiducialNodeID = nodeID
+    # TODO: Save as attribute. 'MRTracking.RegistrationPoints', self.fromFiducialsNode.GetID())
+    
+  
+  def getRegistrationFiducialNode(self):
+
+    if self.registrationFiducialNodeID == None:
+      return None
+
+    node = slicer.mrmlScene.GetNodeByID(self.registrationFiducialNodeID)
+
+    return node
+  
     

@@ -161,8 +161,8 @@ class MRTrackingWidget(ScriptedLoadableModuleWidget):
     self.layout.addWidget(registrationCollapsibleButton)
 
     self.registration =  MRTrackingFiducialRegistration()
+    self.registration.setCatheterCollection(self.logic.catheters)
     self.registration.buildGUI(registrationCollapsibleButton)
-    self.registration.setMRTrackingLogic(self.logic)
     self.logic.setRegistration(self.registration)
 
     
