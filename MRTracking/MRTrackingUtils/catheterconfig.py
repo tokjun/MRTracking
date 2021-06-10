@@ -298,51 +298,42 @@ class MRTrackingCatheterConfig(MRTrackingPanelBase):
     else:
       self.activeTrackingCheckBox.checked == False
     
-    self.updateTrackingDataGUI()
-
-  
-  def updateTrackingDataGUI(self):
     # Enable/disable GUI components based on the state machine
-    
-    tdata = self.currentCatheter
-
-    if tdata == None:
-      return
     
     if self.isTrackingActive():
       self.activeTrackingCheckBox.checked = True
     else:
       self.activeTrackingCheckBox.checked = False
 
-    self.catheterDiameterSliderWidget.value = tdata.radius * 2.0
-    self.catheterOpacitySliderWidget.value = tdata.opacity
+    self.catheterDiameterSliderWidget.value = td.radius * 2.0
+    self.catheterOpacitySliderWidget.value = td.opacity
 
     str = ""
-    for p in tdata.coilPositions:
+    for p in td.coilPositions:
       str += "%.f," % p
     self.catheterRegPointsLineEdit.text = str[:-1] # Remove the last ','
       
-    self.showCoilLabelCheckBox.checked = tdata.showCoilLabel
+    self.showCoilLabelCheckBox.checked = td.showCoilLabel
 
     for ch in range(self.nChannel):
-      self.coilCheckBox[ch].checked = tdata.activeCoils[ch]
+      self.coilCheckBox[ch].checked = td.activeCoils[ch]
     
-    if tdata.axisDirections[0] > 0.0:
+    if td.axisDirections[0] > 0.0:
       self.coordinateRPlusRadioButton.checked = 1
     else:
       self.coordinateRMinusRadioButton.checked = 1
       
-    if tdata.axisDirections[1] > 0.0:
+    if td.axisDirections[1] > 0.0:
       self.coordinateAPlusRadioButton.checked = 1
     else:
       self.coordinateAMinusRadioButton.checked = 1
 
-    if tdata.axisDirections[2] > 0.0:
+    if td.axisDirections[2] > 0.0:
       self.coordinateSPlusRadioButton.checked = 1
     else:
       self.coordinateSMinusRadioButton.checked = 1
 
-    self.egramDataSelector.setCurrentNode(tdata.egramDataNode)
+    self.egramDataSelector.setCurrentNode(td.egramDataNode)
 
     
   def enableCoilSelection(self, switch):

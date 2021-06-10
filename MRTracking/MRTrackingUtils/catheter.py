@@ -10,13 +10,12 @@
 # manages one catheter whereas the TrackingData class manages two.
 #
 # Ideally, the Catheter class should be implemented as an MRML node; however, this approach
-# is not possible, because the Python-wrapped VTK does not allow to override the methods in
-# the parent classes making it difficult to create an MRML node that works with some of
+# is not possible, because the Python-wrapped VTK does not allow to override the methods defined
+# in the parent classes, making it difficult to create an MRML node that works with some of
 # convenient features in Slicer, such as qMRMLNodeComboBox.
-# Instead, the Catheter class instance creates one parent vtkMRMLLinearTransformNode to keep
+# Instead, the Catheter class instance creates one parent vtkMRMLMarkupsCurveNode to keep
 # all the tracking transforms under one linear transform, and save all the parameters as
 # attributes.
-
 
 from qt import QObject, Signal, Slot
 import slicer
@@ -249,16 +248,13 @@ class Catheter:
 
   def deactivateTracking(self):
     
-    tdnode = slicer.mrmlScene.GetNodeByID(self.trackingDataNodeID)
-    
-    if tdnode:
-      if tdnode.GetNumberOfTransformNodes() > 0 and self.eventTag != '':
-        childNode = tdnode.GetTransformNode(0)
-        childNode.RemoveObserver(self.eventTag)
-        self.eventTag = ''
-        return True
-      else:
-        return False
+    if self.eventTag != '':
+      childNode = self.filteredTransformNodes[0]
+      childNode.RemoveObserver(self.eventTag)
+      self.eventTag = ''
+      return True
+    else:
+      return False
 
       
   def setFilteredTransforms(self, tdnode, activeCoils, createNew=True):
