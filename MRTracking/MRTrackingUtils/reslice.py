@@ -75,7 +75,7 @@ class MRTrackingReslice(MRTrackingPanelBase):
     # Should be implemented in the child class
     # 
     self.update()
-    pass
+
 
   def onResliceChecked(self):
     
@@ -103,8 +103,9 @@ class MRTrackingReslice(MRTrackingPanelBase):
 
     index = self.resliceCath
     
-    #tipTransformNodeID = tdnode.GetAttribute('MRTracking.tipTransform%d' % index)
-    tipTransformNodeID = self.currentCatheter.tipTransformNode.GetID()
+    tipTransformNodeID = ''
+    if self.currentCatheter and self.currentCatheter.tipTransformNode:
+      tipTransformNodeID = self.currentCatheter.tipTransformNode.GetID()
     if tipTransformNodeID == '':
       return
       

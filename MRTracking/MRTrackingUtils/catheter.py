@@ -179,8 +179,10 @@ class Catheter:
     self.modelColor = [0.0, 0.0, 1.0]
 
     # Filtering
+    self.cutOffFrequency = 7.50 # Hz
     self.transformProcessorNodes = [None] * self.MAX_COILS
     self.filteredTransformNodes = [None] * self.MAX_COILS
+
     
     # Registration
     self.registration = None
@@ -309,7 +311,7 @@ class Catheter:
         self.transformProcessorNodes[i].SetName(inputNode.GetName() + '_processor')
         tpnode = self.transformProcessorNodes[i]
         tpnode.SetProcessingMode(slicer.vtkMRMLTransformProcessorNode.PROCESSING_MODE_STABILIZE)
-        tpnode.SetStabilizationCutOffFrequency(7.50)
+        tpnode.SetStabilizationCutOffFrequency(self.cutOffFrequency)
         tpnode.SetStabilizationEnabled(1)
         tpnode.SetUpdateModeToAuto()
         tpnode.SetAndObserveInputUnstabilizedTransformNode(inputNode)
@@ -444,7 +446,7 @@ class Catheter:
               break
             ch = ch + 1
           if ch >= len(mask) or ch >= len(egramTable):
-            print('Error: no active channel. ch = ' + ch)
+            print('Error: no active channel. ch = ' + str(ch))
           egramValues = egramTable[ch]
           desc = None
           for v in egramValues:
@@ -976,20 +978,14 @@ class Catheter:
       return 1
     return 0
 
-    
-  #def getEgramData(self, cath):
-  #
-  #  r = []
-  #  
-  #  if self.egramDataNode[cath]:
-  #    text = self.egramDataNode[cath].GetText()
-  #    list = text.split(',')
-  #  
-  #    for v in list:
-  #      r.append(float(v))
-  #      
-  #  return r
+  
+  def setCutOffFrequency(self, freq):
 
+    self.cutOffFrequency = freq
+    for tpnode in self.transformProcessorNodes:
+      if tpnode:
+        tpnode.SetStabilizationCutOffFrequency(self.cutOffFrequency)
+  
   def getEgramData(self):
     #
     # Get Egram data in a table. The function returns 'header' and 'table as

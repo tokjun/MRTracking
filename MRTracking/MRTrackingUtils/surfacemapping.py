@@ -22,8 +22,6 @@ class MRTrackingSurfaceMapping(MRTrackingPanelBase):
     super(MRTrackingSurfaceMapping, self).__init__(label)
     
     self.label = label
-    self.nCath = 2
-    self.cath = 0
     self.currentCatheter = None
     self.scalarBarWidget = None
     self.lookupTable = None
@@ -32,17 +30,6 @@ class MRTrackingSurfaceMapping(MRTrackingPanelBase):
   def buildMainPanel(self, frame):
 
     mappingLayout = qt.QFormLayout(frame)
-    
-    # Catheter selector
-    self.cathRadioButton = [None] * self.nCath
-    self.cathBoxLayout = qt.QHBoxLayout()
-    self.cathGroup = qt.QButtonGroup()
-    for cath in range(self.nCath):
-      self.cathRadioButton[cath] = qt.QRadioButton("Cath %d" % cath)
-      if cath == self.cath:
-        self.cathRadioButton[cath].checked = 0
-      self.cathBoxLayout.addWidget(self.cathRadioButton[cath])
-      self.cathGroup.addButton(self.cathRadioButton[cath])
 
     self.egramRecordPointsSelector = slicer.qMRMLNodeComboBox()
     self.egramRecordPointsSelector.nodeTypes = ( ("vtkMRMLMarkupsFiducialNode"), "" )
@@ -153,9 +140,6 @@ class MRTrackingSurfaceMapping(MRTrackingPanelBase):
     self.mapModelButton.connect('clicked(bool)', self.onMapModel)
     self.colorRangeWidget.connect('valuesChanged(double, double)', self.onUpdateColorRange)
     
-    for cath in range(self.nCath):    
-      self.cathRadioButton[cath].connect('clicked(bool)', self.onSelectCath)
-
     self.activeOnRadioButton.connect('clicked(bool)', self.onActive)
     self.activeOffRadioButton.connect('clicked(bool)', self.onActive)
 
@@ -178,7 +162,7 @@ class MRTrackingSurfaceMapping(MRTrackingPanelBase):
     
     fnode = self.egramRecordPointsSelector.currentNode()
     if fnode:
-      td.pointRecordingMarkupsNode[self.cath] = fnode
+      td.pointRecordingMarkupsNode = fnode
       fdnode = fnode.GetDisplayNode()
       if fdnode == None:
         fdnode = slicer.mrmlScene.CreateNodeByClass('vtkMRMLMarkupsFiducialDisplayNode')
@@ -210,19 +194,19 @@ class MRTrackingSurfaceMapping(MRTrackingPanelBase):
     td = self.currentCatheter    
     if td == None:
       return
-    td.pointRecordingDistance[self.cath] = d
+    td.pointRecordingDistance = d
 
     
   def onResetPointRecording(self):
     td = self.currentCatheter        
-    markupsNode = td.pointRecordingMarkupsNode[self.cath]
+    markupsNode = td.pointRecordingMarkupsNode
     if markupsNode:
       markupsNode.RemoveAllControlPoints()
 
       
   def onGenerateSurface(self):
     td = self.currentCatheter            
-    markupsNode = td.pointRecordingMarkupsNode[self.cath]
+    markupsNode = td.pointRecordingMarkupsNode
     modelNode = self.modelSelector.currentNode()
     pdf = self.pointDistanceFactorSliderWidget.value
     
@@ -232,7 +216,6 @@ class MRTrackingSurfaceMapping(MRTrackingPanelBase):
       
   def onMapModel(self):
     td = self.currentCatheter            
-    #markupsNode = td.pointRecordingMarkupsNode[self.cath]
     markupsNode = self.egramRecordPointsSelector.currentNode()
     modelNode = self.modelSelector.currentNode()
     
@@ -251,7 +234,7 @@ class MRTrackingSurfaceMapping(MRTrackingPanelBase):
       paramStr = self.paramSelector.currentText
       paramIndex = -1
       if paramStr != '' and paramStr != 'None':
-        paramListStr = markupsNode.GetAttribute('MRTracking.EgramParamList')
+        paramListStr = markupsNode.GetAttribute('MRTracking.' + str(td.catheterID) + '.EgramParamList')
         if paramListStr:
           paramList = paramListStr.split(',')
           i = 0
@@ -396,29 +379,23 @@ class MRTrackingSurfaceMapping(MRTrackingPanelBase):
     self.scalarBarWidget.GetScalarBarActor().SetLookupTable(self.lookupTable)
     
 
-  def onSelectCath(self):
-    for cath in range(self.nCath):
-      if self.cathRadioButton[cath].checked:
-        self.cath = cath
-
-        
   def onActive(self):
     td = self.currentCatheter
     if td == None:
       return
     if self.activeOnRadioButton.checked:
       # Add observer
-      fnode = td.pointRecordingMarkupsNode[self.cath]
+      fnode = td.pointRecordingMarkupsNode
       if fnode:
         # Two observers are registered. The PointModifiedEvent is used to handle new points, whereas
         # the ModifiedEvent is used to capture the change of Egram parameter list (in the attribute)
         tag = fnode.AddObserver(vtk.vtkCommand.ModifiedEvent, self.controlPointsNodeUpdated, 2)
         fnode.SetAttribute('SurfaceMapping.ObserverTag.Modified', str(tag))
-      td.pointRecording[self.cath] = True
+      td.pointRecording = True
       
     else:
-      td.pointRecording[self.cath] = False
-      fnode = td.pointRecordingMarkupsNode[self.cath]
+      td.pointRecording = False
+      fnode = td.pointRecordingMarkupsNode
       if fnode:
         tag = fnode.GetAttribute('SurfaceMapping.ObserverTag.Modified')
         if tag != None:
@@ -428,8 +405,8 @@ class MRTrackingSurfaceMapping(MRTrackingPanelBase):
           
   def controlPointsNodeUpdated(self,caller,event):
     td = self.currentCatheter
-    fnode = td.pointRecordingMarkupsNode[self.cath]
-    paramListStr = fnode.GetAttribute('MRTracking.EgramParamList')
+    fnode = td.pointRecordingMarkupsNode
+    paramListStr = fnode.GetAttribute('MRTracking.' + str(td.catheterID) + '.EgramParamList')
     if paramListStr:
       print(paramListStr)
       paramList = paramListStr.split(',')

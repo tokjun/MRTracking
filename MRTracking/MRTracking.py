@@ -201,11 +201,7 @@ class MRTrackingWidget(ScriptedLoadableModuleWidget):
       else:
         self.activeTrackingCheckBox.checked == False
 
-  def onEgramDataSelected(self):
-    tdnode = self.trackingDataSelector.currentNode()
-    edatanode = self.egramDataSelector.currentNode()
-    self.logic.setEgramDataNode(tdnode, edatanode)
-      
+        
   def onRejectRegistration(self):
     self.logic.acceptNewMatrix(self, False)
 

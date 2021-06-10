@@ -106,7 +106,7 @@ class MRTrackingCatheterConfig(MRTrackingPanelBase):
     # Coil Selection
     #
     coilGroupBox = ctk.ctkCollapsibleGroupBox()
-    coilGroupBox.title = "Source & Coil Selection"
+    coilGroupBox.title = "Source / Coil Selection"
     coilGroupBox.collapsed = False
     
     layout.addWidget(coilGroupBox)
@@ -299,12 +299,14 @@ class MRTrackingCatheterConfig(MRTrackingPanelBase):
       self.activeTrackingCheckBox.checked == False
     
     # Enable/disable GUI components based on the state machine
-    
+
+    # Active
     if self.isTrackingActive():
       self.activeTrackingCheckBox.checked = True
     else:
       self.activeTrackingCheckBox.checked = False
 
+    # Catheter Configulation
     self.catheterDiameterSliderWidget.value = td.radius * 2.0
     self.catheterOpacitySliderWidget.value = td.opacity
 
@@ -315,9 +317,14 @@ class MRTrackingCatheterConfig(MRTrackingPanelBase):
       
     self.showCoilLabelCheckBox.checked = td.showCoilLabel
 
+    # Source / Coils Selection
+    tdnode = slicer.mrmlScene.GetNodeByID(self.currentCatheter.trackingDataNodeID)
+    self.trackingDataSelector.setCurrentNode(tdnode)
+    
     for ch in range(self.nChannel):
       self.coilCheckBox[ch].checked = td.activeCoils[ch]
-    
+
+    # Coordinate System
     if td.axisDirections[0] > 0.0:
       self.coordinateRPlusRadioButton.checked = 1
     else:
@@ -333,6 +340,10 @@ class MRTrackingCatheterConfig(MRTrackingPanelBase):
     else:
       self.coordinateSMinusRadioButton.checked = 1
 
+    # Stabilizer
+    self.cutoffFrequencySliderWidget.value = td.cutOffFrequency
+      
+    # Egram Data
     self.egramDataSelector.setCurrentNode(td.egramDataNode)
 
     
@@ -368,9 +379,8 @@ class MRTrackingCatheterConfig(MRTrackingPanelBase):
     
 
   def onEgramDataSelected(self):
-    tdnode = self.trackingDataSelector.currentNode()
     edatanode = self.egramDataSelector.currentNode()
-    self.setEgramDataNode(tdnode, edatanode)
+    self.setEgramDataNode(edatanode)
       
 
   def onCatheterRegPointsChanged(self):
@@ -425,6 +435,7 @@ class MRTrackingCatheterConfig(MRTrackingPanelBase):
     frequency = self.cutoffFrequencySliderWidget.value
     self.setStabilizerCutoff(frequency)
 
+    
   def onSaveTrackingDataDefaultConfig(self):
     
     self.saveDefaultTrackingDataConfig()
@@ -459,17 +470,12 @@ class MRTrackingCatheterConfig(MRTrackingPanelBase):
     
       
   def setStabilizerCutoff(self, frequency):
-    # TODO: Should the following be moved to catheter.py?
 
     td = self.currentCatheter
-    tdnode = slicer.mrmlScene.GetNodeByID(td.trackingDataNodeID)
+    td.setCutOffFrequency(frequency)
+    # if tpnode in td.transformProcessorNodes:
+    #   tpnode.SetStabilizationCutOffFrequency(frequency)
     
-    if td and tdnode:
-      nTransforms = tdnode.GetNumberOfTransformNodes()
-      for i in range(nTransforms):
-        tpnode = td.transformProcessorNodes[i]
-        tpnode.SetStabilizationCutOffFrequency(frequency)
-
         
   def isTrackingActive(self):
     td = self.currentCatheter
@@ -489,50 +495,13 @@ class MRTrackingCatheterConfig(MRTrackingPanelBase):
     if not tdnode:
       return
 
-    # if not (tdnode.GetID() in self.TrackingData):
-    #   self.addNewTrackingData(tdnode)
-    # 
-    # return self.TrackingData[tdnode.GetID()]
-
-  
-  def setEgramDataNode(self, tdnode, edatanode):
-    if not tdnode:
-      return
-    if not (tdnode.GetID() in self.TrackingData):
-      print('Error - Current TrackingData is not valid')
-    self.TrackingData[tdnode.GetID()].egramDataNode = edatanode
-
     
-  #def addNewTrackingData(self, tdnode):
-  #  if not tdnode:
-  #    return
-  #
-  #  for key in self.TrackingData:
-  #    if key == tdnode.GetID():
-  #      print('TrackingData "%s" has already been registered.' % tdnode.GetID())
-  #      return
-  #    node = self.scene.GetNodeByID(key)
-  #    if node:
-  #      if node.GetName() == tdnode.GetName():
-  #        print('TrackingData "%s" has an object with the same name: %s.' % (tdnode.GetID(), tdnode.GetName()))
-  #        self.TrackingData[tdnode.GetID()] = self.TrackingData[key]
-  #        del self.TrackingData[key] ## TODO: Should the existing one be kept?
-  #        self.TrackingData[tdnode.GetID()].setID(tdnode.GetID())
-  #        return
-  #
-  #  td = TrackingData()
-  #  self.TrackingData[tdnode.GetID()] = td
-  #  self.TrackingData[tdnode.GetID()].setID(tdnode.GetID())
-  #  self.TrackingData[tdnode.GetID()].setLogic(self)
-  #  
-  #  self.TrackingData[tdnode.GetID()].loadDefaultConfig()
-  #  
-  #  self.setupFiducials(tdnode, 0)
-  #  self.setupFiducials(tdnode, 1)
-  #
-  #  self.setTipLength(td.coilPositions[0][0], 0)  # The first coil position match the tip length
-  #  self.setTipLength(td.coilPositions[1][0], 1)  # The first coil position match the tip length            
-      
+  def setEgramDataNode(self, edatanode):
+    td = self.currentCatheter
+    if not td:
+      return
+    td.egramDataNode = edatanode
+
 
   def setTipLength(self, length):
     td = self.currentCatheter      
@@ -629,9 +598,6 @@ class MRTrackingCatheterConfig(MRTrackingPanelBase):
       td.setTipTransformNode(index, self.scene.GetNodeByID(tipTransformNodeID))
     else:
       td.setTipTransformNode(index, None)
-      
-          
-    
     
 
   @vtk.calldata_type(vtk.VTK_OBJECT)
