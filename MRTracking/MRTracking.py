@@ -133,8 +133,9 @@ class MRTrackingWidget(ScriptedLoadableModuleWidget):
     self.layout.addWidget(mappingCollapsibleButton)
 
     self.surfaceMapping = MRTrackingSurfaceMapping("Surface Mapping")
+    self.surfaceMapping.setCatheterCollection(self.logic.catheters)
     self.surfaceMapping.buildGUI(mappingCollapsibleButton)
-    self.surfaceMapping.setMRTrackingLogic(self.logic)
+    # self.surfaceMapping.setMRTrackingLogic(self.logic)
 
     #--------------------------------------------------
     # Image Reslice
@@ -147,6 +148,7 @@ class MRTrackingWidget(ScriptedLoadableModuleWidget):
     #resliceLayout = qt.QFormLayout(resliceCollapsibleButton)
 
     self.reslice = MRTrackingReslice("Image Reslice")
+    self.reslice.setCatheterCollection(self.logic.catheters)    
     self.reslice.nCath = self.nCath
     self.reslice.buildGUI(resliceCollapsibleButton)
     
@@ -447,40 +449,6 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
         return True
     except ValueError:
         return False
-
-  #  def onIncomingNodeModifiedEvent(self, caller, event):
-  #  
-  #    parentID = str(caller.GetAttribute('MRTracking.parent'))
-  #    
-  #    if parentID == '':
-  #      return
-  #  
-  #    tdnode = slicer.mrmlScene.GetNodeByID(parentID)
-  #  
-  #    if tdnode and tdnode.GetClassName() == 'vtkMRMLIGTLTrackingDataBundleNode':
-  #      # Update coordinates in the fiducial node.
-  #      nCoils = tdnode.GetNumberOfTransformNodes()
-  #      td = self.TrackingData[tdnode.GetID()]
-  #      fUpdate = False
-  #      if nCoils > 0:
-  #        # Update timestamp
-  #        # TODO: Should we check all time stamps under the tracking node?
-  #        tnode = tdnode.GetTransformNode(0)
-  #        mTime = tnode.GetTransformToWorldMTime()
-  #        if mTime > td.lastMTime:
-  #          currentTime = time.time()
-  #          td.lastMTime = mTime
-  #          td.lastTS = currentTime
-  #          fUpdate = True
-  #      
-  #      self.updateCatheterNode(tdnode, 0)
-  #      self.updateCatheterNode(tdnode, 1)
-  #  
-  #      if fUpdate:
-  #        self.registration.updatePoints()
-  #  
-  #
-  
 
   @vtk.calldata_type(vtk.VTK_OBJECT)
   def onNodeAddedEvent(self, caller, eventId, callData):

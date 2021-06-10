@@ -206,7 +206,7 @@ class Catheter:
   def setTrackingDataNodeID(self, id):
     self.trackingDataNodeID = id    
 
-p  def setLogic(self, logic):
+  def setLogic(self, logic):
     self.logic = logic
 
     

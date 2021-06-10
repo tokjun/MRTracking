@@ -1,16 +1,18 @@
 import ctk
 import qt
 import slicer
+from MRTrackingUtils.panelbase import *
 
 #------------------------------------------------------------
 #
 # MRTrackingIGTLConnector class
 #
 
-class MRTrackingReslice():
+class MRTrackingReslice(MRTrackingPanelBase):
 
   def __init__(self, label="Reslice"):
-
+    super(MRTrackingReslice, self).__init__(label)
+    
     self.label = label
 
     self.reslice = [False, False, False]
@@ -24,13 +26,9 @@ class MRTrackingReslice():
 
     self.nCath = 2
 
-    
-  def buildGUI(self, parent):
+  def buildMainPanel(self, frame):    
 
-    #resliceGroupBox = ctk.ctkCollapsibleGroupBox()
-    #resliceGroupBox.title = self.label
-    #parent.addWidget(resliceGroupBox)
-    resliceLayout = qt.QFormLayout(parent)
+    resliceLayout = qt.QFormLayout(frame)
 
     # Tracking node selector
     self.resliceTrackingDataSelector = slicer.qMRMLNodeComboBox()
@@ -91,6 +89,12 @@ class MRTrackingReslice():
     self.update()
 
     
+  def onSwitchCatheter(self):
+    #
+    # Should be implemented in the child class
+    # 
+    pass
+
   def onResliceChecked(self):
     
     ax  = self.resliceAxCheckBox.checked

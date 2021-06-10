@@ -6,6 +6,9 @@ import numpy
 import sitkUtils
 import SimpleITK as sitk
 from scipy.interpolate import Rbf
+from MRTrackingUtils.qcomboboxcatheter import *
+from MRTrackingUtils.panelbase import *
+
 #from scipy.interpolate import griddata
 
 #------------------------------------------------------------
@@ -13,36 +16,24 @@ from scipy.interpolate import Rbf
 # MRTrackingIGTLConnector class
 #
 
-class MRTrackingSurfaceMapping():
+class MRTrackingSurfaceMapping(MRTrackingPanelBase):
 
   def __init__(self, label="SurfaceMapping"):
-
+    super(MRTrackingSurfaceMapping, self).__init__(label)
+    
     self.label = label
-    self.mrTrackingLogic = None
     self.nCath = 2
     self.cath = 0
-    self.currentTrackingDataNode = None
+    self.currentCatheter = None
     self.scalarBarWidget = None
     self.lookupTable = None
     self.defaultEgramValueRange = [0.0, 20.0]
 
-  def buildGUI(self, parent):
+  def buildMainPanel(self, frame):
 
-    mappingLayout = qt.QFormLayout(parent)
+    mappingLayout = qt.QFormLayout(frame)
     
-    # Tracking node selector
-    self.mappingTrackingDataSelector = slicer.qMRMLNodeComboBox()
-    self.mappingTrackingDataSelector.nodeTypes = ( ("vtkMRMLIGTLTrackingDataBundleNode"), "" )
-    self.mappingTrackingDataSelector.selectNodeUponCreation = True
-    self.mappingTrackingDataSelector.addEnabled = False
-    self.mappingTrackingDataSelector.removeEnabled = False
-    self.mappingTrackingDataSelector.noneEnabled = False
-    self.mappingTrackingDataSelector.showHidden = True
-    self.mappingTrackingDataSelector.showChildNodeTypes = False
-    self.mappingTrackingDataSelector.setMRMLScene( slicer.mrmlScene )
-    self.mappingTrackingDataSelector.setToolTip( "Tracking Data for Reslicing" )
-    mappingLayout.addRow("Tracking Data: ", self.mappingTrackingDataSelector)
-
+    # Catheter selector
     self.cathRadioButton = [None] * self.nCath
     self.cathBoxLayout = qt.QHBoxLayout()
     self.cathGroup = qt.QButtonGroup()
@@ -147,7 +138,7 @@ class MRTrackingSurfaceMapping():
     self.colorRangeWidget.maximum = 50.0
     mappingLayout.addRow("Color range: ", self.colorRangeWidget)
     
-    self.mappingTrackingDataSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onMappingTrackingDataSelected)
+    self.catheterComboBox.currentIndexChanged.connect(self.onCatheterSelected)    
     self.egramRecordPointsSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onEgramRecordPointsSelected)
     self.modelSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onModelSelected)
     self.pointRecordingDistanceSliderWidget.connect("valueChanged(double)", self.pointRecordingDistanceChanged)
@@ -168,34 +159,23 @@ class MRTrackingSurfaceMapping():
     self.activeOnRadioButton.connect('clicked(bool)', self.onActive)
     self.activeOffRadioButton.connect('clicked(bool)', self.onActive)
 
-  def setMRTrackingLogic(self, t):
-    self.mrTrackingLogic = t
-
     
   #--------------------------------------------------
   # GUI Slots
 
-  def getTrackingData(self):
-    if self.mrTrackingLogic == None:
-      return None
-    tdnode = self.currentTrackingDataNode
-    if tdnode == None:
-      return None
-    td = self.mrTrackingLogic.TrackingData[tdnode.GetID()]
-    return td
+  def onSwitchCatheter(self):
+    #
+    # Should be implemented in the child class
+    # 
+    pass
 
-  def onMappingTrackingDataSelected(self):
-    td = self.getTrackingData()
-    if td:
-      td.pointRecording[self.cath] = False      
-      self.activeOffRadioButton.checked = 1
-    self.currentTrackingDataNode = self.mappingTrackingDataSelector.currentNode()
-
-    
+  
   def onEgramRecordPointsSelected(self):
-    td = self.getTrackingData()
+    
+    td = self.currentCatheter    
     if td == None:
       return
+    
     fnode = self.egramRecordPointsSelector.currentNode()
     if fnode:
       td.pointRecordingMarkupsNode[self.cath] = fnode
@@ -227,21 +207,21 @@ class MRTrackingSurfaceMapping():
         
   def pointRecordingDistanceChanged(self):
     d = self.pointRecordingDistanceSliderWidget.value
-    td = self.getTrackingData()    
+    td = self.currentCatheter    
     if td == None:
       return
     td.pointRecordingDistance[self.cath] = d
 
     
   def onResetPointRecording(self):
-    td = self.getTrackingData()
+    td = self.currentCatheter        
     markupsNode = td.pointRecordingMarkupsNode[self.cath]
     if markupsNode:
       markupsNode.RemoveAllControlPoints()
 
       
   def onGenerateSurface(self):
-    td = self.getTrackingData()
+    td = self.currentCatheter            
     markupsNode = td.pointRecordingMarkupsNode[self.cath]
     modelNode = self.modelSelector.currentNode()
     pdf = self.pointDistanceFactorSliderWidget.value
@@ -251,7 +231,7 @@ class MRTrackingSurfaceMapping():
 
       
   def onMapModel(self):
-    td = self.getTrackingData()
+    td = self.currentCatheter            
     #markupsNode = td.pointRecordingMarkupsNode[self.cath]
     markupsNode = self.egramRecordPointsSelector.currentNode()
     modelNode = self.modelSelector.currentNode()
@@ -423,7 +403,7 @@ class MRTrackingSurfaceMapping():
 
         
   def onActive(self):
-    td = self.getTrackingData()
+    td = self.currentCatheter
     if td == None:
       return
     if self.activeOnRadioButton.checked:
@@ -447,7 +427,7 @@ class MRTrackingSurfaceMapping():
 
           
   def controlPointsNodeUpdated(self,caller,event):
-    td = self.getTrackingData()
+    td = self.currentCatheter
     fnode = td.pointRecordingMarkupsNode[self.cath]
     paramListStr = fnode.GetAttribute('MRTracking.EgramParamList')
     if paramListStr:

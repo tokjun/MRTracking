@@ -2,36 +2,28 @@ import ctk
 import qt
 import slicer
 from MRTrackingUtils.qcomboboxcatheter import *
+from MRTrackingUtils.panelbase import *
 
 #------------------------------------------------------------
 #
 # MRTrackingCatheterConfig
 #
 
-class MRTrackingCatheterConfig():
+class MRTrackingCatheterConfig(MRTrackingPanelBase):
 
   def __init__(self, label="CatheterConfig"):
-
+    super(MRTrackingCatheterConfig, self).__init__(label)
+    
     self.label = label
     self.catheters = None     #CatheterCollection
     self.currentCatheter = None
 
-  def setCatheterCollection(self, cath):
+  def buildMainPanel(self, frame):
 
-    self.catheters = cath
+    layout = qt.QVBoxLayout(frame)
+    selectorLayout = qt.QFormLayout()
+    layout.addLayout(selectorLayout)
     
-    
-  def buildGUI(self, parent):
-
-    parentLayout = qt.QVBoxLayout(parent)
-
-    selectorLayout = qt.QFormLayout(parent)
-    parentLayout.addLayout(selectorLayout)
-    
-    self.catheterComboBox = QComboBoxCatheter()
-    self.catheterComboBox.setCatheterCollection(self.catheters)
-    selectorLayout.addRow("Catheter: ", self.catheterComboBox)
-
     self.trackingDataSelector = slicer.qMRMLNodeComboBox()
     self.trackingDataSelector.nodeTypes = ( ("vtkMRMLIGTLTrackingDataBundleNode"), "" )
     self.trackingDataSelector.selectNodeUponCreation = True
@@ -57,7 +49,7 @@ class MRTrackingCatheterConfig():
     configGroupBox.title = "Catheter Configuration"
     configGroupBox.collapsed = False
 
-    parentLayout.addWidget(configGroupBox)
+    layout.addWidget(configGroupBox)
     configFormLayout = qt.QFormLayout(configGroupBox)
 
     ##
@@ -121,7 +113,7 @@ class MRTrackingCatheterConfig():
     coilGroupBox.title = "Coil Selection"
     coilGroupBox.collapsed = False
     
-    parentLayout.addWidget(coilGroupBox)
+    layout.addWidget(coilGroupBox)
     coilSelectionLayout = qt.QFormLayout(coilGroupBox)
 
     #
@@ -175,7 +167,7 @@ class MRTrackingCatheterConfig():
     coordinateGroupBox.title = "Coordinate System"
     coordinateGroupBox.collapsed = False
     
-    parentLayout.addWidget(coordinateGroupBox)
+    layout.addWidget(coordinateGroupBox)
     coordinateLayout = qt.QFormLayout(coordinateGroupBox)
     
     self.coordinateRPlusRadioButton = qt.QRadioButton("+X")
@@ -218,7 +210,7 @@ class MRTrackingCatheterConfig():
     stabilizerGroupBox.title = "Stabilizer"
     stabilizerGroupBox.collapsed = False
     
-    parentLayout.addWidget(stabilizerGroupBox)
+    layout.addWidget(stabilizerGroupBox)
     stabilizerLayout = qt.QFormLayout(stabilizerGroupBox)
     
     self.cutoffFrequencySliderWidget = ctk.ctkSliderWidget()
@@ -236,7 +228,7 @@ class MRTrackingCatheterConfig():
     egramGroupBox.title = "Egram Data"
     egramGroupBox.collapsed = False
     
-    parentLayout.addWidget(egramGroupBox)
+    layout.addWidget(egramGroupBox)
     egramLayout = qt.QFormLayout(egramGroupBox)
 
     self.egramDataSelector = slicer.qMRMLNodeComboBox()
@@ -268,15 +260,11 @@ class MRTrackingCatheterConfig():
     
     trackingDataSaveLayout.addWidget(self.saveTrackingDataDefaultConfigButton)
     
-    parentLayout.addWidget(trackingDataSaveFrame)
+    layout.addWidget(trackingDataSaveFrame)
     
     #--------------------------------------------------
     # Connections
     #
-
-    
-    self.catheterComboBox.currentIndexChanged.connect(self.onCatheterSelected)
-    
     self.activeTrackingCheckBox.connect('clicked(bool)', self.onActiveTracking)
     self.trackingDataSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onTrackingDataSelected)
     self.egramDataSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onEgramDataSelected)
@@ -298,8 +286,21 @@ class MRTrackingCatheterConfig():
     self.coordinateSMinusRadioButton.connect('clicked(bool)', self.onSelectCoordinate)
     self.cutoffFrequencySliderWidget.connect("valueChanged(double)", self.onStabilizerCutoffChanged)
     self.saveTrackingDataDefaultConfigButton.connect('clicked(bool)', self.onSaveTrackingDataDefaultConfig)
-    
 
+    
+  def onSwitchCatheter(self):
+    td = self.currentCatheter
+    if td == None:
+      return
+
+    if td.eventTag != '':
+      self.activeTrackingCheckBox.checked == True
+    else:
+      self.activeTrackingCheckBox.checked == False
+    
+    self.updateTrackingDataGUI()
+
+  
   def updateTrackingDataGUI(self):
     # Enable/disable GUI components based on the state machine
     
@@ -369,20 +370,6 @@ class MRTrackingCatheterConfig():
       td.deactivateTracking()
 
       
-  def onCatheterSelected(self):
-    self.currentCatheter = self.catheterComboBox.getCurrentCatheter()
-    self.updateTrackingDataGUI()
-
-    td = self.currentCatheter
-    if td == None:
-      return
-    
-    if td.eventTag != '':
-      self.activeTrackingCheckBox.checked == True
-    else:
-      self.activeTrackingCheckBox.checked == False
-    
-  
   def onTrackingDataSelected(self):
     tdnode = self.trackingDataSelector.currentNode()
     if self.currentCatheter:
