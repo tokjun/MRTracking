@@ -390,7 +390,7 @@ class MRTrackingCatheterConfig(MRTrackingPanelBase):
     
   
   def onCatheterOpacityChanged(self, checked):
-    self.setCatheterOpacity(self.catheterOpacitySliderWidget.value, cath)
+    self.setCatheterOpacity(self.catheterOpacitySliderWidget.value)
 
     
   def onCoilLabelChecked(self):
