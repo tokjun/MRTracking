@@ -427,11 +427,14 @@ class MRTrackingSurfaceMapping(MRTrackingPanelBase):
 
     svnode = slicer.mrmlScene.CreateNodeByClass('vtkMRMLScalarVolumeNode')
 
+    print('Generating a surface model from tracking data... ')
+    
     ## Generate a scalar volume node
     # Get the bounding box
+    print('Calculating bounding box... ')    
     bounds = [0.0] * 6
     markupsNode.GetBounds(bounds)
-    
+
     b = numpy.array(bounds)
     b = b.reshape((3,2))
     origin = numpy.mean(b, axis=1)
@@ -442,12 +445,14 @@ class MRTrackingSurfaceMapping(MRTrackingPanelBase):
     b[:,1] = origin + boundingBoxRange
     bounds = b.reshape(-1)
     res = 256
-    
+
+    print('Converting fiducials to poly data...')
     poly = self.fiducialsToPoly(markupsNode)
-    
+   
     #Note: Altenatively, vtkImageEllipsoidSource may be used to generate a volume.
     # Generate density field from points
     # Use fixed radius
+    print('Running vtkPointDensityFilter...')
     dens = vtk.vtkPointDensityFilter()
     dens.SetInputData(poly)
 
@@ -456,6 +461,11 @@ class MRTrackingSurfaceMapping(MRTrackingPanelBase):
     dens.SetDensityEstimateToFixedRadius()
     # TODO - Does this radius work for every case?
     pixelSize = boundingBoxRange * 2 / res
+
+    # Note: the algorithm fails when the bounding box is too small..
+    if pixelSize < 0.5:
+      pixelSize = 0.5
+    
     radius = pixelSize
     dens.SetRadius(radius)
     #dens.SetDensityEstimateToRelativeRadius()
@@ -465,7 +475,8 @@ class MRTrackingSurfaceMapping(MRTrackingPanelBase):
     dens.SetModelBounds(bounds)
     dens.ComputeGradientOn()
     dens.Update()
-    
+
+    print('Creating an image node...')    
     # Crete an image node - geometric parameters (origin, spacing) must be moved to the node object
     #imnode = slicer.vtkMRMLScalarVolumeNode()
     imnode = slicer.mrmlScene.CreateNodeByClass('vtkMRMLScalarVolumeNode')
@@ -478,6 +489,7 @@ class MRTrackingSurfaceMapping(MRTrackingPanelBase):
     imdata.SetSpacing([1.0, 1.0, 1.0])
     slicer.mrmlScene.AddNode(imnode)
 
+    print('Applying BinaryThreshold...')    
     image  = sitkUtils.PullVolumeFromSlicer(imnode.GetID())
     binImage = sitk.BinaryThreshold(image, lowerThreshold=1.0, upperThreshold=256, insideValue=1, outsideValue=0)
 
@@ -485,8 +497,9 @@ class MRTrackingSurfaceMapping(MRTrackingPanelBase):
     radiusInPixel = int(numpy.ceil(pointDistanceFactor / pixelSize))
     if radiusInPixel < 1.0:
       radiusInPixel = 1
-    
-    # Dilate the target label 
+
+    # Dilate the target label
+    print('Dilating the image...')    
     dilateFilter = sitk.BinaryDilateImageFilter()
     dilateFilter.SetBoundaryToForeground(False)
     dilateFilter.SetKernelRadius(radiusInPixel)
@@ -496,12 +509,14 @@ class MRTrackingSurfaceMapping(MRTrackingPanelBase):
     dilateImage = dilateFilter.Execute(binImage)
 
     # Fill holes in the target label
+    print('Filling holes...')    
     fillHoleFilter = sitk.BinaryFillholeImageFilter()
     fillHoleFilter.SetForegroundValue(1)
     fillHoleFilter.SetFullyConnected(True)
     fillHoleImage = fillHoleFilter.Execute(dilateImage)
-    
+
     # Erode the label
+    print('Eroding the image...')    
     erodeFilter = sitk.BinaryErodeImageFilter()
     erodeFilter.SetBoundaryToForeground(False)
     erodeFilter.SetKernelType(sitk.sitkBall)
@@ -509,17 +524,20 @@ class MRTrackingSurfaceMapping(MRTrackingPanelBase):
     erodeFilter.SetForegroundValue(1)
     erodeFilter.SetBackgroundValue(0)
     erodeImage = erodeFilter.Execute(fillHoleImage)
-    
+
+    print('Pushing the volume to the MRML scene...')    
     sitkUtils.PushVolumeToSlicer(erodeImage, imnode.GetName(), 0, True)
     imdata = imnode.GetImageData()
 
     imdata.SetOrigin(imnode.GetOrigin())
     imdata.SetSpacing(imnode.GetSpacing())
 
+    print('Running marching cubes...')    
     poly = self.marchingCubes(imdata)
     modelNode.SetAndObservePolyData(poly)
 
     slicer.mrmlScene.RemoveNode(imnode)
+    print('Done.')    
     
     
   def fiducialsToPoly(self, markupsNode):
