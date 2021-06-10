@@ -28,7 +28,9 @@ class MRTrackingFiducialRegistration():
     # Transformation
     self.registrationTransformNode = None
     self.registrationTransform = None
-    self.applyTransform = None # Specifiy the data node under the transform
+    self.applyTransform = None # Specifiy the data node under the transform -- TODO: Will be obsolete. Use 'transformedCatheter'
+    self.transformedCatheter = None # Specifiy a Catheter class instance to which the registration transform is applied. (Replaces self.applyTransform)
+    
     self.mrTrackingLogic = None
     self.sizeCircularBuffer = 24 # 8 time points x 3 (x, y, z) = 24
     self.pCircularBuffer = 0
@@ -653,8 +655,10 @@ class MRTrackingFiducialRegistration():
 
   def onApplyTransformChanged(self):
 
-    tdnode = None
+    # TODO: Use self.transformedCatheter instead of self.applyTransform
     
+    tdnode = None
+
     if self.applyTransformOnRadioButton.checked == True:
       self.applyTransform = self.fromTrackingDataSelector.currentNode()
       tdnode = self.applyTransform
