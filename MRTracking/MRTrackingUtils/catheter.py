@@ -116,9 +116,26 @@ class CatheterCollection(QObject):
   
 class Catheter:
 
-  def __init__(self, name='Cath'):
+  def __init__(self, name='Cath', curveNodeID=None):
 
     self.MAX_COILS = 8
+
+    # Primary curve node
+    # Each Catheter class is tied with a dedicated vtkMRMLMarkupsCurveNode.
+    # (Ideally, this should be done by implementing the Catheter class as a child class of vtkMRMLMarkupsCurveNode,
+    # but this is not possible because of the limitations for Python-wrapped vtk.
+    curveNode = None
+    if curveNodeID:
+      curveNode = slicer.mrmlScene.GetNodeByID(self.curveNodeID)
+      
+    if curveNode == None:
+      curveNode = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLMarkupsCurveNode')
+
+    if curveNode == None:
+      print('Catheter.__init__(): Error - Could not create a curveNode.')
+      return
+    
+    self.curveNodeID = curveNode.GetID()
     
     #slicer.mrmlScene.AddObserver(slicer.vtkMRMLScene.NodeRemovedEvent, self.onNodeRemovedEvent)
     self.name = name
@@ -131,7 +148,6 @@ class Catheter:
     self.numberOfCoils = 0
     self.childTransformNodeIDList = [None] * self.MAX_COILS
     
-    self.curveNodeID = ''
     self.lastMTime = 0
     
     # Tip model
@@ -190,7 +206,7 @@ class Catheter:
   def setTrackingDataNodeID(self, id):
     self.trackingDataNodeID = id    
 
-  def setLogic(self, logic):
+p  def setLogic(self, logic):
     self.logic = logic
 
     
@@ -349,24 +365,8 @@ class Catheter:
       print('updateCatheter(): Error - Could not create a curve node')
       return
     
-    # curveNodeID = str(tdnode.GetAttribute('MRTracking.' + str(self.catheterID) + '.CurveNode'))
-    # curveNode = None
-    # if curveNodeID != None:
-    #   curveNode = slicer.mrmlScene.GetNodeByID(curveNodeID)
-    # 
-    # if curveNode == None:
-    #   curveNode = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLMarkupsCurveNode')
-    #   tdnode.SetAttribute('MRTracking.' + str(self.catheterID) + '.CurveNode', curveNode.GetID())
-    
     prevState = curveNode.StartModify()
 
-    ## Update coordinates in the fiducial node.
-    #nCoils = tdnode.GetNumberOfTransformNodes()
-    #
-    #if nCoils > 8: # Max. number of coils is 8.
-    #  nCoils = 8
-    #  
-    #mask = self.activeCoils[0:nCoils]
     nCoils = len(self.activeCoils)
     
     # Update time stamp
@@ -465,32 +465,15 @@ class Catheter:
 
   def updateCatheter(self):
 
-    # tdnode = slicer.mrmlScene.GetNodeByID(self.trackingDataNodeID)
-    # if tdnode == None:
-    #   print('updateCatheter(): Error - no TrackingDataNode.')
-    #   return
-    # 
-    # curveNode = None
-    # curveNodeID = str(tdnode.GetAttribute('MRTracking.' + str(self.catheterID) + '.CurveNode'))
-    # if curveNodeID != None:
-    #   curveNode = slicer.mrmlScene.GetNodeByID(curveNodeID)
-
     curveNode = None
     
     if self.curveNodeID:
       curveNode = slicer.mrmlScene.GetNodeByID(self.curveNodeID)
-      
-    if curveNode == None:
-      curveNode = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLMarkupsCurveNode')
-      self.curveNodeID = curveNode.GetID()
-      #
-      # TODO: Save curveNode information
-      #
 
     if curveNode == None:
-      print('updateCatheter(): Error - Could not create a curve node')
+      print('Catheter.updateCatheter(): No cathterNode is found.')
       return
-
+      
     curveDisplayNode = curveNode.GetDisplayNode()
     if curveDisplayNode:
       prevState = curveDisplayNode.StartModify()
@@ -520,12 +503,13 @@ class Catheter:
     if self.tipModelNode == None:
       self.tipModelNode = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLModelNode')
       self.tipModelNode.SetName('Tip')
-      # TODO: Save Tip Node. tdnode.SetAttribute('MRTracking.' + str(self.catheterID) + '.tipModel', self.tipModelNode.GetID()) 
+      curveNode.SetAttribute('MRTracking.' + str(self.catheterID) + '.tipModel', self.tipModelNode.GetID())
+      
         
     if self.tipTransformNode == None:
       self.tipTransformNode = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLLinearTransformNode')
       self.tipTransformNode.SetName('TipTransform')
-      # TODO: Save Tip Transform Node. tdnode.SetAttribute('MRTracking.' + str(self.catheterID) + '.tipTransform', self.tipTransformNode.GetID())
+      curveNode.SetAttribute('MRTracking.' + str(self.catheterID) + '.tipTransform', self.tipTransformNode.GetID())
 
     ## The 'curve end point matrix' (normal vectors + the curve end position)
     matrix = vtk.vtkMatrix4x4()
