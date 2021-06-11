@@ -17,6 +17,7 @@ class MRTrackingCatheterConfig(MRTrackingPanelBase):
     self.label = label
     self.catheters = None     #CatheterCollection
     self.currentCatheter = None
+    self.moduleName = 'MRTracking'   #Used for config
 
   def buildMainPanel(self, frame):
 
@@ -29,6 +30,64 @@ class MRTrackingCatheterConfig(MRTrackingPanelBase):
     self.activeTrackingCheckBox.enabled = 1
     self.activeTrackingCheckBox.setToolTip("Activate Tracking")
     selectorLayout.addRow("Active: ", self.activeTrackingCheckBox)
+
+    #--------------------------------------------------
+    # Coil Selection
+    #
+    coilGroupBox = ctk.ctkCollapsibleGroupBox()
+    coilGroupBox.title = "Source / Coil Selection"
+    coilGroupBox.collapsed = False
+    
+    layout.addWidget(coilGroupBox)
+    coilSelectionLayout = qt.QFormLayout(coilGroupBox)
+
+    self.trackingDataSelector = slicer.qMRMLNodeComboBox()
+    self.trackingDataSelector.nodeTypes = ( ("vtkMRMLIGTLTrackingDataBundleNode"), "" )
+    self.trackingDataSelector.selectNodeUponCreation = True
+    self.trackingDataSelector.addEnabled = True
+    self.trackingDataSelector.removeEnabled = False
+    self.trackingDataSelector.noneEnabled = False
+    self.trackingDataSelector.showHidden = True
+    self.trackingDataSelector.showChildNodeTypes = False
+    self.trackingDataSelector.setMRMLScene( slicer.mrmlScene )
+    self.trackingDataSelector.setToolTip( "Incoming tracking data" )
+    coilSelectionLayout.addRow("Source: ", self.trackingDataSelector)
+    
+    #
+    # Coil seleciton check boxes
+    #
+    self.nChannel = 8
+    self.coilCheckBox = [None for i in range(self.nChannel)]
+    
+    for ch in range(self.nChannel):
+      self.coilCheckBox[ch] = qt.QCheckBox()
+      self.coilCheckBox[ch].checked = 0
+      self.coilCheckBox[ch].text = "CH %d" % (ch + 1)
+
+    nChannelHalf = int(self.nChannel/2)
+
+    coilGroup1Layout = qt.QHBoxLayout()
+    for ch in range(nChannelHalf):
+      coilGroup1Layout.addWidget(self.coilCheckBox[ch])
+    coilSelectionLayout.addRow("Active Coils:", coilGroup1Layout)
+    
+    coilGroup2Layout = qt.QHBoxLayout()
+    for ch in range(nChannelHalf):
+      coilGroup2Layout.addWidget(self.coilCheckBox[ch+nChannelHalf])
+    coilSelectionLayout.addRow("", coilGroup2Layout)
+      
+    self.coilOrderDistalRadioButton = qt.QRadioButton("Distal First")
+    self.coilOrderDistalRadioButton.checked = 1
+    self.coilOrderProximalRadioButton = qt.QRadioButton("Proximal First")
+    self.coilOrderProximalRadioButton.checked = 0
+    self.coilOrderButtonGroup = qt.QButtonGroup()
+    self.coilOrderButtonGroup.addButton(self.coilOrderDistalRadioButton)
+    self.coilOrderButtonGroup.addButton(self.coilOrderProximalRadioButton)
+    
+    coilOrderGroupLayout = qt.QHBoxLayout()
+    coilOrderGroupLayout.addWidget(self.coilOrderDistalRadioButton)
+    coilOrderGroupLayout.addWidget(self.coilOrderProximalRadioButton)
+    coilSelectionLayout.addRow("Coil Order:", coilOrderGroupLayout)
 
     #--------------------------------------------------
     # Catheter Configuration
@@ -91,7 +150,7 @@ class MRTrackingCatheterConfig(MRTrackingPanelBase):
     self.catheterRegPointsLineEdit.text = '5.0,10.0,15.0,20.0'
     self.catheterRegPointsLineEdit.readOnly = False
     self.catheterRegPointsLineEdit.frame = True
-    self.catheterRegPointsLineEdit.styleSheet = "QLineEdit { background:transparent; }"
+    #self.catheterRegPointsLineEdit.styleSheet = "QLineEdit { background:transparent; }"
     configFormLayout.addRow("Cath Reg. Points: ", self.catheterRegPointsLineEdit)
 
     #
@@ -102,64 +161,6 @@ class MRTrackingCatheterConfig(MRTrackingPanelBase):
     self.showCoilLabelCheckBox.setToolTip("Show/hide coil labels")
     configFormLayout.addRow("Show Coil Labels: ", self.showCoilLabelCheckBox)
     
-    #--------------------------------------------------
-    # Coil Selection
-    #
-    coilGroupBox = ctk.ctkCollapsibleGroupBox()
-    coilGroupBox.title = "Source / Coil Selection"
-    coilGroupBox.collapsed = False
-    
-    layout.addWidget(coilGroupBox)
-    coilSelectionLayout = qt.QFormLayout(coilGroupBox)
-
-    self.trackingDataSelector = slicer.qMRMLNodeComboBox()
-    self.trackingDataSelector.nodeTypes = ( ("vtkMRMLIGTLTrackingDataBundleNode"), "" )
-    self.trackingDataSelector.selectNodeUponCreation = True
-    self.trackingDataSelector.addEnabled = True
-    self.trackingDataSelector.removeEnabled = False
-    self.trackingDataSelector.noneEnabled = False
-    self.trackingDataSelector.showHidden = True
-    self.trackingDataSelector.showChildNodeTypes = False
-    self.trackingDataSelector.setMRMLScene( slicer.mrmlScene )
-    self.trackingDataSelector.setToolTip( "Incoming tracking data" )
-    coilSelectionLayout.addRow("Source: ", self.trackingDataSelector)
-    
-    #
-    # Coil seleciton check boxes
-    #
-    self.nChannel = 8
-    self.coilCheckBox = [None for i in range(self.nChannel)]
-    
-    for ch in range(self.nChannel):
-      self.coilCheckBox[ch] = qt.QCheckBox()
-      self.coilCheckBox[ch].checked = 0
-      self.coilCheckBox[ch].text = "CH %d" % (ch + 1)
-
-    nChannelHalf = int(self.nChannel/2)
-
-    coilGroup1Layout = qt.QHBoxLayout()
-    for ch in range(nChannelHalf):
-      coilGroup1Layout.addWidget(self.coilCheckBox[ch])
-    coilSelectionLayout.addRow("Active Coils:", coilGroup1Layout)
-    
-    coilGroup2Layout = qt.QHBoxLayout()
-    for ch in range(nChannelHalf):
-      coilGroup2Layout.addWidget(self.coilCheckBox[ch+nChannelHalf])
-    coilSelectionLayout.addRow("", coilGroup2Layout)
-      
-    self.coilOrderDistalRadioButton = qt.QRadioButton("Distal First")
-    self.coilOrderDistalRadioButton.checked = 1
-    self.coilOrderProximalRadioButton = qt.QRadioButton("Proximal First")
-    self.coilOrderProximalRadioButton.checked = 0
-    self.coilOrderButtonGroup = qt.QButtonGroup()
-    self.coilOrderButtonGroup.addButton(self.coilOrderDistalRadioButton)
-    self.coilOrderButtonGroup.addButton(self.coilOrderProximalRadioButton)
-    
-    coilOrderGroupLayout = qt.QHBoxLayout()
-    coilOrderGroupLayout.addWidget(self.coilOrderDistalRadioButton)
-    coilOrderGroupLayout.addWidget(self.coilOrderProximalRadioButton)
-    coilSelectionLayout.addRow("Coil Order:", coilOrderGroupLayout)
-
     #--------------------------------------------------
     # Coordinate System
     #
@@ -253,12 +254,24 @@ class MRTrackingCatheterConfig(MRTrackingPanelBase):
 
     trackingDataSaveLayout.addStretch(1)
     
-    self.saveTrackingDataDefaultConfigButton = qt.QPushButton()
-    self.saveTrackingDataDefaultConfigButton.setCheckable(False)
-    self.saveTrackingDataDefaultConfigButton.text = 'Save Current Configuration as Default'
-    self.saveTrackingDataDefaultConfigButton.setToolTip("Save above configurations as default.")
-    
-    trackingDataSaveLayout.addWidget(self.saveTrackingDataDefaultConfigButton)
+    self.saveConfigButton = qt.QPushButton()
+    self.saveConfigButton.setCheckable(False)
+    self.saveConfigButton.text = 'Save'
+    self.saveConfigButton.setToolTip("Save/add current configurations.")
+
+    self.removeConfigButton = qt.QPushButton()
+    self.removeConfigButton.setCheckable(False)
+    self.removeConfigButton.text = 'Remove'
+    self.removeConfigButton.setToolTip("Remove current configurations.")
+
+    self.saveDefaultConfigButton = qt.QPushButton()
+    self.saveDefaultConfigButton.setCheckable(False)
+    self.saveDefaultConfigButton.text = 'Save as Default'
+    self.saveDefaultConfigButton.setToolTip("Save above configurations as default.")
+
+    trackingDataSaveLayout.addWidget(self.saveConfigButton)
+    trackingDataSaveLayout.addWidget(self.removeConfigButton)    
+    trackingDataSaveLayout.addWidget(self.saveDefaultConfigButton)
     
     layout.addWidget(trackingDataSaveFrame)
     
@@ -285,7 +298,10 @@ class MRTrackingCatheterConfig(MRTrackingPanelBase):
     self.coordinateSPlusRadioButton.connect('clicked(bool)', self.onSelectCoordinate)
     self.coordinateSMinusRadioButton.connect('clicked(bool)', self.onSelectCoordinate)
     self.cutoffFrequencySliderWidget.connect("valueChanged(double)", self.onStabilizerCutoffChanged)
-    self.saveTrackingDataDefaultConfigButton.connect('clicked(bool)', self.onSaveTrackingDataDefaultConfig)
+    
+    self.saveConfigButton.connect('clicked(bool)', self.onSaveConfig)
+    self.removeConfigButton.connect('clicked(bool)', self.onRemoveConfig)
+    self.saveDefaultConfigButton.connect('clicked(bool)', self.onSaveDefaultConfig)
 
     
   def onSwitchCatheter(self):
@@ -301,12 +317,21 @@ class MRTrackingCatheterConfig(MRTrackingPanelBase):
     # Enable/disable GUI components based on the state machine
 
     # Active
-    if self.isTrackingActive():
+    if td.isActive():
       self.activeTrackingCheckBox.checked = True
+      self.enableCoilSelection(0)
     else:
       self.activeTrackingCheckBox.checked = False
+      self.enableCoilSelection(1)
 
-    # Catheter Configulation
+    # Source / Coils Selection
+    tdnode = slicer.mrmlScene.GetNodeByID(self.currentCatheter.trackingDataNodeID)
+    self.trackingDataSelector.setCurrentNode(tdnode)
+    
+    for ch in range(self.nChannel):
+      self.coilCheckBox[ch].checked = td.activeCoils[ch]
+
+    # Catheter Configuration
     self.catheterDiameterSliderWidget.value = td.radius * 2.0
     self.catheterOpacitySliderWidget.value = td.opacity
 
@@ -316,13 +341,6 @@ class MRTrackingCatheterConfig(MRTrackingPanelBase):
     self.catheterRegPointsLineEdit.text = str[:-1] # Remove the last ','
       
     self.showCoilLabelCheckBox.checked = td.showCoilLabel
-
-    # Source / Coils Selection
-    tdnode = slicer.mrmlScene.GetNodeByID(self.currentCatheter.trackingDataNodeID)
-    self.trackingDataSelector.setCurrentNode(tdnode)
-    
-    for ch in range(self.nChannel):
-      self.coilCheckBox[ch].checked = td.activeCoils[ch]
 
     # Coordinate System
     if td.axisDirections[0] > 0.0:
@@ -348,13 +366,18 @@ class MRTrackingCatheterConfig(MRTrackingPanelBase):
 
     
   def enableCoilSelection(self, switch):
+    #
+    # Disable widgets under "Source/Coil Selection" while tracking is active.
+    #
     
     if switch:
       for ch in range(self.nChannel):
         self.coilCheckBox[ch].enabled = 1
+      self.trackingDataSelector.enabled = 1
     else:
       for ch in range(self.nChannel):
         self.coilCheckBox[ch].enabled = 0
+      self.trackingDataSelector.enabled = 0
 
           
   def onActiveTracking(self):
@@ -436,15 +459,16 @@ class MRTrackingCatheterConfig(MRTrackingPanelBase):
     self.setStabilizerCutoff(frequency)
 
     
-  def onSaveTrackingDataDefaultConfig(self):
+  def onSaveConfig(self):
+    self.saveConfig()
     
-    self.saveDefaultTrackingDataConfig()
+  def onRemoveConfig(self):
+    self.removeConfig()
+    
+  def onSaveDefaultConfig(self):
+    self.saveDefaultConfig()    
 
     
-  #--------------------------------------------------
-  # Logic fucntions
-  #
-  
   def setAxisDirections(self, rPositive, aPositive, sPositive):
 
     td = self.currentCatheter
@@ -476,20 +500,6 @@ class MRTrackingCatheterConfig(MRTrackingPanelBase):
     # if tpnode in td.transformProcessorNodes:
     #   tpnode.SetStabilizationCutOffFrequency(frequency)
     
-        
-  def isTrackingActive(self):
-    td = self.currentCatheter
-    if td:
-      return td.isActive()
-    else:
-      return False
-    
-      
-  def saveDefaultTrackingDataConfig(self):
-    td = self.currentCatheter
-    if td:
-      td.saveDefaultConfig()
-
         
   def switchCurrentTrackingData(self, tdnode):
     if not tdnode:
@@ -566,6 +576,149 @@ class MRTrackingCatheterConfig(MRTrackingPanelBase):
     return True
 
 
+  def saveDefaultConfig(self):
+    
+    td = self.currentCatheter
+    if td == None:
+      print('MRTrackingCatheterConfig.saveDefaultConfig(): No catheter is selected')
+      return
+
+    settings = qt.QSettings()
+    
+    settings.setValue(self.moduleName + '/' + 'ShowCoilLabel.' + 'default', td.showCoilLabel)
+    
+    value = [int(b) for b in td.activeCoils]
+    settings.setValue(self.moduleName + '/' + 'ActiveCoils.' + 'default', value)
+    settings.setValue(self.moduleName + '/' + 'CoilPositions.' + 'default', td.coilPositions)
+    #settings.setValue(self.moduleName + '/' + 'TipLength.' + 'default', td.tipLength)
+    settings.setValue(self.moduleName + '/' + 'CoilOrder.' + 'default', int(td.coilOrder))
+    settings.setValue(self.moduleName + '/' + 'AxisDirections.' + 'default', td.axisDirections)
+    settings.setValue(self.moduleName + '/' + 'CutOffFrequency.' + 'default', td.cutOffFrequency)
+    settings.setValue(self.moduleName + '/' + 'Opacity.' + 'default', td.opacity)
+    settings.setValue(self.moduleName + '/' + 'Radius.' + 'default', td.radius)
+    settings.setValue(self.moduleName + '/' + 'ModelColor.' + 'default', td.modelColor)
+
+    
+  def loadDefaultConfig(self, cathName):
+    loadConfig('default')
+
+    
+  def loadConfig(self, cathName):
+
+    td = self.currentCatheter
+    
+    ## Load config
+    settings = qt.QSettings()
+    setting = []
+
+    # Show coil label
+    setting = settings.value(self.moduleName + '/' + 'ShowCoilLabel.' + cathName)
+    if setting != None:
+      td.showCoilLabel = bool(int(setting)) # TODO: Does this work?
+
+    # Active coils
+    setting = settings.value(td.moduleName + '/' + 'ActiveCoils.' + cathName)
+    if setting != None:
+      array = [bool(int(i)) for i in setting]
+      
+      if len(array) > 0:
+        try:
+          if len(array) <= len(td.activeCoils):
+            td.activeCoils = array
+        except ValueError:
+          print('Format error in activeCoils string.')
+          
+    # Coil positions
+    setting = settings.value(self.moduleName + '/' + 'CoilPositions.' + cathName)
+    array = []
+    if setting != None:
+      print('Found ' + cathName + ' in Setting')
+      array = [float(f) for f in setting]
+        
+    if len(array) > 0:
+      try:
+        if len(array) <= len(td.coilPositions):
+          td.coilPositions = array
+      except ValueError:
+        print('Format error in coilConfig string.')
+
+    # Coil order
+    setting = settings.value(self.moduleName + '/' + 'CoilOrder.' + cathName)
+    if setting != None:
+      td.coilOrder = bool(int(setting)) # TODO: Does this work?
+
+    # Axis direction
+    setting = settings.value(self.moduleName + '/' + 'AxisDirections.' + cathName)
+    if setting != None:
+      td.axisDirections = [float(s) for s in setting]
+
+    # Cut-off frequency
+    setting = settings.value(self.moduleName + '/' + 'CutOffFrequency.' + cathName)
+    if setting != None:
+      td.cutOffFrequency = float(setting) # TODO: Does this work?
+
+    # Opacity
+    setting = settings.value(self.moduleName + '/' + 'Opacity.' + cathName)
+    if setting != None:
+      td.opacity = float(setting)
+
+    # Radius
+    setting = settings.value(self.moduleName + '/' + 'Radius.' + cathName)
+    if setting != None:
+      td.radius = float(setting)
+
+    # Model color
+    setting = settings.value(self.moduleName + '/' + 'ModelColor.' + cathName)
+    if setting != None:
+      td.modelColor = [float(s) for s in setting]
+      
+          
+  def saveConfig(self):
+
+    td = self.currentCatheter
+    if td == None:
+      print('MRTrackingCatheterConfig.saveDefaultConfig(): No catheter is selected')
+      return
+
+    settings = qt.QSettings()
+
+    settings.setValue(self.moduleName + '/' + 'Name.' + str(td.catheterID), td.showCoilLabel)
+    settings.setValue(self.moduleName + '/' + 'ShowCoilLabel.' + str(td.catheterID), td.showCoilLabel)
+
+    tdnode = slicer.mrmlScene.GetNodeByID(td.trackingDataNodeID)
+    if tdnode:
+      settings.setValue(self.moduleName + '/' + 'TrackingDataBundleNode.' + str(td.catheterID), tdnode.GetName())
+    else:
+      settings.setValue(self.moduleName + '/' + 'TrackingDataBundleNode.' + str(td.catheterID), '')
+    
+    value = [int(b) for b in td.activeCoils]
+    settings.setValue(self.moduleName + '/' + 'ActiveCoils.' + str(td.catheterID), value)
+    settings.setValue(self.moduleName + '/' + 'CoilPositions.' + str(td.catheterID), td.coilPositions)
+    #settings.setValue(self.moduleName + '/' + 'TipLength.' + str(td.catheterID), td.tipLength)
+    settings.setValue(self.moduleName + '/' + 'CoilOrder.' + str(td.catheterID), int(td.coilOrder))
+    settings.setValue(self.moduleName + '/' + 'AxisDirections.' + str(td.catheterID), td.axisDirections)
+    settings.setValue(self.moduleName + '/' + 'CutOffFrequency.' + str(td.catheterID), td.cutOffFrequency)
+    settings.setValue(self.moduleName + '/' + 'Opacity.' + str(td.catheterID), td.opacity)
+    settings.setValue(self.moduleName + '/' + 'Radius.' + str(td.catheterID), td.radius)
+    settings.setValue(self.moduleName + '/' + 'ModelColor.' + str(td.catheterID), td.modelColor)
+    if td.egramDataNode:
+      settings.setValue(self.moduleName + '/' + 'EgramDataNode.' + str(td.catheterID), td.egramDataNode.GetName())
+    else:
+      settings.setValue(self.moduleName + '/' + 'EgramDataNode.' + str(td.catheterID), '')
+
+
+  def removeConfig(self):
+
+    td = self.currentCatheter
+    if td == None:
+      print('MRTrackingCatheterConfig.saveDefaultConfig(): No catheter is selected')
+      return
+
+    settings = qt.QSettings()
+
+
+      
+    
   def setupFiducials(self, tdnode):
 
     if not tdnode:
@@ -599,15 +752,4 @@ class MRTrackingCatheterConfig(MRTrackingPanelBase):
     else:
       td.setTipTransformNode(index, None)
     
-
-  @vtk.calldata_type(vtk.VTK_OBJECT)
-  def onNodeAddedEvent(self, caller, eventId, callData):
-    print("Node added")
-    print("New node: {0}".format(callData.GetName()))
-        
-    if str(callData.GetAttribute("ModuleName")) == self.moduleName:
-      print ("parameterNode added")
-
-    if callData.GetClassName() == 'vtkMRMLIGTLTrackingDataBundleNode':
-      self.startTimer()
 

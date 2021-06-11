@@ -154,7 +154,7 @@ class Catheter:
     self.tipTransformNode = None  # TODO: The node ID is saved in Tracking Data Node
     self.tipPoly = None
 
-    # Coil configulation
+    # Coil configuration
     self.tipLength = 10.0
     self.coilPositions = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
     self.activeCoils = [True, True, True, True, False, False, False, False]
@@ -260,7 +260,7 @@ class Catheter:
     else:
       return False
 
-    
+
   def getNumberOfActiveCoils(self):
     
     nActiveCoils = sum(self.activeCoils)    
@@ -617,12 +617,12 @@ class Catheter:
   #
     
   def loadDefaultConfig(self):
-    self.loadDefaultCoilConfigulation()
+    self.loadDefaultCoilConfiguration()
     self.loadDefaultAxisDirections()
     self.loadDefaultVisualSettings()
     
 
-  def loadDefaultCoilConfigulation(self):
+  def loadDefaultCoilConfiguration(self):
 
     ## Load config
     settings = qt.QSettings()
@@ -692,45 +692,6 @@ class Catheter:
       self.modelColor = [float(s) for s in setting]
       
           
-  def saveDefaultConfig(self):
-    
-    self.saveDefaultCoilConfigulation()
-    self.saveDefaultAxisDirections()
-    self.saveDefaultVisualSettings()
-
-    
-  def saveDefaultCoilConfigulation(self):
-    
-    #name = tdnode.GetName()
-    settings = qt.QSettings()
-    
-    settings.setValue(self.logic.widget.moduleName + '/' + 'ShowCoilLabel.' + str(self.name), self.showCoilLabel)
-    
-    value = [int(b) for b in self.activeCoils]
-    settings.setValue(self.logic.widget.moduleName + '/' + 'ActiveCoils.' + str(self.name) + '.0', value)
-    settings.setValue(self.logic.widget.moduleName + '/' + 'CoilPositions.' + str(self.name) + '.0', self.coilPositions)
-    
-    settings.setValue(self.logic.widget.moduleName + '/' + 'TipLength.' + str(self.name) + '.0', self.tipLength)
-    settings.setValue(self.logic.widget.moduleName + '/' + 'CoilOrder.' + str(self.name) + '.0', int(self.coilOrder))
-
-      
-  def saveDefaultAxisDirections(self):
-    
-    #name = tdnode.GetName()
-    settings = qt.QSettings()
-    settings.setValue(self.logic.widget.moduleName + '/' + 'AxisDirections.' + str(self.name), self.axisDirections)
-    
-
-  def saveDefaultVisualSettings(self):
-    
-    #name = tdnode.GetName()
-    settings = qt.QSettings()
-    
-    settings.setValue(self.logic.widget.moduleName + '/' + 'Opacity.' + str(self.name) + '.0', self.opacity)
-    settings.setValue(self.logic.widget.moduleName + '/' + 'Radius.' + str(self.name) + '.0', self.radius)
-    settings.setValue(self.logic.widget.moduleName + '/' + 'ModelColor.' + str(self.name) + '.0', self.modelColor)
-
-
   class ParamError(Exception):
     """
     Exception raised for errors in obtaining value from the parameter node.
