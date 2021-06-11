@@ -24,24 +24,10 @@ class MRTrackingReslice(MRTrackingPanelBase):
 
     self.resliceCath = 0
 
-    self.nCath = 2
-
   def buildMainPanel(self, frame):    
 
     resliceLayout = qt.QFormLayout(frame)
 
-    self.resliceCathRadioButton = [None] * self.nCath
-    self.resliceCathBoxLayout = qt.QHBoxLayout()
-    self.resliceCathGroup = qt.QButtonGroup()
-    for cath in range(self.nCath):
-      self.resliceCathRadioButton[cath] = qt.QRadioButton("Cath %d" % cath)
-      if cath == self.resliceCath:
-        self.resliceCathRadioButton[cath].checked = 0
-      self.resliceCathBoxLayout.addWidget(self.resliceCathRadioButton[cath])
-      self.resliceCathGroup.addButton(self.resliceCathRadioButton[cath])
-      
-    resliceLayout.addRow("Catheter:", self.resliceCathBoxLayout)
-    
     self.resliceAxCheckBox = qt.QCheckBox()
     self.resliceAxCheckBox.checked = 0
     self.resliceAxCheckBox.text = "AX"
@@ -62,10 +48,6 @@ class MRTrackingReslice(MRTrackingPanelBase):
     self.resliceSagCheckBox.connect('toggled(bool)', self.onResliceChecked)
     self.resliceCorCheckBox.connect('toggled(bool)', self.onResliceChecked)
 
-    for cath in range(self.nCath):    
-      self.resliceCathRadioButton[cath].connect('clicked(bool)', self.onSelectResliceCath)
-      #self.resliceCath1RadioButton.connect('clicked(bool)', self.onSelectResliceCath)
-    
 
   #--------------------------------------------------
   # GUI Slots
@@ -86,23 +68,12 @@ class MRTrackingReslice(MRTrackingPanelBase):
     self.reslice = [ax, sag, cor]
     self.update()
     
-
-  def onSelectResliceCath(self):
-
-    for cath in range(self.nCath):
-      if self.resliceCathRadioButton[cath].checked:
-        self.resliceCath = cath
-        
-    self.update()
-
     
   #--------------------------------------------------
   # Setup Slice Driver
   
   def update(self):
 
-    index = self.resliceCath
-    
     tipTransformNodeID = ''
     if self.currentCatheter and self.currentCatheter.tipTransformNode:
       tipTransformNodeID = self.currentCatheter.tipTransformNode.GetID()

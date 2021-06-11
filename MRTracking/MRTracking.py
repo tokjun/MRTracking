@@ -3,7 +3,6 @@ import unittest
 import time
 from __main__ import vtk, qt, ctk, slicer
 from slicer.ScriptedLoadableModule import *
-#from MRTrackingUtils.trackingdata import *
 from MRTrackingUtils.connector import *
 from MRTrackingUtils.surfacemapping import *
 from MRTrackingUtils.reslice import *
@@ -72,9 +71,7 @@ class MRTrackingWidget(ScriptedLoadableModuleWidget):
     #
     #--------------------------------------------------
 
-    self.nChannel = 8   # Number of channels / catheter
-    self.nCath = 2 # Number of catheters
-
+    
     #--------------------------------------------------
     # GUI components
     
@@ -145,11 +142,8 @@ class MRTrackingWidget(ScriptedLoadableModuleWidget):
     resliceCollapsibleButton.text = "Image Reslice"
     self.layout.addWidget(resliceCollapsibleButton)
 
-    #resliceLayout = qt.QFormLayout(resliceCollapsibleButton)
-
     self.reslice = MRTrackingReslice("Image Reslice")
     self.reslice.setCatheterCollection(self.logic.catheters)    
-    self.reslice.nCath = self.nCath
     self.reslice.buildGUI(resliceCollapsibleButton)
     
     #--------------------------------------------------
@@ -163,7 +157,6 @@ class MRTrackingWidget(ScriptedLoadableModuleWidget):
     self.registration =  MRTrackingFiducialRegistration()
     self.registration.setCatheterCollection(self.logic.catheters)
     self.registration.buildGUI(registrationCollapsibleButton)
-    self.logic.setRegistration(self.registration)
 
     
     #--------------------------------------------------
@@ -178,147 +171,12 @@ class MRTrackingWidget(ScriptedLoadableModuleWidget):
     pass
 
   
-  def enableCoilSelection(self, switch):
-    
-    if switch:
-      for cath in range(self.nCath):
-        for ch in range(self.nChannel):
-          self.coilCheckBox[cath][ch].enabled = 1
-    else:
-      for cath in range(self.nCath):
-        for ch in range(self.nChannel):
-          self.coilCheckBox[cath][ch].enabled = 0
-
-          
-  def onTrackingDataSelected(self):
-    tdnode = self.trackingDataSelector.currentNode()    
-    tdata = self.logic.switchCurrentTrackingData(tdnode)
-    if tdata:
-      self.updateTrackingDataGUI(tdata)
-      
-      if tdata.eventTag != '':
-        self.activeTrackingCheckBox.checked == True
-      else:
-        self.activeTrackingCheckBox.checked == False
-
-        
-  def onRejectRegistration(self):
-    self.logic.acceptNewMatrix(self, False)
-
-  #def onTipLengthChanged(self, cath, checked):
-  #  print("onTipLengthChanged(%d)" % cath)
-  #  self.logic.setTipLength(self.tipLengthSliderWidget[cath].value, cath)
-  
-  def onCatheterRegPointsChanged(self, cath):
-    text = self.catheterRegPointsLineEdit[cath].text
-    print("onCatheterRegPointsChanged(%d, %s)" % (cath, text))
-
-    strarray = text.split(',')
-    try:
-      array = [float(ns) for ns in strarray]
-      self.logic.setCoilPositions(cath, array, True)
-    except ValueError:
-      print('Format error in coil position string.')
-
-      
-  def onCatheterDiameterChanged(self, cath, checked):
-    self.logic.setCatheterDiameter(self.catheterDiameterSliderWidget[cath].value, cath)
-    
-  
-  def onCatheterOpacityChanged(self, cath, checked):
-    self.logic.setCatheterOpacity(self.catheterOpacitySliderWidget[cath].value, cath)
-
-  def onCoilLabelChecked(self):
-    self.logic.setShowCoilLabel(self.showCoilLabelCheckBox.checked)
-
-
-  def onCoilChecked(self):
-
-    print("onCoilChecked(self):")
-    activeCoils0 = [0] * self.nChannel
-    activeCoils1 = [0] * self.nChannel
-    for ch in range(self.nChannel):
-      activeCoils0[ch] = self.coilCheckBox[0][ch].checked
-      activeCoils1[ch] = self.coilCheckBox[1][ch].checked
-
-    coilOrder0 = 'distal'
-    if self.coilOrderProximalRadioButton[0].checked:
-      coilOrder0 = 'proximal'
-    coilOrder1 = 'distal'
-    if self.coilOrderProximalRadioButton[1].checked:
-      coilOrder1 = 'proximal'
-
-    self.logic.setActiveCoils(activeCoils0, activeCoils1, coilOrder0, coilOrder1)
-
-    
-  def onSelectCoordinate(self):
-
-    rPositive = self.coordinateRPlusRadioButton.checked
-    aPositive = self.coordinateAPlusRadioButton.checked
-    sPositive = self.coordinateSPlusRadioButton.checked
-    
-    self.logic.setAxisDirections(rPositive, aPositive, sPositive)
-
-    
-  def onStabilizerCutoffChanged(self):
-
-    frequency = self.cutoffFrequencySliderWidget.value
-    self.logic.setStabilizerCutoff(frequency)
-
-    
-  def onSaveTrackingDataDefaultConfig(self):
-    
-    self.logic.saveDefaultTrackingDataConfig()
-    
   def onReload(self, moduleName="MRTracking"):
     # Generic reload method for any scripted module.
     # ModuleWizard will subsitute correct default moduleName.
 
     globals()[moduleName] = slicer.util.reloadScriptedModule(moduleName)
 
-
-  def updateTrackingDataGUI(self, tdata):
-    # Enable/disable GUI components based on the state machine
-    if tdata == None:
-      return
-    
-    if self.logic.isTrackingActive():
-      self.activeTrackingCheckBox.checked = True
-    else:
-      self.activeTrackingCheckBox.checked = False
-
-    for cath in range(self.nCath):
-      #self.tipLengthSliderWidget[cath].value = tdata.tipLength[cath]
-      self.catheterDiameterSliderWidget[cath].value = tdata.radius[cath] * 2.0
-      self.catheterOpacitySliderWidget[cath].value = tdata.opacity[cath]
-
-      str = ""
-      for p in tdata.coilPositions[cath]:
-        str += "%.f," % p
-      self.catheterRegPointsLineEdit[cath].text = str[:-1] # Remove the last ','
-      
-    self.showCoilLabelCheckBox.checked = tdata.showCoilLabel
-
-    for ch in range(self.nChannel):
-      self.coilCheckBox[0][ch].checked = tdata.activeCoils[0][ch]
-      self.coilCheckBox[1][ch].checked = tdata.activeCoils[1][ch]
-    
-    if tdata.axisDirections[0] > 0.0:
-      self.coordinateRPlusRadioButton.checked = 1
-    else:
-      self.coordinateRMinusRadioButton.checked = 1
-      
-    if tdata.axisDirections[1] > 0.0:
-      self.coordinateAPlusRadioButton.checked = 1
-    else:
-      self.coordinateAMinusRadioButton.checked = 1
-
-    if tdata.axisDirections[2] > 0.0:
-      self.coordinateSPlusRadioButton.checked = 1
-    else:
-      self.coordinateSMinusRadioButton.checked = 1
-
-    self.egramDataSelector.setCurrentNode(tdata.egramDataNode)
 
       
 #------------------------------------------------------------
@@ -334,15 +192,7 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
     
     self.widget = None
 
-    self.currentTrackingDataNodeID = ''
-    self.TrackingData = {}
-
     self.catheters = CatheterCollection()
-
-    #self.egramRecordMarkupsNode = None
-    #self.pointRecordingDistance = 0.0
-    #self.prevEgramPoint = numpy.array([0.0, 0.0, 0.0])
-
     self.registration = None
 
     # Create a parameter node
@@ -364,13 +214,6 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
 
 
   def clean(self):
-    
-    for item in self.TrackingData.items():
-      del item
-      
-    self.TrackingData = {}
-    self.currentTrackingDataNodeID = ''
-    #del self.registration
     
     self.stopTimer()
 
@@ -411,34 +254,6 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
       count = count + 1
       
     
-  def setRegistration(self, reg):
-    self.registration = reg
-    self.registration.trackingData = self.TrackingData
-  
-  #  def setEgramDataNode(self, tdnode, edatanode):
-  #    if not tdnode:
-  #      return
-  #    if not (tdnode.GetID() in self.TrackingData):
-  #      print('Error - Current TrackingData is not valid')
-  #    self.TrackingData[tdnode.GetID()].egramDataNode = edatanode
-
-
-  # def setEgramRecordMarkupsNode(self, mfnode):
-  #   self.egramRecordMarkupsNode = mfnode
-    
-  # def setPointRecordingDistance(self, d):
-  #   self.pointRecordingDistance = d
-  # 
-  #   
-  # def resetPointRecording(self):
-  #   if self.egramRecordMarkupsNode:
-  #     self.egramRecordMarkupsNode.RemoveAllControlPoints()
-
-      
-  def getCurrentTrackingData(self):
-    return self.TrackingData[self.currentTrackingDataNodeID]
-  
-
   def isStringInteger(self, s):
     try:
         int(s)
@@ -503,9 +318,9 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
 
     if len(tdlist) > 0:
     
-      for tdnode in tdlist:
-        if not (tdnode.GetID() in self.TrackingData):
-          self.addNewTrackingData(tdnode)
+      #for tdnode in tdlist:
+      #  if not (tdnode.GetID() in self.TrackingData):
+      #    self.addNewTrackingData(tdnode)
       
       # Because vtkMRMLIGTLTrackingDataBundleNode does not recover the child transforms
       # we add them based on the attributes in each child transform. (see onSceneStartSaveEvent())
@@ -540,13 +355,10 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
           
           ## TODO: Set filtered transforms?
 
-      for tdnode in tdlist:
-        self.TrackingData[tdnode.GetID()].loadConfigFromParameterNode()
+      #for tdnode in tdlist:
+      #  self.TrackingData[tdnode.GetID()].loadConfigFromParameterNode()
           
       self.startTimer()
-
-    # If a tracking data is in the TrackingData selector, update the tracking data GUI accordingly.
-    #self.widget.onTrackingDataSelected()
 
       
   def onSceneClosedEvent(self, caller, event, obj=None):
