@@ -460,13 +460,26 @@ class MRTrackingCatheterConfig(MRTrackingPanelBase):
 
     
   def onSaveConfig(self):
-    self.saveConfig()
+    
+    td = self.currentCatheter
+    if td:
+      name = td.name
+      self.saveConfig(name)
+
     
   def onRemoveConfig(self):
-    self.removeConfig()
+    
+    td = self.currentCatheter
+    if td:
+      name = td.name
+      self.removeConfig(name)
+
     
   def onSaveDefaultConfig(self):
-    self.saveDefaultConfig()    
+
+    td = self.currentCatheter
+    if td:
+      self.saveConfig('default')
 
     
   def setAxisDirections(self, rPositive, aPositive, sPositive):
@@ -576,30 +589,8 @@ class MRTrackingCatheterConfig(MRTrackingPanelBase):
     return True
 
 
-  def saveDefaultConfig(self):
+  def loadDefaultConfig(self):
     
-    td = self.currentCatheter
-    if td == None:
-      print('MRTrackingCatheterConfig.saveDefaultConfig(): No catheter is selected')
-      return
-
-    settings = qt.QSettings()
-    
-    settings.setValue(self.moduleName + '/' + 'ShowCoilLabel.' + 'default', td.showCoilLabel)
-    
-    value = [int(b) for b in td.activeCoils]
-    settings.setValue(self.moduleName + '/' + 'ActiveCoils.' + 'default', value)
-    settings.setValue(self.moduleName + '/' + 'CoilPositions.' + 'default', td.coilPositions)
-    #settings.setValue(self.moduleName + '/' + 'TipLength.' + 'default', td.tipLength)
-    settings.setValue(self.moduleName + '/' + 'CoilOrder.' + 'default', int(td.coilOrder))
-    settings.setValue(self.moduleName + '/' + 'AxisDirections.' + 'default', td.axisDirections)
-    settings.setValue(self.moduleName + '/' + 'CutOffFrequency.' + 'default', td.cutOffFrequency)
-    settings.setValue(self.moduleName + '/' + 'Opacity.' + 'default', td.opacity)
-    settings.setValue(self.moduleName + '/' + 'Radius.' + 'default', td.radius)
-    settings.setValue(self.moduleName + '/' + 'ModelColor.' + 'default', td.modelColor)
-
-    
-  def loadDefaultConfig(self, cathName):
     loadConfig('default')
 
     
@@ -616,6 +607,20 @@ class MRTrackingCatheterConfig(MRTrackingPanelBase):
     if setting != None:
       td.showCoilLabel = bool(int(setting)) # TODO: Does this work?
 
+    # Source
+    setting = settings.value(self.moduleName + '/' + 'TrackingDataBundleNode.' + cathName)
+    if setting != '':
+      # Try to find the TrackingDataBundleNode in the scene
+      col = slicer.mrmlScene.GetNodesByClassByName("vtkMRMLIGTLTrackingDataBundleNode", setting)
+      tdnode = None
+      if col.GetNumberOfItems() > 0:
+        tdnode = col.GetItemAsObject(0) # Set the first one, if there are more than one nodes
+      else:
+        # If no node is found in the scene, create one.
+        tdnode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLIGTLTrackingDataBundleNode")
+        tdnode.SetName(setting)
+      td.setTrackingDataNodeID(tdnode.GetID())
+      
     # Active coils
     setting = settings.value(td.moduleName + '/' + 'ActiveCoils.' + cathName)
     if setting != None:
@@ -671,54 +676,162 @@ class MRTrackingCatheterConfig(MRTrackingPanelBase):
     setting = settings.value(self.moduleName + '/' + 'ModelColor.' + cathName)
     if setting != None:
       td.modelColor = [float(s) for s in setting]
+
+    # Egram
+    setting = settings.value(self.moduleName + '/' + 'EgramDataNode.' + cathName)
+    if setting != '':
+      # Try to find the TrackingDataBundleNode in the scene
+      col = slicer.mrmlScene.GetNodesByClassByName("vtkMRMLTextNode", setting)
+      tnode = None
+      if col.GetNumberOfItems() > 0:
+        tnode = col.GetItemAsObject(0) # Set the first one, if there are more than one nodes
+      else:
+        # If no node is found in the scene, create one.        
+        tnode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLTextNode")
+        tnode.SetName(setting)
+      td.setTrackingDataNodeID(tnode.GetID())
+
       
-          
-  def saveConfig(self):
+  def saveConfig(self, cathName):
+
+    saveSource=True
+    saveEgram=True
+
+    if cathName == 'default':
+      saveSource=False
+      saveEgram=False
+    
+    self.addCatheterNameToConfig(cathName)
 
     td = self.currentCatheter
     if td == None:
-      print('MRTrackingCatheterConfig.saveDefaultConfig(): No catheter is selected')
+      print('MRTrackingCatheterConfig.saveConfig(): No catheter is selected')
       return
 
     settings = qt.QSettings()
 
-    settings.setValue(self.moduleName + '/' + 'Name.' + str(td.catheterID), td.showCoilLabel)
-    settings.setValue(self.moduleName + '/' + 'ShowCoilLabel.' + str(td.catheterID), td.showCoilLabel)
+    settings.setValue(self.moduleName + '/' + 'ShowCoilLabel.' + cathName, td.showCoilLabel)
 
-    tdnode = slicer.mrmlScene.GetNodeByID(td.trackingDataNodeID)
-    if tdnode:
-      settings.setValue(self.moduleName + '/' + 'TrackingDataBundleNode.' + str(td.catheterID), tdnode.GetName())
+    if saveSource:
+      tdnode = slicer.mrmlScene.GetNodeByID(td.trackingDataNodeID)
+      if tdnode:
+        settings.setValue(self.moduleName + '/' + 'TrackingDataBundleNode.' + cathName, tdnode.GetName())
+      else:
+        settings.setValue(self.moduleName + '/' + 'TrackingDataBundleNode.' + cathName, '')
     else:
-      settings.setValue(self.moduleName + '/' + 'TrackingDataBundleNode.' + str(td.catheterID), '')
+      settings.setValue(self.moduleName + '/' + 'TrackingDataBundleNode.' + cathName, '')
     
     value = [int(b) for b in td.activeCoils]
-    settings.setValue(self.moduleName + '/' + 'ActiveCoils.' + str(td.catheterID), value)
-    settings.setValue(self.moduleName + '/' + 'CoilPositions.' + str(td.catheterID), td.coilPositions)
-    #settings.setValue(self.moduleName + '/' + 'TipLength.' + str(td.catheterID), td.tipLength)
-    settings.setValue(self.moduleName + '/' + 'CoilOrder.' + str(td.catheterID), int(td.coilOrder))
-    settings.setValue(self.moduleName + '/' + 'AxisDirections.' + str(td.catheterID), td.axisDirections)
-    settings.setValue(self.moduleName + '/' + 'CutOffFrequency.' + str(td.catheterID), td.cutOffFrequency)
-    settings.setValue(self.moduleName + '/' + 'Opacity.' + str(td.catheterID), td.opacity)
-    settings.setValue(self.moduleName + '/' + 'Radius.' + str(td.catheterID), td.radius)
-    settings.setValue(self.moduleName + '/' + 'ModelColor.' + str(td.catheterID), td.modelColor)
-    if td.egramDataNode:
-      settings.setValue(self.moduleName + '/' + 'EgramDataNode.' + str(td.catheterID), td.egramDataNode.GetName())
+    settings.setValue(self.moduleName + '/' + 'ActiveCoils.' + cathName, value)
+    settings.setValue(self.moduleName + '/' + 'CoilPositions.' + cathName, td.coilPositions)
+    #settings.setValue(self.moduleName + '/' + 'TipLength.' + cathName, td.tipLength)
+    settings.setValue(self.moduleName + '/' + 'CoilOrder.' + cathName, int(td.coilOrder))
+    settings.setValue(self.moduleName + '/' + 'AxisDirections.' + cathName, td.axisDirections)
+    settings.setValue(self.moduleName + '/' + 'CutOffFrequency.' + cathName, td.cutOffFrequency)
+    settings.setValue(self.moduleName + '/' + 'Opacity.' + cathName, td.opacity)
+    settings.setValue(self.moduleName + '/' + 'Radius.' + cathName, td.radius)
+    settings.setValue(self.moduleName + '/' + 'ModelColor.' + cathName, td.modelColor)
+    if saveEgram:
+      if td.egramDataNode:
+        settings.setValue(self.moduleName + '/' + 'EgramDataNode.' + cathName, td.egramDataNode.GetName())
+      else:
+        settings.setValue(self.moduleName + '/' + 'EgramDataNode.' + cathName, '')
     else:
-      settings.setValue(self.moduleName + '/' + 'EgramDataNode.' + str(td.catheterID), '')
+      settings.setValue(self.moduleName + '/' + 'EgramDataNode.' + cathName, '')
+      
 
+  def removeConfig(self, cathName):
 
-  def removeConfig(self):
-
+    self.removeCatheterNameToConfig(cathName)
+    
     td = self.currentCatheter
     if td == None:
-      print('MRTrackingCatheterConfig.saveDefaultConfig(): No catheter is selected')
+      print('MRTrackingCatheterConfig.removeConfig(): No catheter is selected')
       return
 
     settings = qt.QSettings()
 
-
+    settings.remove(self.moduleName + '/' + 'ShowCoilLabel.' + cathName)
+    settings.remove(self.moduleName + '/' + 'TrackingDataBundleNode.' + cathName)
+    settings.remove(self.moduleName + '/' + 'ActiveCoils.' + cathName)
+    settings.remove(self.moduleName + '/' + 'CoilPositions.' + cathName)
+    #settings.remove(self.moduleName + '/' + 'TipLength.' + cathName)
+    settings.remove(self.moduleName + '/' + 'CoilOrder.' + cathName)
+    settings.remove(self.moduleName + '/' + 'AxisDirections.' + cathName)
+    settings.remove(self.moduleName + '/' + 'CutOffFrequency.' + cathName)
+    settings.remove(self.moduleName + '/' + 'Opacity.' + cathName)
+    settings.remove(self.moduleName + '/' + 'Radius.' + cathName)
+    settings.remove(self.moduleName + '/' + 'ModelColor.' + cathName)
+    settings.remove(self.moduleName + '/' + 'EgramDataNode.' + cathName)
       
     
+  def getCatheterNameListFromConfig(self):
+
+    settings = qt.QSettings()
+    
+    setting = settings.value(self.moduleName + '/' + 'CathList')
+    # if type(setting) == str:
+    #   l = setting.split(',')
+    #   return l
+    # else:
+    #   return []
+    if setting == None:
+      return []
+    else:
+      return list(setting)
+
+    
+  def addCatheterNameToConfig(self, cathName):
+
+    nameList = self.getCatheterNameListFromConfig()
+
+    if name == None or name == '':
+      return 0
+
+    if (type(nameList) == list) and (name in nameList):
+      # The name already exists in the config
+      return 0
+
+    settings = qt.QSettings()
+    
+    setting = settings.value(self.moduleName + '/' + 'CathList')
+    # if type(setting) == str and setting != '':
+    #   setting = setting + ',' + name
+    # else:
+    #   setting = name
+    # 
+    # settings.setValue(self.moduleName + '/' + 'CathList', setting)
+
+    if type(setting) == tuple:
+      setting = list(setting)
+      setting.append(name)
+    else:
+      setting = [name]
+      
+    settings.setValue(self.moduleName + '/' + 'CathList', setting)
+    
+    return 1
+
+
+  def removeCatheterNameToConfig(self, cathName):
+    
+    nameList = self.getCatheterNameListFromConfig()
+    
+    print(nameList)
+    
+    if name in nameList:
+      nameList.remove(name)
+
+    #setting = ''
+    #if len(nameList) > 0:
+    #  setting = nameList[0]
+    #  for n in nameList[1:]:
+    #    setting = setting + ',' + n
+
+    settings = qt.QSettings()
+    settings.setValue(self.moduleName + '/' + 'CathList', nameList)
+      
+      
   def setupFiducials(self, tdnode):
 
     if not tdnode:
