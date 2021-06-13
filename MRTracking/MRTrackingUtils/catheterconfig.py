@@ -303,6 +303,15 @@ class MRTrackingCatheterConfig(MRTrackingPanelBase):
     self.removeConfigButton.connect('clicked(bool)', self.onRemoveConfig)
     self.saveDefaultConfigButton.connect('clicked(bool)', self.onSaveDefaultConfig)
 
+    #--------------------------------------------------
+    # Load catheter configurations
+    #
+    
+    # TODO: Should it be done in MRTrackingLogic or CatheterCollection?
+
+    self.loadSavedConfig()
+
+    
     
   def onSwitchCatheter(self):
     td = self.currentCatheter
@@ -589,14 +598,30 @@ class MRTrackingCatheterConfig(MRTrackingPanelBase):
     return True
 
 
+  def loadSavedConfig(self):
+
+    if self.catheters == None:
+      print('MRTrackingCatheterConfig.loadSavedConfig(): No catheter colleciton is found.')
+      return
+    
+    cathList = self.getCatheterNameListFromConfig()
+    
+    for name in cathList:
+      newCath = Catheter(name)
+      self.catheters.add(newCath)
+      self.loadConfig(name, newCath)
+    
+
   def loadDefaultConfig(self):
     
     loadConfig('default')
 
     
-  def loadConfig(self, cathName):
+  def loadConfig(self, cathName, cath=None):
 
-    td = self.currentCatheter
+    td = cath
+    if td == None:
+      td = self.currentCatheter
     
     ## Load config
     settings = qt.QSettings()
@@ -605,7 +630,8 @@ class MRTrackingCatheterConfig(MRTrackingPanelBase):
     # Show coil label
     setting = settings.value(self.moduleName + '/' + 'ShowCoilLabel.' + cathName)
     if setting != None:
-      td.showCoilLabel = bool(int(setting)) # TODO: Does this work?
+      #td.showCoilLabel = bool(int(setting)) # TODO: Does this work?
+      td.showCoilLabel = (setting == 'true')
 
     # Source
     setting = settings.value(self.moduleName + '/' + 'TrackingDataBundleNode.' + cathName)
@@ -622,7 +648,7 @@ class MRTrackingCatheterConfig(MRTrackingPanelBase):
       td.setTrackingDataNodeID(tdnode.GetID())
       
     # Active coils
-    setting = settings.value(td.moduleName + '/' + 'ActiveCoils.' + cathName)
+    setting = settings.value(self.moduleName + '/' + 'ActiveCoils.' + cathName)
     if setting != None:
       array = [bool(int(i)) for i in setting]
       
@@ -692,7 +718,7 @@ class MRTrackingCatheterConfig(MRTrackingPanelBase):
       td.setTrackingDataNodeID(tnode.GetID())
 
       
-  def saveConfig(self, cathName):
+  def saveConfig(self, cathName, cath=None):
 
     saveSource=True
     saveEgram=True
@@ -703,7 +729,10 @@ class MRTrackingCatheterConfig(MRTrackingPanelBase):
     
     self.addCatheterNameToConfig(cathName)
 
-    td = self.currentCatheter
+    td = cath
+    if td == None:
+      td = self.currentCatheter
+
     if td == None:
       print('MRTrackingCatheterConfig.saveConfig(): No catheter is selected')
       return
@@ -740,11 +769,14 @@ class MRTrackingCatheterConfig(MRTrackingPanelBase):
       settings.setValue(self.moduleName + '/' + 'EgramDataNode.' + cathName, '')
       
 
-  def removeConfig(self, cathName):
+  def removeConfig(self, cathName, cath=None):
 
-    self.removeCatheterNameToConfig(cathName)
+    self.removeCatheterNameFromConfig(cathName)
     
-    td = self.currentCatheter
+    td = cath
+    if td == None:
+      td = self.currentCatheter
+
     if td == None:
       print('MRTrackingCatheterConfig.removeConfig(): No catheter is selected')
       return
@@ -770,11 +802,6 @@ class MRTrackingCatheterConfig(MRTrackingPanelBase):
     settings = qt.QSettings()
     
     setting = settings.value(self.moduleName + '/' + 'CathList')
-    # if type(setting) == str:
-    #   l = setting.split(',')
-    #   return l
-    # else:
-    #   return []
     if setting == None:
       return []
     else:
@@ -785,48 +812,36 @@ class MRTrackingCatheterConfig(MRTrackingPanelBase):
 
     nameList = self.getCatheterNameListFromConfig()
 
-    if name == None or name == '':
+    if cathName == None or cathName == '':
       return 0
 
-    if (type(nameList) == list) and (name in nameList):
+    if (type(nameList) == list) and (cathName in nameList):
       # The name already exists in the config
       return 0
 
     settings = qt.QSettings()
     
     setting = settings.value(self.moduleName + '/' + 'CathList')
-    # if type(setting) == str and setting != '':
-    #   setting = setting + ',' + name
-    # else:
-    #   setting = name
-    # 
-    # settings.setValue(self.moduleName + '/' + 'CathList', setting)
 
     if type(setting) == tuple:
       setting = list(setting)
-      setting.append(name)
+      setting.append(cathName)
     else:
-      setting = [name]
+      setting = [cathName]
       
     settings.setValue(self.moduleName + '/' + 'CathList', setting)
     
     return 1
 
 
-  def removeCatheterNameToConfig(self, cathName):
+  def removeCatheterNameFromConfig(self, cathName):
     
     nameList = self.getCatheterNameListFromConfig()
     
     print(nameList)
     
-    if name in nameList:
-      nameList.remove(name)
-
-    #setting = ''
-    #if len(nameList) > 0:
-    #  setting = nameList[0]
-    #  for n in nameList[1:]:
-    #    setting = setting + ',' + n
+    if cathName in nameList:
+      nameList.remove(cathName)
 
     settings = qt.QSettings()
     settings.setValue(self.moduleName + '/' + 'CathList', nameList)
