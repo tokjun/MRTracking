@@ -371,7 +371,10 @@ class MRTrackingCatheterConfig(MRTrackingPanelBase):
     self.cutoffFrequencySliderWidget.value = td.cutOffFrequency
       
     # Egram Data
-    self.egramDataSelector.setCurrentNode(td.egramDataNode)
+    if td.egramDataNodeID:
+      enode = slicer.mrmlScene.GetNodeByID(td.egramDataNodeID)
+      if enode:
+        self.egramDataSelector.setCurrentNode(enode)
 
     
   def enableCoilSelection(self, switch):
@@ -532,7 +535,7 @@ class MRTrackingCatheterConfig(MRTrackingPanelBase):
     td = self.currentCatheter
     if not td:
       return
-    td.egramDataNode = edatanode
+    td.egramDataNodeID = edatanode.GetID()
 
 
   def setTipLength(self, length):
@@ -610,6 +613,9 @@ class MRTrackingCatheterConfig(MRTrackingPanelBase):
       newCath = Catheter(name)
       self.catheters.add(newCath)
       self.loadConfig(name, newCath)
+
+    # Switch to the first catheter
+    self.switchCatheterByIndex(0)
     
 
   def loadDefaultConfig(self):
@@ -715,7 +721,7 @@ class MRTrackingCatheterConfig(MRTrackingPanelBase):
         # If no node is found in the scene, create one.        
         tnode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLTextNode")
         tnode.SetName(setting)
-      td.setTrackingDataNodeID(tnode.GetID())
+      td.setEgramDataNodeID(tnode.GetID())
 
       
   def saveConfig(self, cathName, cath=None):
@@ -761,8 +767,9 @@ class MRTrackingCatheterConfig(MRTrackingPanelBase):
     settings.setValue(self.moduleName + '/' + 'Radius.' + cathName, td.radius)
     settings.setValue(self.moduleName + '/' + 'ModelColor.' + cathName, td.modelColor)
     if saveEgram:
-      if td.egramDataNode:
-        settings.setValue(self.moduleName + '/' + 'EgramDataNode.' + cathName, td.egramDataNode.GetName())
+      enode = slicer.mrmlScene.GetNodeByID(td.egramDataNodeID)
+      if enode:
+        settings.setValue(self.moduleName + '/' + 'EgramDataNode.' + cathName, enode.GetName())
       else:
         settings.setValue(self.moduleName + '/' + 'EgramDataNode.' + cathName, '')
     else:

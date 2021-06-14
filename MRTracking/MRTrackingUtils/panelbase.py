@@ -38,6 +38,22 @@ class MRTrackingPanelBase():
     self.currentCatheter = self.catheterComboBox.getCurrentCatheter()
     self.onSwitchCatheter()
 
+
+  def switchCatheter(self, name):
+    col = self.catheterComboBox.collection
+    if col:
+      index = col.getIndex(name)
+      if index >= 0:
+        self.catheterComboBox.setCurrentIndex(index)
+
+        
+  def switchCatheterByIndex(self, index):
+    print('switchCatheterByIdex()')
+    col = self.catheterComboBox.collection
+    if col:
+      if index >= 0 and index < col.getNumberOfCatheters():
+        self.catheterComboBox.setCurrentIndex(index)
+        
       
   def buildMainPanel(self, frame):
     #

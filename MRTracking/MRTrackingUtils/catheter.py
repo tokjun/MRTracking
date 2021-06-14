@@ -162,7 +162,7 @@ class Catheter:
     self.coilOrder = True
 
     # Egram data
-    self.egramDataNode = None
+    self.egramDataNodeID = None
 
     # Point Recording
     self.pointRecording = False
@@ -199,15 +199,23 @@ class Catheter:
   def __del__(self):
     print("Catheter.__del__() is called.")
 
+    
   def setName(self, name):
     self.name = name
 
+    
   # Will be obsolete
   def setID(self, id):
     self.trackingDataNodeID = id
 
+    
   def setTrackingDataNodeID(self, id):
-    self.trackingDataNodeID = id    
+    self.trackingDataNodeID = id
+
+    
+  def setEgramDataNodeID(self, id):
+    self.egramDataNodeID = id
+    
 
   def setLogic(self, logic):
     self.logic = logic
@@ -961,15 +969,17 @@ class Catheter:
     
     table = []
     header = None
-    if self.egramDataNode:
-      text = self.egramDataNode.GetText()
-      for line in text.splitlines():
-        cols = line.split(',')
-        if header == None:
-          header = cols
-        else:
-          values = [float(s) for s in cols]
-          table.append(values)
+    if self.egramDataNodeID:
+      enode = slicer.mrmlScene.GetNodeByID(self.egramDataNodeID)
+      if enode:
+        text = enode.GetText()
+        for line in text.splitlines():
+          cols = line.split(',')
+          if header == None:
+            header = cols
+          else:
+            values = [float(s) for s in cols]
+            table.append(values)
         
     return (header, table)
 
