@@ -222,6 +222,23 @@ class MRTrackingCatheterConfig(MRTrackingPanelBase):
     #self.cutoffFrequencySliderWidget.setToolTip("")
     stabilizerLayout.addRow("Cut-off frequency: ",  self.cutoffFrequencySliderWidget)
 
+    self.triggerComboBox = QComboBoxCatheter()
+    self.triggerComboBox.setCatheterCollection(self.catheters)
+    #self.triggerComboBox.currentIndexChanged.connect(self.onToCatheterSelected)
+    stabilizerLayout.addRow("Trigger Source:", self.triggerComboBox)
+
+    #-- Tracking data acquisition window.
+    self.windowRangeWidget = ctk.ctkRangeWidget()
+    self.windowRangeWidget.setToolTip("Set acquisition window (ms)")
+    self.windowRangeWidget.setDecimals(3)
+    self.windowRangeWidget.singleStep = 1
+    self.windowRangeWidget.minimumValue = 0.0
+    self.windowRangeWidget.maximumValue = 1000.0
+    self.windowRangeWidget.minimum = 0.0
+    self.windowRangeWidget.maximum = 1000.0
+    stabilizerLayout.addRow("Acq. Window:", self.windowRangeWidget)
+    
+
     #--------------------------------------------------
     # Egram 
     #

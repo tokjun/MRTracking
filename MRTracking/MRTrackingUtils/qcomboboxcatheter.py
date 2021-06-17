@@ -47,7 +47,6 @@ class QComboBoxCatheter(QComboBox):
     for i in range(n):
       c = self.collection.getCatheter(i)
       self.insertItem(self.count-3, c.name)
-      print('updateItems(): ' + c.name)
 
   
   def addDefaultItems(self):
