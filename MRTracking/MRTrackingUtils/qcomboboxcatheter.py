@@ -25,7 +25,6 @@ class QComboBoxCatheter(QComboBox):
       self.collection.cleared.disconnect(self.onCatheterCleared)
       self.collection.added.disconnect(self.onCatheterAdded)
       self.collection.removed.disconnect(self.onCatheterRemoved)
-      pass
       
     self.collection = collection
     self.updateItems()
@@ -62,14 +61,31 @@ class QComboBoxCatheter(QComboBox):
     self.clear()
     self.addDefaultItems()
 
-      
+
+  def getCurrentCatheterIndex(self):
+    #
+    # Get the current catheter index. It gives the same value as QComboBox.currentIndex
+    # *when a catheter is selected*; however, unlike QComboBox.currentIndex,
+    # getCurrentCatheterIndex() can return 'None' when 'None' is selected. 
+    #
+    index = self.currentIndex
+    if index > self.count-3: # If index points to 'None'
+      return None
+    else:
+      return index
+    
+    
   def getCurrentCatheter(self):
 
     if self.collection == None:
-      return False
-    
-    index = self.currentIndex
-    return self.collection.getCatheter(index)
+      return None
+
+    index = self.getCurrentCatheterIndex()
+
+    if index == None:
+      return None
+    else:
+      return self.collection.getCatheter(index)
 
   
   def getCatheter(self, index):
@@ -78,6 +94,16 @@ class QComboBoxCatheter(QComboBox):
     else:
       None
 
+  def setCurretnCatheterIndex(self, index):
+    if index == None:
+      self.setCurrentCatheterNone()
+    else:
+      self.setCurrentIndex(index)
+
+      
+  def setCurrentCatheterNone(self):
+    self.setCurrentIndex(self.count-2)
+      
     
   def onItemSelected(self, index):
 
@@ -87,7 +113,7 @@ class QComboBoxCatheter(QComboBox):
       pass   # Do nothing
     elif index == self.count - 1: # Special item: 'Create New Catheter'
       if self.disableAddition == False and self.itemText(index) == 'Create New Catheter':
-        self.setCurrentIndex(self.count - 2)     # Tentatively set to 'None'
+        self.setCurrentCatheterNone() # Tentatively set to 'None'
         self.createNewCatheter()
     else:                         # Regular item
       self.prevIndex = index
@@ -114,14 +140,16 @@ class QComboBoxCatheter(QComboBox):
   @Slot(int)
   def onCatheterAdded(self, index):
 
+    prevIndex = self.getCurrentCatheterIndex()
     cath = self.collection.getCatheter(index)
     if cath == None:
       print('Error: Could not add a catheter to the ComboBox.')
       return
     
     self.insertItem(self.count-3, cath.name)
-    self.prevIndex = self.count-4      # Last regular item (Note: self.count - 3 is a separator)
-    self.setCurrentIndex(self.prevIndex)
+    #self.prevIndex = self.count-4      # Last regular item (Note: self.count - 3 is a separator)
+    #self.setCurrentIndex(prevIndex)
+    self.setCurrentCatheterIndex(prevIndex)
     
 
   @Slot(int)
@@ -131,5 +159,5 @@ class QComboBoxCatheter(QComboBox):
       return False
     
     self.removeItem(index)
-    self.setCurrentIndex(self.count-2) # Select 'None'
+    self.setCurrentCatheterNone() # self.setCurrentIndex(self.count-2) # Select 'None'
     

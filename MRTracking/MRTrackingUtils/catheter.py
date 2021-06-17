@@ -179,14 +179,65 @@ class Catheter:
     self.modelColor = [0.0, 0.0, 1.0]
 
     # Filtering
+    # Temporal filtering is used to stabilize the tracking data.
     self.cutOffFrequency = 7.50 # Hz
     self.transformProcessorNodes = [None] * self.MAX_COILS
     self.filteredTransformNodes = [None] * self.MAX_COILS
 
+    # Acquisition trigger
+    #
+    # The user can trigger data acquisition with another catheter object. This acquisition trigger mechanism
+    # may be helpful when the user wants to activate/deactivate one tracking system to avoid interference
+    # between two or more tracking systems used at the same time. For example, consider two tracking systems
+    # that are acquiring the device independenly with the following timings:
+    #
+    #
+    #   Tracking A |----------xxxxxxxxxx----------xxxxxxxxxx----------xxxxxxxxxx----------xxxxxxxxxx--------..
+    #
+    #   Tracking B |--x--x--x--x--x--x--x--x--x--x--x--x--x--x--x--x--x--x--x--x--x--x--x--x--x--x--x--x--x-..
+    #
+    #     ( '-'... idling, 'x'... acquisition)                                                    ----> Time
+    #
+    #     
+    # Suppose Tracking A introduces noise into tracking data from Tracking B when it is active. In this case,
+    # the user wants to acquire tracking data only when Tracking B is idle by setting an acquisition window
+    # period:
+    #
+    #     
+    #   Tracking B |----------xxxxxxxxxx----------xxxxxxxxxx----------xxxxxxxxxx----------xxxxxxxxxx--------..
+    #
+    #   Acq. window                     |--------|          |--------|          |--------|          |-------
+    #
+    #   Tracking A |--------------------x--x--x--x-----------x--x--x--------------x--x--x-----------x--x--x-..
+    #
+    # 
+    # In the Catheter class, the acquisition window can be configured by specifying a catheter that serves
+    # as a trigger, and two delay time parameters that define the start and the end of the acquisition window.
+    # 
+    #
+    #   Tracking B |----------xxxxxxxxxx----------xxxxxxxxxx----------xxxxxxxxxx----------xxxxxxxxxx--------..
+    #
+    #   Acq. window                     |--------|          |--------|          |--------|          |-------
+    #                
+    #                         ^         ^        ^
+    #                         |---------|        |
+    #                         |  delay0          |
+    #                         |------------------|
+    #                      trigger     delay1 
+    #                        
+    #   Tracking A |--------------------x--x--x--x-----------x--x--x--------------x--x--x-----------x--x--x-..
+    #
+    #
     
+    self.acquisitionTrigger = None             # The catheter object that triggers data acquisition
+    self.acquisitionTriggerNodeID = None
+    self.acquisitionWindowDelay = [0.0, 0.0]   # Data acquisition window, delay from the trigger (millisecond)
+    self.acquisitionWindowCurrent = [0.0, 0.0] # Current data acquisition window (system clock - seconds)
+    self.acquisitionTriggerTag = None
+
     # Registration
     self.registration = None
-
+    
     ## Default values for self.coilPositions:
     self.defaultCoilPositions = {}
     self.defaultCoilPositions['"NavX-Ch0"'] = [0,20,40,60]
@@ -194,7 +245,8 @@ class Catheter:
     self.defaultCoilPositions['"WWTracker"'] = [10,30,50,70]
 
     self.registrationFiducialNodeID = None     # MarkupsFiducialNode for poitn-based registration
-
+    
+    
 
   def __del__(self):
     print("Catheter.__del__() is called.")
@@ -253,6 +305,7 @@ class Catheter:
         childNode.SetAttribute('MRTracking.' + str(self.catheterID) + '.parent', tdnode.GetID())
         self.eventTag = childNode.AddObserver(vtk.vtkCommand.ModifiedEvent, self.onIncomingNodeModifiedEvent)
         print("Observer for TrackingDataBundleNode added.")
+        
         return True
       else:
         return False  # Could not add observer.
@@ -273,6 +326,17 @@ class Catheter:
     
     nActiveCoils = sum(self.activeCoils)    
     return nActiveCoils
+
+  
+  def getFirstActiveCoilTransformNode(self):
+    
+    tdnode = slicer.mrmlScene.GetNodeByID(self.trackingDataNodeID)
+    if tdnode:
+      tnode = tdnode.GetTransformNode(0)
+      return tnode
+    else:
+      return None
+
 
     
   def setFilteredTransforms(self, tdnode, activeCoils, createNew=True):
@@ -339,23 +403,39 @@ class Catheter:
       # Update coordinates in the fiducial node.
       nCoils = tdnode.GetNumberOfTransformNodes()
       fUpdate = False
+      currentTime = time.time()
       if nCoils > 0:
         # Update timestamp
         # TODO: Should we check all time stamps under the tracking node?
         tnode = tdnode.GetTransformNode(0)
         mTime = tnode.GetTransformToWorldMTime()
         if mTime > self.lastMTime:
-          currentTime = time.time()
           self.lastMTime = mTime
           self.lastTS = currentTime
           fUpdate = True
-      
-      self.updateCatheterNode()
 
+      # Acquisition Trigger
+      if self.acquisitionTrigger:
+        # Check if the current time is outside the acquisition window
+        if currentTime < self.acquisitionWindowCurrent[0] or currentTime > self.acquisitionWindowCurrent[1]:
+          return
+
+      # Update catheter/registration
+      self.updateCatheterNode()
+      
       if fUpdate and self.registration:
         self.registration.updatePoints()
 
-
+        
+  def onAcquisitionTriggerEvent(self, caller, event):
+    #parentID = str(caller.GetAttribute('MRTracking.' + str(self.catheterID) + '.parent'))
+    currentTime = time.time()
+    
+    if currentTime > self.acquisitionWindowCurrent[1]: # Current window has been expired
+      self.acquisitionWindowCurrent[0] = currentTime + self.acquisitionWindowDelay[0] / 1000.0
+      self.acquisitionWindowCurrent[1] = currentTime + self.acquisitionWindowDelay[1] / 1000.0
+      
+        
   def updateCatheterNode(self):
 
     #tdnode = slicer.mrmlScene.GetNodeByID(self.trackingDataNodeID)
@@ -621,8 +701,233 @@ class Catheter:
 
             
   #--------------------------------------------------
-  # Data I/O
+  # Parameter access
   #
+      
+  def setCurveNodeID(self, id):
+    
+    self.curveNodeID = id
+    if self.logic:
+      self.logic.getParameterNode().SetParameter("TD.%s.curveNodeID" % self.name, id)
+      return 1
+    return 0
+
+
+  def setOpacity(self, opacity):
+    
+    self.opacity = opacity
+
+    if self.logic:
+      self.logic.getParameterNode().SetParameter("TD.%s.opacity.0" % self.name, str(self.opacity))
+      return 1
+    return 0
+    
+
+  def setRadius(self, r):
+
+    self.radius = r
+    
+    if self.logic:
+      self.logic.getParameterNode().SetParameter("TD.%s.radius.0" % self.name, str(self.radius))
+      return 1
+    return 0
+
+
+  def setModelColor(self, color):
+    
+    self.modelColor = color
+    if self.logic:
+      self.logic.getParameterNode().SetParameter("TD.%s.modelColor.0" % self.name, str(self.modelColor))
+      return 1
+    return 0
+
+  
+  def setTipLength(self, length):
+    
+    self.tipLength= length
+    if self.logic:
+      self.logic.getParameterNode().SetParameter("TD.%s.tipLength.0" % self.name, str(self.tipLength))
+      return 1
+    return 0
+
+
+  def setCoilPosition(self, position):
+
+    self.coilPositions = position
+    if self.logic:
+      self.logic.getParameterNode().SetParameter("TD.%s.coilPosition.%s" % self.name, str(self.coilPositions))
+      return 1
+    return 0
+
+
+  def setTipModelNode(self, node):
+
+    if node == None:
+      return 0
+    
+    self.tipModelNode = node
+    return 1
+    #if self.logic:
+    #  self.logic.getParameterNode().SetParameter("TD.%s.tipModelNode.%s" % (self.name), node.GetID())
+    #  return 1
+    #return 0
+
+  
+  def setTipTransformNode(self, node):
+      
+    if node == None:
+      return 0
+    
+    self.tipTransformNode = node
+    return 1
+    #if self.logic:
+    #  self.logic.getParameterNode().SetParameter("TD.%s.tipTransformNode.%s" % (self.name), node.GetID())
+    #  return 1
+    #return 0
+
+  
+  #self.tipPoly = [None, None]
+  def setShowCoilLabel(self, s):
+    
+    self.showCoilLabel = s
+    if self.logic:
+      self.logic.getParameterNode().SetParameter("TD.%s.showCoilLabel" % self.name, str(self.showCoilLabel))
+      return 1
+    return 0
+
+  
+  def setActiveCoils(self, coils):
+    
+    self.activeCoils = coils
+    if self.logic:
+      self.logic.getParameterNode().SetParameter("TD.%s.activeCoils.%s" % (self.name), str(self.activeCoils))
+      return 1
+    return 0
+
+  
+  def setCoilOrder(self, s):
+    # Coil order (True if Distal -> Proximal)
+    
+    self.coilOrder = s
+    if self.logic:
+      self.logic.getParameterNode().SetParameter("TD.%s.coilOrder.%s" % (self.name), str(self.coilOrder))
+      return 1
+    return 0
+
+  
+  def setAxisDirection(self, dir, sign):
+    # dir: 0 = x, 1 = y, 2 = z
+
+    self.axisDirections[dir] = sign
+    if self.logic:
+      self.logic.getParameterNode().SetParameter("TD.%s.axisDirection.%s" % (self.name, dir), str(self.axisDirections[dir]))
+      return 1
+    return 0
+
+  
+  def setCutOffFrequency(self, freq):
+
+    self.cutOffFrequency = freq
+    for tpnode in self.transformProcessorNodes:
+      if tpnode:
+        tpnode.SetStabilizationCutOffFrequency(self.cutOffFrequency)
+
+
+  def setAcquisitionTrigger(self, trigger, startDelay, endDelay):
+
+    if trigger == None:
+      return
+
+    # The catheter object that triggers data acquisition
+    self.acquisitionTrigger = trigger
+
+    triggerNode = trigger.getFirstActiveCoilTransformNode()
+
+    if triggerNode == None:
+      print("Cathter.setAcquisitionTrigger(): No trigger node is available.")
+      return
+
+    self.acquisitionTriggerNodeID = triggerNode.GetID()
+    
+    self.acquisitionTriggerTag = triggerNode.AddObserver(vtk.vtkCommand.ModifiedEvent, self.onAcquisitionTriggerEvent)
+    
+    # Data acquisition window, delay from the trigger (milliseconds)
+    self.setAcquisitionWindow(startDelay, endDelay)
+    
+    # Current data acquisition window (system clock - millisecond)
+    self.acquisitionWindowCurrent = [0.0, 0.0]
+
+    
+  def setAcquisitionWindow(self, start, end):
+    self.acquisitionWindowDelay[0] = start
+    self.acquisitionWindowDelay[1] = end
+    
+    
+  def removeAcquisitionTrigger(self):
+
+    if self.acquisitionTriggerTag and self.acquisitionTriggerNodeID:
+
+      triggerNode = slicer.mrmlScene.GetNodeByID(self.acquisitionTriggerNodeID)
+      if triggerNode:
+        triggerNode.RemoveObserver(self.acquisitionTriggerTag)
+
+    self.acquisitionTriggerTag = None
+    self.acquisitionTriggerNodeID = None
+    
+  
+  def getEgramData(self):
+    #
+    # Get Egram data in a table. The function returns 'header' and 'table as
+    # 1-D and 2-D lists respectively. For example, the values are organized as:
+    #
+    #     ['Max (mV)',  'Min (mV)',  'LAT (ms)']    <- variable names (header)
+    #  ------------------------------------------
+    #    [[ 16.002,      -15.334,     75.002   ]    <- values for the 1st channel (table[0])  
+    #     [ 15.058,      -16.026,     830.019  ]    <- values for the 2nd channel (table[1])
+    #     [ 17.252,      -18.490,     765.018  ]    <- values for the 3rd channel (table[2])
+    #     [ 15.413,      -16.287,     695.016  ]]   <- values for the 4th channel (table[3])
+    
+    table = []
+    header = None
+    if self.egramDataNodeID:
+      enode = slicer.mrmlScene.GetNodeByID(self.egramDataNodeID)
+      if enode:
+        text = enode.GetText()
+        for line in text.splitlines():
+          cols = line.split(',')
+          if header == None:
+            header = cols
+          else:
+            values = [float(s) for s in cols]
+            table.append(values)
+        
+    return (header, table)
+
+
+  def setRegistrationFiducialNode(self, nodeID):
+    
+    self.registrationFiducialNodeID = nodeID
+    # TODO: Save as attribute. 'MRTracking.RegistrationPoints', self.fromFiducialsNode.GetID())
+    
+  
+  def getRegistrationFiducialNode(self):
+
+    if self.registrationFiducialNodeID == None:
+      return None
+
+    node = slicer.mrmlScene.GetNodeByID(self.registrationFiducialNodeID)
+
+    return node
+  
+    
+  #--------------------------------------------------
+  # Configuration I/O
+  #
+
+  #
+  # TODO: The following code is not actively used.
+  #
+  
     
   def loadDefaultConfig(self):
     self.loadDefaultCoilConfiguration()
@@ -823,180 +1128,4 @@ class Catheter:
     pass
 
 
-  #--------------------------------------------------
-  # Parameter access
-  #
-      
-  def setCurveNodeID(self, id):
-    
-    self.curveNodeID = id
-    if self.logic:
-      self.logic.getParameterNode().SetParameter("TD.%s.curveNodeID" % self.name, id)
-      return 1
-    return 0
-
-
-  def setOpacity(self, opacity):
-    
-    self.opacity = opacity
-
-    if self.logic:
-      self.logic.getParameterNode().SetParameter("TD.%s.opacity.0" % self.name, str(self.opacity))
-      return 1
-    return 0
-    
-
-  def setRadius(self, r):
-
-    self.radius = r
-    
-    if self.logic:
-      self.logic.getParameterNode().SetParameter("TD.%s.radius.0" % self.name, str(self.radius))
-      return 1
-    return 0
-
-
-  def setModelColor(self, color):
-    
-    self.modelColor = color
-    if self.logic:
-      self.logic.getParameterNode().SetParameter("TD.%s.modelColor.0" % self.name, str(self.modelColor))
-      return 1
-    return 0
-
   
-  def setTipLength(self, length):
-    
-    self.tipLength= length
-    if self.logic:
-      self.logic.getParameterNode().SetParameter("TD.%s.tipLength.0" % self.name, str(self.tipLength))
-      return 1
-    return 0
-
-
-  def setCoilPosition(self, position):
-
-    self.coilPositions = position
-    if self.logic:
-      self.logic.getParameterNode().SetParameter("TD.%s.coilPosition.%s" % self.name, str(self.coilPositions))
-      return 1
-    return 0
-
-
-  def setTipModelNode(self, node):
-
-    if node == None:
-      return 0
-    
-    self.tipModelNode = node
-    return 1
-    #if self.logic:
-    #  self.logic.getParameterNode().SetParameter("TD.%s.tipModelNode.%s" % (self.name), node.GetID())
-    #  return 1
-    #return 0
-
-  
-  def setTipTransformNode(self, node):
-      
-    if node == None:
-      return 0
-    
-    self.tipTransformNode = node
-    return 1
-    #if self.logic:
-    #  self.logic.getParameterNode().SetParameter("TD.%s.tipTransformNode.%s" % (self.name), node.GetID())
-    #  return 1
-    #return 0
-
-  
-  #self.tipPoly = [None, None]
-  def setShowCoilLabel(self, s):
-    
-    self.showCoilLabel = s
-    if self.logic:
-      self.logic.getParameterNode().SetParameter("TD.%s.showCoilLabel" % self.name, str(self.showCoilLabel))
-      return 1
-    return 0
-
-  
-  def setActiveCoils(self, coils):
-    
-    self.activeCoils = coils
-    if self.logic:
-      self.logic.getParameterNode().SetParameter("TD.%s.activeCoils.%s" % (self.name), str(self.activeCoils))
-      return 1
-    return 0
-
-  
-  def setCoilOrder(self, s):
-    # Coil order (True if Distal -> Proximal)
-    
-    self.coilOrder = s
-    if self.logic:
-      self.logic.getParameterNode().SetParameter("TD.%s.coilOrder.%s" % (self.name), str(self.coilOrder))
-      return 1
-    return 0
-
-  
-  def setAxisDirection(self, dir, sign):
-    # dir: 0 = x, 1 = y, 2 = z
-
-    self.axisDirections[dir] = sign
-    if self.logic:
-      self.logic.getParameterNode().SetParameter("TD.%s.axisDirection.%s" % (self.name, dir), str(self.axisDirections[dir]))
-      return 1
-    return 0
-
-  
-  def setCutOffFrequency(self, freq):
-
-    self.cutOffFrequency = freq
-    for tpnode in self.transformProcessorNodes:
-      if tpnode:
-        tpnode.SetStabilizationCutOffFrequency(self.cutOffFrequency)
-  
-  def getEgramData(self):
-    #
-    # Get Egram data in a table. The function returns 'header' and 'table as
-    # 1-D and 2-D lists respectively. For example, the values are organized as:
-    #
-    #     ['Max (mV)',  'Min (mV)',  'LAT (ms)']    <- variable names (header)
-    #  ------------------------------------------
-    #    [[ 16.002,      -15.334,     75.002   ]    <- values for the 1st channel (table[0])  
-    #     [ 15.058,      -16.026,     830.019  ]    <- values for the 2nd channel (table[1])
-    #     [ 17.252,      -18.490,     765.018  ]    <- values for the 3rd channel (table[2])
-    #     [ 15.413,      -16.287,     695.016  ]]   <- values for the 4th channel (table[3])
-    
-    table = []
-    header = None
-    if self.egramDataNodeID:
-      enode = slicer.mrmlScene.GetNodeByID(self.egramDataNodeID)
-      if enode:
-        text = enode.GetText()
-        for line in text.splitlines():
-          cols = line.split(',')
-          if header == None:
-            header = cols
-          else:
-            values = [float(s) for s in cols]
-            table.append(values)
-        
-    return (header, table)
-
-
-  def setRegistrationFiducialNode(self, nodeID):
-    
-    self.registrationFiducialNodeID = nodeID
-    # TODO: Save as attribute. 'MRTracking.RegistrationPoints', self.fromFiducialsNode.GetID())
-    
-  
-  def getRegistrationFiducialNode(self):
-
-    if self.registrationFiducialNodeID == None:
-      return None
-
-    node = slicer.mrmlScene.GetNodeByID(self.registrationFiducialNodeID)
-
-    return node
-  
-    

@@ -224,8 +224,9 @@ class MRTrackingCatheterConfig(MRTrackingPanelBase):
 
     self.triggerComboBox = QComboBoxCatheter()
     self.triggerComboBox.setCatheterCollection(self.catheters)
-    #self.triggerComboBox.currentIndexChanged.connect(self.onToCatheterSelected)
-    stabilizerLayout.addRow("Trigger Source:", self.triggerComboBox)
+    self.triggerComboBox.currentIndexChanged.connect(self.onTriggerSelected)
+    self.triggerComboBox.setCurrentCatheterNone()
+    stabilizerLayout.addRow("Acq. Trigger:", self.triggerComboBox)
 
     #-- Tracking data acquisition window.
     self.windowRangeWidget = ctk.ctkRangeWidget()
@@ -315,7 +316,8 @@ class MRTrackingCatheterConfig(MRTrackingPanelBase):
     self.coordinateSPlusRadioButton.connect('clicked(bool)', self.onSelectCoordinate)
     self.coordinateSMinusRadioButton.connect('clicked(bool)', self.onSelectCoordinate)
     self.cutoffFrequencySliderWidget.connect("valueChanged(double)", self.onStabilizerCutoffChanged)
-    
+    self.windowRangeWidget.connect('valuesChanged(double, double)', self.onUpdateWindow)
+
     self.saveConfigButton.connect('clicked(bool)', self.onSaveConfig)
     self.removeConfigButton.connect('clicked(bool)', self.onRemoveConfig)
     self.saveDefaultConfigButton.connect('clicked(bool)', self.onSaveDefaultConfig)
@@ -328,7 +330,6 @@ class MRTrackingCatheterConfig(MRTrackingPanelBase):
 
     self.loadSavedConfig()
 
-    
     
   def onSwitchCatheter(self):
     td = self.currentCatheter
@@ -418,7 +419,6 @@ class MRTrackingCatheterConfig(MRTrackingPanelBase):
     if self.activeTrackingCheckBox.checked == True:
       self.enableCoilSelection(0)
       td.activateTracking()
-
     else:
       self.enableCoilSelection(1)
       td.deactivateTracking()
@@ -487,6 +487,22 @@ class MRTrackingCatheterConfig(MRTrackingPanelBase):
     frequency = self.cutoffFrequencySliderWidget.value
     self.setStabilizerCutoff(frequency)
 
+
+  def onTriggerSelected(self):
+    
+    if self.triggerComboBox.getCurrentCatheter() == None:
+      self.windowRangeWidget.enabled = 0
+      self.disableAcquisitionWindow()
+    else:
+      self.windowRangeWidget.enabled = 1
+      self.enableAcquisitionWindow()
+
+
+  def onUpdateWindow(self, min, max):
+    td = self.currentCatheter
+    if td:
+      td.setAcquisitionWindow(min, max)
+      
     
   def onSaveConfig(self):
     
@@ -541,8 +557,23 @@ class MRTrackingCatheterConfig(MRTrackingPanelBase):
     td.setCutOffFrequency(frequency)
     # if tpnode in td.transformProcessorNodes:
     #   tpnode.SetStabilizationCutOffFrequency(frequency)
-    
-        
+
+
+  def enableAcquisitionWindow(self):
+    td = self.currentCatheter
+    trigger = self.triggerComboBox.getCurrentCatheter()
+    if td and trigger:
+      startDelay = self.windowRangeWidget.minimum
+      endDelay = self.windowRangeWidget.maximum
+      td.setAcquisitionTrigger(trigger, startDelay, endDelay)
+
+      
+  def disableAcquisitionWindow(self):
+    td = self.currentCatheter
+    if td:
+      td.removeAcquisitionTrigger()
+
+      
   def switchCurrentTrackingData(self, tdnode):
     if not tdnode:
       return
