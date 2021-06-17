@@ -94,7 +94,7 @@ class QComboBoxCatheter(QComboBox):
     else:
       None
 
-  def setCurretnCatheterIndex(self, index):
+  def setCurrentCatheterIndex(self, index):
     if index == None:
       self.setCurrentCatheterNone()
     else:
@@ -109,7 +109,7 @@ class QComboBoxCatheter(QComboBox):
 
     if index == self.count - 2:   # Special item: 'None'
       self.prevIndex = index
-      print('None selected')
+      #print('None selected')
       pass   # Do nothing
     elif index == self.count - 1: # Special item: 'Create New Catheter'
       if self.disableAddition == False and self.itemText(index) == 'Create New Catheter':
@@ -117,12 +117,10 @@ class QComboBoxCatheter(QComboBox):
         self.createNewCatheter()
     else:                         # Regular item
       self.prevIndex = index
-      print('%s is selected' % index)
 
       
   def createNewCatheter(self):
 
-    print("createNewCatheter(self)")
     if self.collection == None:
       return False
     
