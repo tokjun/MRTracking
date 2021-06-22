@@ -387,6 +387,18 @@ class MRTrackingCatheterConfig(MRTrackingPanelBase):
 
     # Stabilizer
     self.cutoffFrequencySliderWidget.value = td.cutOffFrequency
+    
+    if td.acquisitionTrigger:
+      self.triggerComboBox.blockSignals(True)
+      self.triggerComboBox.setCurrentCatheter(td.acquisitionTrigger)
+      self.triggerComboBox.blockSignals(False)
+      self.windowRangeWidget.blockSignals(True)      
+      self.windowRangeWidget.minimumValue = td.acquisitionWindowDelay[0]
+      self.windowRangeWidget.maximumValue = td.acquisitionWindowDelay[1]
+      self.windowRangeWidget.blockSignals(False)      
+    else:
+      self.triggerComboBox.setCurrentCatheterNone()
+      self.windowRangeWidget.enabled = False
       
     # Egram Data
     if td.egramDataNodeID:

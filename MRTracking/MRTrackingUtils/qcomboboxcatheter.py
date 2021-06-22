@@ -94,6 +94,11 @@ class QComboBoxCatheter(QComboBox):
     else:
       None
 
+  def setCurrentCatheter(self, cath):
+    index = self.collection.getIndex(cath)
+    self.setCurrentCatheterIndex(index)
+    
+      
   def setCurrentCatheterIndex(self, index):
     if index == None:
       self.setCurrentCatheterNone()
