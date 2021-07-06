@@ -70,7 +70,7 @@ class MRTrackingFiducialRegistration():
     self.toCatheterComboBox.setCatheterCollection(self.catheters)
     self.toCatheterComboBox.currentIndexChanged.connect(self.onToCatheterSelected)
     
-    registrationLayout.addRow("Catheter (From): ", self.toCatheterComboBox)
+    registrationLayout.addRow("Catheter (To): ", self.toCatheterComboBox)
 
     # #
     # # Fiducial points used (either "tip only" or "all"
