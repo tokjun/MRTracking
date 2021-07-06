@@ -558,7 +558,7 @@ class MRTrackingCatheterConfig(MRTrackingPanelBase):
     if sPositive:
       td.setAxisDirection(2, 1.0)
     else:
-      td.setAxisDirection(2, 1.0)
+      td.setAxisDirection(2, -1.0)
 
     td.updateCatheter()
     
