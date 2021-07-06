@@ -343,6 +343,9 @@ class MRTrackingFiducialRegistration():
     coilPosTo = tdTo.coilPositions
     
     #
+    # Assuming that the catheter is tracked by Tracking 0 and Tracking 1 systems, the sensors for
+    # each tracking system are located on the catheter as:
+    #
     #              Tip     s[0]     s[1]       s[2]       s[3] ...
     #   Tracking 0 *-------x--------x----------x----------x------------------
     #
@@ -351,6 +354,14 @@ class MRTrackingFiducialRegistration():
     #
     #
     # where 's[]' and 't[]' are distance from the tip to each coil along the catheter.
+    #
+    # To register the coordinate systems for Tracking 0 and 1, we need to find the locations of
+    # corresponding points in both coordinate frames. One approach to finding the corresponding
+    # points is to map the sensors for Tracking 1 onto Tracking 0, or vice versa, based on
+    # the known spacings between the sensors for both tracking systems, or vice versa.
+    # If one of the tracking system is not as reliable as the other one, its tracking sensors
+    # should be mapped to the other tracking coordinate frame. In this code, we assume that
+    # the sensors for Tracking 1 are mapped onto the Tracking 0 coordinate frame.
     #
     # 1. Find the two closest coils for Tracking 0 (s[k] and s[k+1]) from each coil for Tracking 1 t[j]
     # 2. Calculate the distance ratio a/b = distance(s[k], t[j]) / distance(s[k], s[k+1])
@@ -399,20 +410,32 @@ class MRTrackingFiducialRegistration():
     # TODO: Check if the numbers are orderd correctly in the coilPosFrom and coilPosTo arrays
     #
 
+    #
+    # We check which tracking system has the first sensor closer to the tip and assigned Tracking 0
+    # (i.e., s[]; see the figure above).
+    #
+    
     s = None
     t = None
     curve0Node = None
     curve1Node = None
+    curve0FiducialsNode = None
+    curve1FiducialsNode = None
+    
     if coilPosFrom[0] < coilPosTo[0]:
       s = coilPosFrom
       t = coilPosTo
       curve0Node = fromCurveNode
       curve1Node = toCurveNode
+      curve0FiducialsNode = fromFiducialsNode
+      curve1FiducialsNode = toFiducialsNode
     else:
       s = coilPosTo
       t = coilPosFrom
       curve0Node = toCurveNode
       curve1Node = fromCurveNode
+      curve0FiducialsNode = toFiducialsNode
+      curve1FiducialsNode = fromFiducialsNode
 
     # Check time stamp
     curve0Time = float(curve0Node.GetAttribute('MRTracking.lastTS'))
@@ -434,8 +457,8 @@ class MRTrackingFiducialRegistration():
     #adjPointIndex = [-1] * nCoils ## TODO: Should it have fixed length for speed?
     k = 0
     trans = vtk.vtkMatrix4x4()
-    posFrom = [0.0] * 3
-    posTo = [0.0] * 3
+    pos0 = [0.0] * 3
+    pos1 = [0.0] * 3
 
     invTransform = None
     if self.applyTransform and self.registrationTransform:
@@ -472,47 +495,49 @@ class MRTrackingFiducialRegistration():
       pindexm =  curve0Node.GetCurvePointIndexAlongCurveWorld(pindex0, clen * a / b)
 
       curve0Node.GetCurvePointToWorldTransformAtPointIndex(pindexm, trans)
-      posFrom[0] = trans.GetElement(0, 3)
-      posFrom[1] = trans.GetElement(1, 3)
-      posFrom[2] = trans.GetElement(2, 3)
+      pos0[0] = trans.GetElement(0, 3)
+      pos0[1] = trans.GetElement(1, 3)
+      pos0[2] = trans.GetElement(2, 3)
       if self.applyTransform and invTransform:
-        v = invTransform.TransformPoint(posFrom)
-        posFrom[0] = v[0]
-        posFrom[1] = v[1]
-        posFrom[2] = v[2]
+        v = invTransform.TransformPoint(pos0)
+        pos0[0] = v[0]
+        pos0[1] = v[1]
+        pos0[2] = v[2]
         
       
       # 3. Obtain the coordinates for t[j]
       pindex = curve1Node.GetCurvePointIndexFromControlPointIndex(j)
       curve1Node.GetCurvePointToWorldTransformAtPointIndex(pindex, trans)
-      posTo[0] = trans.GetElement(0, 3)
-      posTo[1] = trans.GetElement(1, 3)
-      posTo[2] = trans.GetElement(2, 3)
+      pos1[0] = trans.GetElement(0, 3)
+      pos1[1] = trans.GetElement(1, 3)
+      pos1[2] = trans.GetElement(2, 3)
 
 
       # 5. Record the coordinates
-      nFrom = fromFiducialsNode.GetNumberOfFiducials()
+      nCurve0 = curve0FiducialsNode.GetNumberOfFiducials()
       
-      if nFrom > self.sizeCircularBuffer: # Overwrite a previous point.
-        fromFiducialsNode.SetNthFiducialPosition(self.pCircularBuffer, posFrom[0], posFrom[1], posFrom[2])
-        toFiducialsNode.SetNthFiducialPosition(self.pCircularBuffer, posTo[0], posTo[1], posTo[2])
-        self.fromFiducialsTimeStamp[self.pCircularBuffer] = curve0Time
-        self.toFiducialsTimeStamp[self.pCircularBuffer] = curve1Time
+      if nCurve0 > self.sizeCircularBuffer: # Overwrite a previous point.
+        curve0FiducialsNode.SetNthFiducialPosition(self.pCircularBuffer, pos0[0], pos0[1], pos0[2])
+        curve1FiducialsNode.SetNthFiducialPosition(self.pCircularBuffer, pos1[0], pos1[1], pos1[2])
+        #self.fromFiducialsTimeStamp[self.pCircularBuffer] = curve0Time
+        #self.toFiducialsTimeStamp[self.pCircularBuffer] = curve1Time
         self.pCircularBuffer = (self.pCircularBuffer + 1) % self.sizeCircularBuffer
       else: # Add a new point
-        fromFiducialsNode.AddFiducial(posFrom[0], posFrom[1], posFrom[2])
-        toFiducialsNode.AddFiducial(posTo[0], posTo[1], posTo[2])
-        self.fromFiducialsTimeStamp.append(curve0Time)
-        self.toFiducialsTimeStamp.append(curve1Time)
-
+        curve0FiducialsNode.AddFiducial(pos0[0], pos0[1], pos0[2])
+        curve1FiducialsNode.AddFiducial(pos1[0], pos1[1], pos1[2])
+        #self.fromFiducialsTimeStamp.append(curve0Time)
+        #self.toFiducialsTimeStamp.append(curve1Time)
         
-      print('Add From (%f, %f, %f)' % (posFrom[0], posFrom[1], posFrom[2]))
-      print('Add To (%f, %f, %f)' % (posTo[0], posTo[1], posTo[2]))
+      print('Add From (%f, %f, %f)' % (pos0[0], pos0[1], pos0[2]))
+      print('Add To (%f, %f, %f)' % (pos1[0], pos1[1], pos1[2]))
 
 
     # Check if it is ready for new registration
+    # TODO: Should we also check the number of fiducials for toFiducialsNode?
     if fromFiducialsNode.GetNumberOfFiducials() >  self.minNumFiducials:
       return True
+    else:
+      return False
     
       
   def onClearPoints(self):
