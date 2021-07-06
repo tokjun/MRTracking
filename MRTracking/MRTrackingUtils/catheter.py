@@ -496,7 +496,7 @@ class Catheter:
 
         coilID = j
         if fFlip:
-          coilID = lastCoil - j
+          coilID = nActiveCoils - j - 1
         curveNode.SetNthControlPointPosition(coilID, v[0] * self.axisDirections[0], v[1] * self.axisDirections[1], v[2] * self.axisDirections[2])
         if coilID == 0:
           egramPoint = v;
