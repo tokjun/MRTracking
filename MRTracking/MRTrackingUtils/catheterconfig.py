@@ -224,7 +224,6 @@ class MRTrackingCatheterConfig(MRTrackingPanelBase):
 
     self.triggerComboBox = QComboBoxCatheter()
     self.triggerComboBox.setCatheterCollection(self.catheters)
-    self.triggerComboBox.currentIndexChanged.connect(self.onTriggerSelected)
     self.triggerComboBox.setCurrentCatheterNone()
     stabilizerLayout.addRow("Acq. Trigger:", self.triggerComboBox)
 
@@ -322,6 +321,8 @@ class MRTrackingCatheterConfig(MRTrackingPanelBase):
     self.removeConfigButton.connect('clicked(bool)', self.onRemoveConfig)
     self.saveDefaultConfigButton.connect('clicked(bool)', self.onSaveDefaultConfig)
 
+    self.triggerComboBox.currentIndexChanged.connect(self.onTriggerSelected)
+    
     #--------------------------------------------------
     # Load catheter configurations
     #

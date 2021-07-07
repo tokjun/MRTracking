@@ -52,7 +52,6 @@ class CatheterCollection(QObject):
 
     self.catheterList = []
     self.lastID = 0;
-    print('CatheterCollection is initiated.')
 
     
   def add(self, cath):

@@ -225,7 +225,7 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
     if self.monitoringTimer.isActive() == False:
       self.monitoringTimer.timeout.connect(self.monitorDataTrackingBundle)
       self.monitoringTimer.start(1000)
-      print("Timer started.")
+      #print("Timer started.")
       return True
     else:
       return False  # Could not add observer.
@@ -263,11 +263,9 @@ class MRTrackingLogic(ScriptedLoadableModuleLogic):
 
   @vtk.calldata_type(vtk.VTK_OBJECT)
   def onNodeAddedEvent(self, caller, eventId, callData):
-    print("Node added")
-    print("New node: {0}".format(callData.GetName()))
-        
-    if str(callData.GetAttribute("ModuleName")) == self.moduleName:
-      print ("parameterNode added")
+    # print("New node: {0}".format(callData.GetName()))
+    # if str(callData.GetAttribute("ModuleName")) == self.moduleName:
+    #   print ("parameterNode added")
   
     if callData.GetClassName() == 'vtkMRMLIGTLTrackingDataBundleNode':
       self.startTimer()

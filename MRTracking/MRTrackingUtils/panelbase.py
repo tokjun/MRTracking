@@ -48,7 +48,6 @@ class MRTrackingPanelBase():
 
         
   def switchCatheterByIndex(self, index):
-    print('switchCatheterByIdex()')
     col = self.catheterComboBox.collection
     if col:
       if index >= 0 and index < col.getNumberOfCatheters():

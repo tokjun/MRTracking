@@ -42,13 +42,14 @@ class MRTrackingFiducialRegistration():
     self.minNumFiducials = 10
     self.maxNumFiducials = 100
 
-    self.minInterval = 1.0           # seconds
-    self.maxTimeDifference = 0.1     # seconds
-
     self.catheters = None            # CatheterCollection
 
     self.fromCatheter = None
     self.toCatheter = None
+
+    self.minInterval = 1.0           # seconds
+    self.maxTimeDifference = 0.1     # seconds
+    self.pointExpiration = 30.0      # seconds
 
     
   def setCatheterCollection(self, cath):
@@ -142,6 +143,22 @@ class MRTrackingFiducialRegistration():
     registrationLayout.addRow("Automatic Update: ", autoUpdateBoxLayout)
 
     #
+    # Overwrite Transform
+    #
+    
+    overwriteTransformBoxLayout = qt.QHBoxLayout()
+    self.overwriteTransformGroup = qt.QButtonGroup()
+    self.overwriteTransformOnRadioButton = qt.QRadioButton("ON")
+    self.overwriteTransformOffRadioButton = qt.QRadioButton("OFF")
+    self.overwriteTransformOffRadioButton.checked = 1
+    overwriteTransformBoxLayout.addWidget(self.overwriteTransformOnRadioButton)
+    self.overwriteTransformGroup.addButton(self.overwriteTransformOnRadioButton)
+    overwriteTransformBoxLayout.addWidget(self.overwriteTransformOffRadioButton)
+    self.overwriteTransformGroup.addButton(self.overwriteTransformOffRadioButton)
+
+    registrationLayout.addRow("Overwrite Transform: ", overwriteTransformBoxLayout)
+    
+    #
     # Parameters for point selections
     #
 
@@ -166,13 +183,12 @@ class MRTrackingFiducialRegistration():
 
     # Minimum interval between two consecutive registrations
     self.pointExpirationSliderWidget = ctk.ctkSliderWidget()
-    self.pointExpirationSliderWidget.singleStep = 10.0
+    self.pointExpirationSliderWidget.singleStep = 5.0
     self.pointExpirationSliderWidget.minimum = 0.0
-    self.pointExpirationSliderWidget.maximum = 10000.0
-    self.pointExpirationSliderWidget.value = self.minInterval
+    self.pointExpirationSliderWidget.maximum = 1000.0
+    self.pointExpirationSliderWidget.value = self.pointExpiration
     #self.minIntervalSliderWidget.setToolTip("")
-    registrationLayout.addRow("Point Exp. (ms): ",  self.pointExpirationSliderWidget)
-
+    registrationLayout.addRow("Point Exp. (s): ",  self.pointExpirationSliderWidget)
     
     #
     # Collect/Clear button
@@ -289,8 +305,8 @@ class MRTrackingFiducialRegistration():
 
     
   def onCollectPoints(self, auto=False):
+    
     # Returns True if registration needs to be updated.
-
     fCollect = True # Flag to collect points
     
     # Check the current time 
@@ -443,8 +459,8 @@ class MRTrackingFiducialRegistration():
 
 
     # Check if it is too early to perform new registration
-    print('curve 0, curve 1, prevCollectionTime, interval = %f, %f, %f, %f' % (curve0Time, curve1Time, self.prevCollectionTime, self.minInterval))
     
+    # print('curve 0, curve 1, prevCollectionTime, interval = %f, %f, %f, %f' % (curve0Time, curve1Time, self.prevCollectionTime, self.minInterval))
     if ((curve0Time - self.prevCollectionTime) < self.minInterval) and ((curve1Time - self.prevCollectionTime) < self.minInterval):
       return False
 
@@ -517,29 +533,52 @@ class MRTrackingFiducialRegistration():
       nCurve0 = curve0FiducialsNode.GetNumberOfFiducials()
       
       if nCurve0 > self.sizeCircularBuffer: # Overwrite a previous point.
+        # Note: Time stamp is recorded as a label.
         curve0FiducialsNode.SetNthFiducialPosition(self.pCircularBuffer, pos0[0], pos0[1], pos0[2])
         curve1FiducialsNode.SetNthFiducialPosition(self.pCircularBuffer, pos1[0], pos1[1], pos1[2])
-        #self.fromFiducialsTimeStamp[self.pCircularBuffer] = curve0Time
-        #self.toFiducialsTimeStamp[self.pCircularBuffer] = curve1Time
+        curve0FiducialsNode.SetNthFiducialLabel(self.pCircularBuffer, str(curve0Time))
+        curve1FiducialsNode.SetNthFiducialLabel(self.pCircularBuffer, str(curve1Time))
         self.pCircularBuffer = (self.pCircularBuffer + 1) % self.sizeCircularBuffer
       else: # Add a new point
-        curve0FiducialsNode.AddFiducial(pos0[0], pos0[1], pos0[2])
-        curve1FiducialsNode.AddFiducial(pos1[0], pos1[1], pos1[2])
-        #self.fromFiducialsTimeStamp.append(curve0Time)
-        #self.toFiducialsTimeStamp.append(curve1Time)
-        
+        curve0FiducialsNode.AddFiducial(pos0[0], pos0[1], pos0[2], str(curve0Time))
+        curve1FiducialsNode.AddFiducial(pos1[0], pos1[1], pos1[2], str(curve1Time))
+
       print('Add From (%f, %f, %f)' % (pos0[0], pos0[1], pos0[2]))
       print('Add To (%f, %f, %f)' % (pos1[0], pos1[1], pos1[2]))
 
 
+    # Discard expired points
+    self.discardExpiredPoints(curve0FiducialsNode, curve1FiducialsNode, currentTime)
+      
     # Check if it is ready for new registration
     # TODO: Should we also check the number of fiducials for toFiducialsNode?
     if fromFiducialsNode.GetNumberOfFiducials() >  self.minNumFiducials:
       return True
     else:
       return False
+
+
+  def discardExpiredPoints(self, fidNode0, fidNode1, currentTime):
     
-      
+    nCurve0 = fidNode0.GetNumberOfFiducials()
+    nCurve1 = fidNode1.GetNumberOfFiducials()
+
+    if nCurve0 != nCurve1:
+      print('Error: the numbers of the fiducials for registration do not match')
+      return 0
+
+    i = 0
+    while i < fidNode0.GetNumberOfFiducials():
+      ts0 = float(fidNode0.GetNthFiducialLabel(i))
+      ts1 = float(fidNode1.GetNthFiducialLabel(i))
+      if (currentTime - ts0 > self.pointExpiration) or (currentTime - ts1 > self.pointExpiration):
+        print('Point has been expired. ')
+        fidNode0.RemoveNthControlPoint(i)
+        fidNode1.RemoveNthControlPoint(i)
+      else:
+        i += 1
+
+    
   def onClearPoints(self):
 
     fromFiducialsNode = self.fromCatheter.getRegistrationFiducialNode()
@@ -581,12 +620,30 @@ class MRTrackingFiducialRegistration():
       toFiducialsNode.GetNthFiducialPosition(i, pos)
       toPoints.SetPoint(i, pos)
 
+    # Check if we keep previous transform or overwrite
+    overwriteTransform = self.overwriteTransformOnRadioButton.checked
+    classType = None
+    nodeName = None
+    if self.registrationTransformNode:
+      classType = self.registrationTransformNode.GetClassName()
+      nodeName = self.registrationTransformNode.GetName()
+      
     # Rigid registration
     if self.rigidTypeRadioButton.checked == 1:
+
+      if overwriteTransform == 1:
+        if classType != 'vtkMRMLLinearTransformNode' and nodeName != 'RegistrationTransform-Rigid':
+          try:
+            self.registrationTransformNode = slicer.util.getNode('RegistrationTransform-Rigid')
+          except slicer.util.MRMLNodeNotFoundException:
+            self.registrationTransformNode = None
+      else:
+        self.registrationTransformNode = None
       
-      # Create linear transform node to store the registration result
-      self.registrationTransformNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLLinearTransformNode")
-      self.registrationTransformNode.SetName("RegistrationTransform-Rigid")
+      if self.registrationTransformNode == None:
+        # Create linear transform node to store the registration result
+        self.registrationTransformNode = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLLinearTransformNode')
+        self.registrationTransformNode.SetName('RegistrationTransform-Rigid')
 
       landmarkTransform = vtk.vtkLandmarkTransform()
       landmarkTransform.SetSourceLandmarks(fromPoints)
@@ -603,9 +660,19 @@ class MRTrackingFiducialRegistration():
     # Affine registration
     if self.affineTypeRadioButton.checked == 1:
       
-      # Create linear transform node to store the registration result
-      self.registrationTransformNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLLinearTransformNode")
-      self.registrationTransformNode.SetName("RegistrationTransform-Affine")
+      if overwriteTransform == 1:
+        if classType != 'vtkMRMLLinearTransformNode' and nodeName != 'RegistrationTransform-Affine':
+          try:
+            self.registrationTransformNode = slicer.util.getNode('RegistrationTransform-Affine')
+          except slicer.util.MRMLNodeNotFoundException:
+            self.registrationTransformNode = None
+      else:
+        self.registrationTransformNode = None
+      
+      if self.registrationTransformNode == None:
+        # Create linear transform node to store the registration result
+        self.registrationTransformNode = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLLinearTransformNode')
+        self.registrationTransformNode.SetName('RegistrationTransform-Affine')
 
       landmarkTransform = vtk.vtkLandmarkTransform()
       landmarkTransform.SetSourceLandmarks(fromPoints)
@@ -620,8 +687,19 @@ class MRTrackingFiducialRegistration():
       
     # Thin plate spline
     if self.splineTypeRadioButton.checked == 1:
-      self.registrationTransformNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLTransformNode")
-      self.registrationTransformNode.SetName("RegistrationTransform-Spline")
+
+      if overwriteTransform == 1:
+        if classType != 'vtkMRMLTransformNode' and nodeName != 'RegistrationTransform-Spline':
+          try:
+            self.registrationTransformNode = slicer.util.getNode('RegistrationTransform-Spline')
+          except slicer.util.MRMLNodeNotFoundException:
+            self.registrationTransformNode = None
+      else:
+        self.registrationTransformNode = None
+
+      if self.registrationTransformNode == None:
+        self.registrationTransformNode = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLTransformNode')
+        self.registrationTransformNode.SetName('RegistrationTransform-Spline')
       
       tpsTransform = vtk.vtkThinPlateSplineTransform()
       tpsTransform.SetBasisToR()
@@ -712,7 +790,7 @@ class MRTrackingFiducialRegistration():
     # Make sure to convert from millisecond to second
     self.maxTimeDifference = self.maxTimeDifferenceSliderWidget.value / 1000.0
     self.minInterval = self.minIntervalSliderWidget.value / 1000.0
-    self.pointExpiration = self.pointExpirationSliderWidget.value / 1000.0
+    self.pointExpiration = self.pointExpirationSliderWidget.value
     
       
   def updatePoints(self):
@@ -723,6 +801,7 @@ class MRTrackingFiducialRegistration():
         self.onRunRegistration()
         print("updatePoints(self): Running registration")
       else:
-        print("updatePoints(self): Skipping")
+        #print("updatePoints(self): Skipping")
+        pass
       
     
