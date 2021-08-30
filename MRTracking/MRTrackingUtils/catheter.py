@@ -721,7 +721,7 @@ class Catheter:
       return 1
     return 0
     
-
+  
   def setRadius(self, r):
 
     self.radius = r

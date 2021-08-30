@@ -133,6 +133,19 @@ class MRTrackingCatheterConfig(MRTrackingPanelBase):
     configFormLayout.addRow("Opacity: ", self.catheterOpacitySliderWidget)
 
     #
+    # Catheter color
+    #
+    colorLayout = qt.QHBoxLayout()
+    self.colorButton = qt.QPushButton()
+    self.colorButton.setCheckable(False)
+    self.colorButton.text = '  '
+    self.colorButton.setToolTip("Change the color of the catheter.")
+    colorLayout.addWidget(self.colorButton)
+    colorLayout.addStretch(2) 
+    #configFormLayout.addRow("Color: ", self.colorButton)
+    configFormLayout.addRow("Color: ", colorLayout )
+    
+    #
     # Catheter #cath "Use coil positions for registration" check box
     #
     self.catheterRegUseCoilCheckBox = qt.QCheckBox()
@@ -301,6 +314,7 @@ class MRTrackingCatheterConfig(MRTrackingPanelBase):
     self.catheterRegPointsLineEdit.editingFinished.connect(self.onCatheterRegPointsChanged)
     self.catheterDiameterSliderWidget.connect("valueChanged(double)", self.onCatheterDiameterChanged)
     self.catheterOpacitySliderWidget.connect("valueChanged(double)", self.onCatheterOpacityChanged)
+    self.colorButton.connect('clicked(bool)', self.onColorButtonClicked)
     self.showCoilLabelCheckBox.connect('clicked(bool)', self.onCoilLabelChecked)
 
     for ch in range(self.nChannel):
@@ -362,11 +376,17 @@ class MRTrackingCatheterConfig(MRTrackingPanelBase):
     # Catheter Configuration
     self.catheterDiameterSliderWidget.value = td.radius * 2.0
     self.catheterOpacitySliderWidget.value = td.opacity
+    
+    c = qt.QColor()
+    c.setRedF(td.modelColor[0])
+    c.setGreenF(td.modelColor[1])
+    c.setBlueF(td.modelColor[2])
+    self.colorButton.setStyleSheet("background-color : " + str(c))
 
-    str = ""
+    strReg = ""
     for p in td.coilPositions:
-      str += "%.f," % p
-    self.catheterRegPointsLineEdit.text = str[:-1] # Remove the last ','
+      strReg += "%.f," % p
+    self.catheterRegPointsLineEdit.text = strReg[:-1] # Remove the last ','
       
     self.showCoilLabelCheckBox.checked = td.showCoilLabel
 
@@ -467,6 +487,17 @@ class MRTrackingCatheterConfig(MRTrackingPanelBase):
   def onCatheterOpacityChanged(self, checked):
     self.setCatheterOpacity(self.catheterOpacitySliderWidget.value)
 
+
+  def onColorButtonClicked(self):
+    qc =  qt.QColorDialog.getColor()
+    r = qc.redF()
+    g = qc.greenF()
+    b = qc.blueF()
+    color = [r, g, b]
+    self.setCatheterColor(color)
+    self.colorButton.setStyleSheet("background-color : " + str(qc))
+
+    
     
   def onCoilLabelChecked(self):
     self.setShowCoilLabel(self.showCoilLabelCheckBox.checked)
@@ -633,8 +664,14 @@ class MRTrackingCatheterConfig(MRTrackingPanelBase):
   def setCatheterOpacity(self, opacity):
     td = self.currentCatheter      
     if td:
-      #td.opacity[index] = opacity
       td.setOpacity(opacity)
+      td.updateCatheter()
+
+  
+  def setCatheterColor(self, color):
+    td = self.currentCatheter      
+    if td:
+      td.setModelColor(color)
       td.updateCatheter()
 
         
