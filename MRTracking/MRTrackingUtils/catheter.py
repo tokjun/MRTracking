@@ -917,6 +917,93 @@ class Catheter:
     node = slicer.mrmlScene.GetNodeByID(self.registrationFiducialNodeID)
 
     return node
+
+
+  def getFiducialPoints(self):
+    
+    if self.curveNodeID == None:
+      return None
+    
+    curveNode = slicer.mrmlScene.GetNodeByID(self.curveNodeID)
+    if curveNode == None:
+      return None
+
+    nPoints = curveNode.GetNumberOfControlPoints()
+    posList = []
+    
+    for i in range(nPoints):
+      pos = [0, 0, 0]
+      curveNode.GetNthControlPointPosition(i, pos)
+      posList.append(pos)
+
+    return posList
+  
+  
+  def getInterpolatedFiducialPoints(self, distFromTip):
+    #
+    #   (posList, mask) = getInterpolatedFiducialPoints(distFromTip)
+    #
+    # Input:
+    #   distFromTip : An array of distances between the catheter tip and points on the catheter.
+    #
+    # Output:
+    #   posList    : An array of positions
+    #   mask        : A list of booleans representing whether the positions in the array are valid.
+    #
+    # Estimate the coordinates of the given point on the catheter by interpolation.
+    # Unlike getRegistrationFiducialNode(), getInterpolatedFiducialPoints() can be used to
+    # calculate intermediate points between the tracking sensors.
+    # The reason to have the mask is that the coordinates of the points cannot be computed by interpolation,
+    # if, for example, the point given by 'distFromTip' is not in between two coils.
+    #
+
+    if self.curveNodeID == None:
+      return (None, None)
+    
+    curveNode = slicer.mrmlScene.GetNodeByID(self.curveNodeID)
+    if curveNode == None:
+      return (None, None)
+    
+    numpy.array([0.0, 0.0, 0.0])
+    cpos = numpy.array(self.coilPositions)
+    interval = cpos[1:] - cpos[:-1]
+    trans = vtk.vtkMatrix4x4()
+
+    mask = []
+    posList = []
+    mask
+    upperIndexLimit = curveNode.GetNumberOfControlPoints() - 2
+    
+    for d in distFromTip:
+      pos = [0.0]*3
+
+      # The following gives the index of the lower end of the segment that includes 'd':
+      s = numpy.sum(d >= cpos) - 1
+
+      # Out of range
+      if s < 0 or s > upperIndexLimit:
+        posList.append(pos)
+        mask.append(False)
+        continue
+      
+      p0 = curveNode.GetCurvePointIndexFromControlPointIndex(s)
+      p1 = curveNode.GetCurvePointIndexFromControlPointIndex(s+1)
+      clen = curveNode.GetCurveLengthBetweenStartEndPointsWorld(p0, p1)
+      a = d - cpos[s]
+      b = interval[s]
+      pindexm =  curveNode.GetCurvePointIndexAlongCurveWorld(p0, clen * a / b)
+      if pindexm >= 0:
+        curveNode.GetCurvePointToWorldTransformAtPointIndex(pindexm, trans)
+        pos[0] = trans.GetElement(0, 3)
+        pos[1] = trans.GetElement(1, 3)
+        pos[2] = trans.GetElement(2, 3)
+        posList.append(pos)
+        mask.append(True)
+      else:
+        posList.append(pos)
+        mask.append(False)
+
+    return (posList, mask)
   
     
   #--------------------------------------------------

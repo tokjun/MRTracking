@@ -303,9 +303,9 @@ class MRTrackingFiducialRegistration():
     dnode = fiducialsNode.GetDisplayNode()
     dnode.SetVisibility(self.fiducialsVisible)
 
-    
+
   def onCollectPoints(self, auto=False):
-    
+
     # Returns True if registration needs to be updated.
     fCollect = True # Flag to collect points
     
@@ -315,7 +315,6 @@ class MRTrackingFiducialRegistration():
     if auto:
       fCollect = False # If auto=True, this function won't collect the points in default.
 
-    ## TODO: Assuming to use the first curve. 
     fromCurveNodeID =  self.fromCatheter.curveNodeID
     toCurveNodeID = self.toCatheter.curveNodeID
 
@@ -343,7 +342,8 @@ class MRTrackingFiducialRegistration():
       print("Error: Fiducials Node for 'From' is not available.")
       return
 
-    toFiducialsNode = self.toCatheter.getRegistrationFiducialNode()    
+    toFiducialsNode = self.toCatheter.getRegistrationFiducialNode()
+    
     
     if toFiducialsNode:
       dnode = toFiducialsNode.GetDisplayNode()
@@ -353,114 +353,61 @@ class MRTrackingFiducialRegistration():
       return
 
     ## Get TrackingData 
-    tdFrom = self.fromCatheter
-    tdTo   = self.toCatheter
-    coilPosFrom = tdFrom.coilPositions
-    coilPosTo = tdTo.coilPositions
-    
-    #
-    # Assuming that the catheter is tracked by Tracking 0 and Tracking 1 systems, the sensors for
-    # each tracking system are located on the catheter as:
-    #
-    #              Tip     s[0]     s[1]       s[2]       s[3] ...
-    #   Tracking 0 *-------x--------x----------x----------x------------------
-    #
-    #              Tip        t[0]      t[1]         t[2]       t[3] ...
-    #   Tracking 1 *----------x---------x------------x----------x------------
-    #
-    #
-    # where 's[]' and 't[]' are distance from the tip to each coil along the catheter.
-    #
-    # To register the coordinate systems for Tracking 0 and 1, we need to find the locations of
-    # corresponding points in both coordinate frames. One approach to finding the corresponding
-    # points is to map the sensors for Tracking 1 onto Tracking 0, or vice versa, based on
-    # the known spacings between the sensors for both tracking systems, or vice versa.
-    # If one of the tracking system is not as reliable as the other one, its tracking sensors
-    # should be mapped to the other tracking coordinate frame. In this code, we assume that
-    # the sensors for Tracking 1 are mapped onto the Tracking 0 coordinate frame.
-    #
-    # 1. Find the two closest coils for Tracking 0 (s[k] and s[k+1]) from each coil for Tracking 1 t[j]
-    # 2. Calculate the distance ratio a/b = distance(s[k], t[j]) / distance(s[k], s[k+1])
-    #
-    #                     s[k]         s[k+1]    
-    #   Tracking 0 ... ---x----------x----- ...
-    #                     |          |
-    #                     |   t[j]   |
-    #   Tracking 1 ... -------x------------ ...
-    #                     |   |      |
-    #                     |<->|      |
-    #                     | a        |
-    #                     |          |
-    #                     |<-------->|
-    #                           b
-    
-    # 3. Calculate the location of t[j] in the Tracking 0 space by interpolation.
-    #
-    
-    # Match the number of coils
-    # nCoilsFrom = fromTrackingNode.GetNumberOfTransformNodes()
-    # nCoilsTo = toTrackingNode.GetNumberOfTransformNodes()
-    nCoilsFrom = self.fromCatheter.getNumberOfActiveCoils()
-    nCoilsTo = self.toCatheter.getNumberOfActiveCoils()
-
-    # Check if the number of coils has changed
-    if self.prevNCoilsFrom != nCoilsFrom:
-      fCollect = True
-      self.prevNCoilsFrom = nCoilsFrom
-      
-    if self.prevNCoilsTo != nCoilsTo:
-      fCollect = True
-      self.prevNCoilsTo = nCoilsTo
-
-    nCoils = 0
-    if nCoilsFrom > nCoilsTo:
-      nCoils = nCoilsTo
-    else:
-      nCoils = nCoilsFrom
-
-    # If there is no coil, skip the following process.
-    if nCoils == 0:
-      return False
+    coilPosFrom = self.fromCatheter.coilPositions
+    coilPosTo = self.toCatheter.coilPositions
 
     #
-    # TODO: Check if the numbers are orderd correctly in the coilPosFrom and coilPosTo arrays
+    # Obtain the corresponding points on both catheters. 
+    # We use the tracking coils on the 'from' catheter as fiducial points for registration.
+    # The corresponding points on the 'to' catheters are estimated by intepolation (by calling
+    # getInterpolatedFiducialPoints())
     #
+    pointListFrom = self.fromCatheter.getFiducialPoints()
+    [pointListTo, pointMask] = self.toCatheter.getInterpolatedFiducialPoints(coilPosFrom)
 
-    #
-    # We check which tracking system has the first sensor closer to the tip and assigned Tracking 0
-    # (i.e., s[]; see the figure above).
-    #
+    if pointListTo == None:
+      print("Error: Could not estimate the fiducial points.")
+      return
     
-    s = None
-    t = None
-    curve0Node = None
-    curve1Node = None
-    curve0FiducialsNode = None
-    curve1FiducialsNode = None
+    # TODO: Previously, we check the coil positions and determine which coils (i.e., coils on the 'from'
+    # catheter or the 'to' catheter) are used as registration fidicuals. We skip this process and use
+    # the 'from' catheter's coils as fiducials.
     
-    if coilPosFrom[0] < coilPosTo[0]:
-      s = coilPosFrom
-      t = coilPosTo
-      curve0Node = fromCurveNode
-      curve1Node = toCurveNode
-      curve0FiducialsNode = fromFiducialsNode
-      curve1FiducialsNode = toFiducialsNode
-    else:
-      s = coilPosTo
-      t = coilPosFrom
-      curve0Node = toCurveNode
-      curve1Node = fromCurveNode
-      curve0FiducialsNode = toFiducialsNode
-      curve1FiducialsNode = fromFiducialsNode
+    # s = None
+    # t = None
+    # curve0Node = None
+    # curve1Node = None
+    # curve0FiducialsNode = None
+    # curve1FiducialsNode = None
+    # 
+    # if coilPosFrom[0] < coilPosTo[0]:
+    #   s = coilPosFrom
+    #   t = coilPosTo
+    #   curve0Node = fromCurveNode
+    #   curve1Node = toCurveNode
+    #   curve0FiducialsNode = fromFiducialsNode
+    #   curve1FiducialsNode = toFiducialsNode
+    # else:
+    #   s = coilPosTo
+    #   t = coilPosFrom
+    #   curve0Node = toCurveNode
+    #   curve1Node = fromCurveNode
+    #   curve0FiducialsNode = toFiducialsNode
+    #   curve1FiducialsNode = fromFiducialsNode
+
+    # Assign the 'from' and 'to' catheters to 0 and 1
+    curve0Node = fromCurveNode
+    curve1Node = toCurveNode
+    pointList0 = pointListFrom
+    pointList1 = pointListTo
+    curve0FiducialsNode = fromFiducialsNode
+    curve1FiducialsNode = toFiducialsNode
 
     # Check time stamp
     curve0Time = float(curve0Node.GetAttribute('MRTracking.lastTS'))
     curve1Time = float(curve1Node.GetAttribute('MRTracking.lastTS'))
 
-
     # Check if it is too early to perform new registration
-    
-    # print('curve 0, curve 1, prevCollectionTime, interval = %f, %f, %f, %f' % (curve0Time, curve1Time, self.prevCollectionTime, self.minInterval))
     if ((curve0Time - self.prevCollectionTime) < self.minInterval) and ((curve1Time - self.prevCollectionTime) < self.minInterval):
       return False
 
@@ -470,7 +417,6 @@ class MRTrackingFiducialRegistration():
             
     self.prevCollectionTime = currentTime
                                                 
-    #adjPointIndex = [-1] * nCoils ## TODO: Should it have fixed length for speed?
     k = 0
     trans = vtk.vtkMatrix4x4()
     pos0 = [0.0] * 3
@@ -479,57 +425,25 @@ class MRTrackingFiducialRegistration():
     invTransform = None
     if self.applyTransform and self.registrationTransform:
       invTransform = self.registrationTransform.GetInverse()
-    
+      
+    nCoils = len(pointList0)
+      
     for j in range(nCoils):
 
-      # 1. Find the two closest coils for Tracking 0 (s[k] and s[k+1]) from each coil for Tracking 1 t[j]
+      if pointMask[j] == False:
+        # Skip if the point is not valid.
+        continue
       
-      while k < nCoils-1 and s[k+1] < t[j]:
-        k = k + 1
+      pos0 = pointList0[j]
+      pos1 = pointList1[j]
 
-      if k == nCoils-1:
-        break
-
-      # 2. Calculate the distance ratio a/(a+b) = distance(s[k], t[j]) / distance(s[k], s[k+1])
-      a = t[j]-s[k]
-      b = s[k+1]-s[k]
-
-      # Get the point indices for s[k] and s[k+1] (control points)
-      pindex0 = curve0Node.GetCurvePointIndexFromControlPointIndex(k)
-      pindex1 = curve0Node.GetCurvePointIndexFromControlPointIndex(k+1)
-
-      ## TODO: Make sure that pindex0 < pindex1
-
-      # 3. Calculate the location of t[j] in the Tracking 0 space by interpolation.      
-      # Calculate the curve length between the point s[k] and point s[k+1]
-      clen = curve0Node.GetCurveLengthBetweenStartEndPointsWorld(pindex0, pindex1)
-
-      if b == 0.0:
-        print('MRTrackingFiducialRegistration(): Invalid catheter configuration.')
-        return
-      
-      pindexm =  curve0Node.GetCurvePointIndexAlongCurveWorld(pindex0, clen * a / b)
-
-      curve0Node.GetCurvePointToWorldTransformAtPointIndex(pindexm, trans)
-      pos0[0] = trans.GetElement(0, 3)
-      pos0[1] = trans.GetElement(1, 3)
-      pos0[2] = trans.GetElement(2, 3)
       if self.applyTransform and invTransform:
         v = invTransform.TransformPoint(pos0)
         pos0[0] = v[0]
         pos0[1] = v[1]
         pos0[2] = v[2]
-        
       
-      # 3. Obtain the coordinates for t[j]
-      pindex = curve1Node.GetCurvePointIndexFromControlPointIndex(j)
-      curve1Node.GetCurvePointToWorldTransformAtPointIndex(pindex, trans)
-      pos1[0] = trans.GetElement(0, 3)
-      pos1[1] = trans.GetElement(1, 3)
-      pos1[2] = trans.GetElement(2, 3)
-
-
-      # 5. Record the coordinates
+      # Record the coordinates
       nCurve0 = curve0FiducialsNode.GetNumberOfFiducials()
       
       if nCurve0 > self.sizeCircularBuffer: # Overwrite a previous point.
@@ -556,8 +470,8 @@ class MRTrackingFiducialRegistration():
       return True
     else:
       return False
-
-
+    
+    
   def discardExpiredPoints(self, fidNode0, fidNode1, currentTime):
     
     nCurve0 = fidNode0.GetNumberOfFiducials()
