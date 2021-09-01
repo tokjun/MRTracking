@@ -51,6 +51,8 @@ class MRTrackingFiducialRegistration():
     self.maxTimeDifference = 0.1     # seconds
     self.pointExpiration = 30.0      # seconds
 
+    self.combineTracking = False
+    
     
   def setCatheterCollection(self, cath):
 
@@ -248,6 +250,23 @@ class MRTrackingFiducialRegistration():
     self.freLineEdit.styleSheet = "QLineEdit { background:transparent; }"
     
     registrationLayout.addRow("FRE (mm): ", self.freLineEdit)
+
+    #
+    # Combined tracking
+    #
+
+    self.trackingDataSelector = slicer.qMRMLNodeComboBox()
+    self.trackingDataSelector.nodeTypes = ( ("vtkMRMLIGTLTrackingDataBundleNode"), "" )
+    self.trackingDataSelector.selectNodeUponCreation = True
+    self.trackingDataSelector.addEnabled = True
+    self.trackingDataSelector.removeEnabled = False
+    self.trackingDataSelector.noneEnabled = True
+    self.trackingDataSelector.showHidden = True
+    self.trackingDataSelector.showChildNodeTypes = False
+    self.trackingDataSelector.setMRMLScene( slicer.mrmlScene )
+    self.trackingDataSelector.setToolTip( "Combine tracking data from two sources. The combined data can be used to visualize them as a single catheter." )
+    registrationLayout.addRow("Combined Tracking: ", self.trackingDataSelector)
+
     
     #
     # Connect signals and slots
@@ -264,6 +283,7 @@ class MRTrackingFiducialRegistration():
     self.maxTimeDifferenceSliderWidget.connect("valueChanged(double)", self.onPointSelectionParametersChanged)
     self.minIntervalSliderWidget.connect("valueChanged(double)", self.onPointSelectionParametersChanged)
     self.pointExpirationSliderWidget.connect("valueChanged(double)", self.onPointSelectionParametersChanged)
+    self.trackingDataSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onTrackingDataSelected)
 
 
   def onFromCatheterSelected(self):
@@ -353,8 +373,14 @@ class MRTrackingFiducialRegistration():
       return
 
     ## Get TrackingData 
-    coilPosFrom = self.fromCatheter.coilPositions
-    coilPosTo = self.toCatheter.coilPositions
+    coilPos0 = self.fromCatheter.coilPositions
+    coilPos1 = self.toCatheter.coilPositions
+
+    # Assign the 'from' and 'to' catheters to 0 and 1
+    curve0Node = fromCurveNode
+    curve1Node = toCurveNode
+    curve0FiducialsNode = fromFiducialsNode
+    curve1FiducialsNode = toFiducialsNode
 
     #
     # Obtain the corresponding points on both catheters. 
@@ -362,53 +388,23 @@ class MRTrackingFiducialRegistration():
     # The corresponding points on the 'to' catheters are estimated by intepolation (by calling
     # getInterpolatedFiducialPoints())
     #
-    pointListFrom = self.fromCatheter.getFiducialPoints()
-    [pointListTo, pointMask] = self.toCatheter.getInterpolatedFiducialPoints(coilPosFrom)
+    pointList0 = self.fromCatheter.getFiducialPoints()
+    pointList1  = self.toCatheter.getFiducialPoints()
+    [pointList1Interp, pointMask1Interp] = self.toCatheter.getInterpolatedFiducialPoints(coilPos0)
 
-    if pointListTo == None:
+    if pointList1Interp == None:
       print("Error: Could not estimate the fiducial points.")
       return
     
-    # TODO: Previously, we check the coil positions and determine which coils (i.e., coils on the 'from'
-    # catheter or the 'to' catheter) are used as registration fidicuals. We skip this process and use
-    # the 'from' catheter's coils as fiducials.
-    
-    # s = None
-    # t = None
-    # curve0Node = None
-    # curve1Node = None
-    # curve0FiducialsNode = None
-    # curve1FiducialsNode = None
-    # 
-    # if coilPosFrom[0] < coilPosTo[0]:
-    #   s = coilPosFrom
-    #   t = coilPosTo
-    #   curve0Node = fromCurveNode
-    #   curve1Node = toCurveNode
-    #   curve0FiducialsNode = fromFiducialsNode
-    #   curve1FiducialsNode = toFiducialsNode
-    # else:
-    #   s = coilPosTo
-    #   t = coilPosFrom
-    #   curve0Node = toCurveNode
-    #   curve1Node = fromCurveNode
-    #   curve0FiducialsNode = toFiducialsNode
-    #   curve1FiducialsNode = fromFiducialsNode
-
-    # Assign the 'from' and 'to' catheters to 0 and 1
-    curve0Node = fromCurveNode
-    curve1Node = toCurveNode
-    pointList0 = pointListFrom
-    pointList1 = pointListTo
-    curve0FiducialsNode = fromFiducialsNode
-    curve1FiducialsNode = toFiducialsNode
-
     # Check time stamp
     curve0Time = float(curve0Node.GetAttribute('MRTracking.lastTS'))
     curve1Time = float(curve1Node.GetAttribute('MRTracking.lastTS'))
 
     # Check if it is too early to perform new registration
-    if ((curve0Time - self.prevCollectionTime) < self.minInterval) and ((curve1Time - self.prevCollectionTime) < self.minInterval):
+    timeElapsed0 = curve0Time - self.prevCollectionTime
+    timeElapsed1 = curve1Time - self.prevCollectionTime
+    
+    if (timeElapsed0 < self.minInterval) and (timeElapsed1 < self.minInterval):
       return False
 
     # Check if the acquisition time difference between the two curves are small enough
@@ -426,16 +422,16 @@ class MRTrackingFiducialRegistration():
     if self.applyTransform and self.registrationTransform:
       invTransform = self.registrationTransform.GetInverse()
       
-    nCoils = len(pointList0)
-      
-    for j in range(nCoils):
+    nCoils0 = len(pointList0)
+    
+    for j in range(nCoils0):
 
-      if pointMask[j] == False:
+      if pointMask1Interp[j] == False:
         # Skip if the point is not valid.
         continue
       
-      pos0 = pointList0[j]
-      pos1 = pointList1[j]
+      pos0 = pointList0[j].copy()
+      pos1 = pointList1Interp[j].copy()
 
       if self.applyTransform and invTransform:
         v = invTransform.TransformPoint(pos0)
@@ -460,13 +456,75 @@ class MRTrackingFiducialRegistration():
       print('Add From (%f, %f, %f)' % (pos0[0], pos0[1], pos0[2]))
       print('Add To (%f, %f, %f)' % (pos1[0], pos1[1], pos1[2]))
 
+      
+    # Combined tracking data
+    ctdnode = self.trackingDataSelector.currentNode()
 
+    
+    if ctdnode:
+      
+      self.InitializeCombinedTrackingData(ctdnode)
+
+      # Create a list of tuples consisting of catheter index and coil position
+      # (e.g., [(0, 5), (0, 10), ..., (0, 40)])
+      coilList = []
+      
+      # Determine which tracking data is newer
+      if timeElapsed0 < timeElapsed1:
+
+        print("Using Catheter 0")
+        # Catheter 0 is up-to-date. We use pointList0 and pointList0Interp
+        [pointList0Interp, pointMask0Interp] = self.fromCatheter.getInterpolatedFiducialPoints(coilPos1)
+        
+        for i in range(len(pointList0)):
+          cp = coilPos0[i]
+          point = pointList0[i]
+          coilList.append((cp, point))
+          
+        for i in range(len(pointList0Interp)):
+          if pointMask0Interp[i]:
+            cp = coilPos1[i]
+            point = pointList0Interp[i]
+            coilList.append((cp, point))
+              
+      else:
+        print("Using Catheter 1")
+        # Catheter 1 is up-to-date. We use pointList1 and pointList1Interp
+        
+        for i in range(len(pointList1)):
+          cp = coilPos1[i]
+          point = pointList1[i]
+          coilList.append((cp, point))
+          
+        for i in range(len(pointList1Interp)):
+          if pointMask1Interp[i]:
+            cp = coilPos0[i]
+            point = pointList1Interp[i]
+            coilList.append((cp, point))
+
+      # Sort the list by coil position
+      coilList.sort(key=lambda v: v[0])
+      print(coilList)
+
+      t = vtk.vtkMatrix4x4()
+      t.Identity()
+      for i in range(0, len(coilList)):
+        p = coilList[i][1]
+        t.SetElement(0, 3, p[0])
+        t.SetElement(1, 3, p[1])
+        t.SetElement(2, 3, p[2])
+        tnode = ctdnode.GetTransformNode(i)
+        tnode.SetMatrixTransformToParent(t)
+        
+      ctdnode.SetAttribute('MRTracking.lastIndex', str(len(coilList)-1))
+
+      
     # Discard expired points
     self.discardExpiredPoints(curve0FiducialsNode, curve1FiducialsNode, currentTime)
-      
+    
     # Check if it is ready for new registration
     # TODO: Should we also check the number of fiducials for toFiducialsNode?
-    if fromFiducialsNode.GetNumberOfFiducials() >  self.minNumFiducials:
+    if curve0FiducialsNode.GetNumberOfFiducials() >  self.minNumFiducials:
       return True
     else:
       return False
@@ -705,6 +763,18 @@ class MRTrackingFiducialRegistration():
     self.maxTimeDifference = self.maxTimeDifferenceSliderWidget.value / 1000.0
     self.minInterval = self.minIntervalSliderWidget.value / 1000.0
     self.pointExpiration = self.pointExpirationSliderWidget.value
+
+
+  def onTrackingDataSelected(self):
+    
+    tdnode = self.trackingDataSelector.currentNode()
+
+    # TODO: self.combineTracking may not be needed.
+    if tdnode == None:
+      self.combineTracking = False
+      return
+    else:
+      self.combineTracking = True
     
       
   def updatePoints(self):
@@ -719,3 +789,39 @@ class MRTrackingFiducialRegistration():
         pass
       
     
+  def InitializeCombinedTrackingData(self, ctdnode, ):
+    
+    if ctdnode == None:
+      return
+
+    pointListFrom = self.fromCatheter.getFiducialPoints()
+    pointListTo   = self.toCatheter.getFiducialPoints()
+    
+    # Make sure that the number of transforms under the combined tracking data node matches
+    # the total number of tracking coils. Note that not all the transforms will be used
+    # because the numbers of valid coils depends the fesibility of interpolation.
+    nTransforms =  ctdnode.GetNumberOfTransformNodes()
+    nCoilsFrom = len(pointListFrom)
+    nCoilsTo   = len(pointListTo)
+    nCoilsTotal = nCoilsFrom + nCoilsTo
+    
+    t = vtk.vtkMatrix4x4()
+    t.Identity()
+    
+    # NOTE: vtkMRMLIGTLTrackingDataBundleNode does not have a function to remove the transforms
+    # under the node. If the tracking data node has been previously used for other purposes, 
+    # the names of the child transforms might not match.
+
+    # We add child node, if the current number of child nodes are less than what we need.
+    # The newly added nodes have a name 'Combined-?' where '?' is an index.
+    if nTransforms < nCoilsTotal:
+      for i in range(nTransforms, nCoilsTotal):
+        ctdnode.UpdateTransformNode('Combined-' + str(i), t, 1)
+
+    # We cannot remove unused child nodes. To prevent the Catheter class to use the child tracking
+    # nodes that are not actively updated, we set the 'MRTracking.lastIndex' attribute.
+
+    ctdnode.SetAttribute('MRTracking.lastIndex', str(nCoilsTotal - 1))
+    
+
+

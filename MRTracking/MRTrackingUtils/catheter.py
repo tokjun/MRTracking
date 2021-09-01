@@ -971,7 +971,6 @@ class Catheter:
 
     mask = []
     posList = []
-    mask
     upperIndexLimit = curveNode.GetNumberOfControlPoints() - 2
     
     for d in distFromTip:
