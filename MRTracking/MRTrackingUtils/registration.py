@@ -472,7 +472,6 @@ class MRTrackingFiducialRegistration():
       # Determine which tracking data is newer
       if timeElapsed0 < timeElapsed1:
 
-        print("Using Catheter 0")
         # Catheter 0 is up-to-date. We use pointList0 and pointList0Interp
         [pointList0Interp, pointMask0Interp] = self.fromCatheter.getInterpolatedFiducialPoints(coilPos1)
         
@@ -488,7 +487,6 @@ class MRTrackingFiducialRegistration():
             coilList.append((cp, point))
               
       else:
-        print("Using Catheter 1")
         # Catheter 1 is up-to-date. We use pointList1 and pointList1Interp
         
         for i in range(len(pointList1)):
@@ -504,7 +502,6 @@ class MRTrackingFiducialRegistration():
 
       # Sort the list by coil position
       coilList.sort(key=lambda v: v[0])
-      print(coilList)
 
       t = vtk.vtkMatrix4x4()
       t.Identity()
