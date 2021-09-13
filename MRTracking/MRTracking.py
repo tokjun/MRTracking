@@ -10,6 +10,7 @@ from MRTrackingUtils.registration import *
 from MRTrackingUtils.qcomboboxcatheter import *
 from MRTrackingUtils.catheter import *
 from MRTrackingUtils.catheterconfig import *
+from MRTrackingUtils.recording import *
 import numpy
 import functools
 
@@ -158,6 +159,18 @@ class MRTrackingWidget(ScriptedLoadableModuleWidget):
     self.registration.setCatheterCollection(self.logic.catheters)
     self.registration.buildGUI(registrationCollapsibleButton)
 
+    #--------------------------------------------------
+    # Recording
+    #--------------------------------------------------
+
+    recordingCollapsibleButton = ctk.ctkCollapsibleButton()
+    recordingCollapsibleButton.text = "Recording"
+    self.layout.addWidget(recordingCollapsibleButton)
+
+    self.recording = MRTrackingRecording("Recording")
+    self.recording.setCatheterCollection(self.logic.catheters)    
+    self.recording.buildGUI(recordingCollapsibleButton, False)
+    
     
     #--------------------------------------------------
     # Connections

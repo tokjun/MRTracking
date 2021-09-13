@@ -15,18 +15,18 @@ class MRTrackingPanelBase():
     self.catheters = cath
 
     
-  def buildGUI(self, parent):
+  def buildGUI(self, parent, showCatheterSelector=True):
     parentLayout = qt.QVBoxLayout(parent)
 
     # Catheter selector
-    selectorLayout = qt.QFormLayout(parent)
-    parentLayout.addLayout(selectorLayout)
-    
     self.catheterComboBox = QComboBoxCatheter()
     self.catheterComboBox.setCatheterCollection(self.catheters)
     self.catheterComboBox.currentIndexChanged.connect(self.onCatheterSelected)
     
-    selectorLayout.addRow("Catheter: ", self.catheterComboBox)
+    if showCatheterSelector:
+      selectorLayout = qt.QFormLayout(parent)
+      parentLayout.addLayout(selectorLayout)
+      selectorLayout.addRow("Catheter: ", self.catheterComboBox)
 
     # Main panel
     mainPanelFrame = qt.QFrame(parent)
