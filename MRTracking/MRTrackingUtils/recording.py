@@ -16,11 +16,8 @@ class MRTrackingRecording(MRTrackingPanelBase):
     super(MRTrackingRecording, self).__init__(label)
 
     self.recfile = None
-    
-    self.reslice = [False, False, False]
-    self.resliceDriverLogic= slicer.modules.volumereslicedriver.logic()
-
-    self.resliceCath = 0
+    self.eventTags = {}
+    self.lastMTime = {}
 
     
   def buildMainPanel(self, frame):
@@ -40,16 +37,16 @@ class MRTrackingRecording(MRTrackingPanelBase):
     
     self.activeCheckBox = qt.QCheckBox()
     self.activeCheckBox.checked = 0
-    self.activeCheckBox.enabled = 0
+    self.activeCheckBox.enabled = 1
     self.activeCheckBox.setToolTip("Activate recording")
-    layout.addRow("Recording:", activeBoxLayout)
+    layout.addRow("Recording:", self.activeCheckBox)
 
     self.fileDialogBoxButton.connect('clicked(bool)', self.openDialogBox)
     self.fileLineEdit.editingFinished.connect(self.onFilePathEntered)
     self.activeCheckBox.connect('clicked(bool)', self.onActive)
     
     ## TODO: Should it be called from the module class, either Widget or Logic?
-    self.addObservers()
+    self.addSceneObservers()
     
     
   #--------------------------------------------------
@@ -105,11 +102,26 @@ class MRTrackingRecording(MRTrackingPanelBase):
 
     self.findAndObserveNodes()
     
-    #try:
-    #  self.recfile = open(filepath, 'w')
+    try:
+      self.recfile = open(filepath, 'w')
+    except IOError:
+      print("Could not open file: " + filepath)
+
+    # Update GUI
+    self.activeCheckBox.checked = 1
       
 
-      
+  def stopRecording(self):
+
+    if self.recfile and not self.recfile.closed:
+      self.recfile.close()
+
+    self.removeNodeObservers()
+    
+    # Update GUI
+    self.activeCheckBox.checked = 0
+
+    
   #--------------------------------------------------
   # Find existing tracking/Egram nodes and setup observers
 
@@ -122,44 +134,82 @@ class MRTrackingRecording(MRTrackingPanelBase):
       nodes = slicer.util.getNodesByClass(c)
       for node in nodes:
         self.observeNode(node)
+
+        
+  def removeNodeObservers(self):
     
+    classList = ['vtkMRMLIGTLTrackingDataBundleNode', 'vtkMRMLTextNode']
+
+    for c in classList:
+    
+      nodes = slicer.util.getNodesByClass(c)
+      for node in nodes:
+        self.removeNodeObserver(node)
+
+        
   def observeNode(self, node):
 
     if node == None:
       return False
     
     if node.GetClassName() == 'vtkMRMLIGTLTrackingDataBundleNode': # Tracking data
-      tdnode = caller
+      tdnode = node
 
-      if tdnode:
-        print('Recording: Adding transform nodes..')
+      print('Recording: Adding transform nodes..')
         
-        # Since TrackingDataBundle does not invoke ModifiedEvent, obtain the first child node
-        if tdnode.GetNumberOfTransformNodes() > 0:
-
-          # Get the first node
-          firstNode = tdnode.GetTransformNode(0)
-          self.eventTags[tdnode.GetID()] = firstNode.AddObserver(vtk.vtkCommand.ModifiedEvent, self.onTrackingNodeModifiedEvent)
-          firstNode.SetAttribute('MRTracking.recording.parent', tdnode.GetID())
+      # Since TrackingDataBundle does not invoke ModifiedEvent, obtain the first child node
+      if tdnode.GetNumberOfTransformNodes() > 0:
+        
+        # Get the first node
+        firstNode = tdnode.GetTransformNode(0)
+        self.eventTags[tdnode.GetID()] = firstNode.AddObserver(vtk.vtkCommand.ModifiedEvent, self.onTrackingNodeModifiedEvent)
+        firstNode.SetAttribute('MRTracking.recording.parent', tdnode.GetID())
           
     elif node.GetClassName() == 'vtkMRMLTextNode': # Egram data
-      textnode = caller
+      textnode = node
       
-      if textnode:
-        print('Recording: Adding egram node..')
-        self.eventTags[textnode.GetID()] = textnode.AddObserver(vtk.vtkCommand.ModifiedEvent, self.onEgramNodeModifiedEvent)
+      print('Recording: Adding egram node..')
+      self.eventTags[textnode.GetID()] = textnode.AddObserver(vtk.vtkCommand.ModifiedEvent, self.onEgramNodeModifiedEvent)
 
     return True
+
   
-  
+  def removeNodeObserver(self, node):
+    
+    if node == None:
+      return False
+    
+    nodeID = node.GetID()
+
+    if node.GetClassName() == 'vtkMRMLIGTLTrackingDataBundleNode': # Tracking data
+      
+      if node.GetNumberOfTransformNodes() > 0:
+        
+        # Get the first node
+        firstNode = tdnode.GetTransformNode(0)
+        tag = self.eventTags[nodeID]
+        if tag:
+          firstNode.RemoveObserver(tag)
+          
+        del self.eventTags[nodeID]
+          
+      elif node.GetClassName() == 'vtkMRMLTextNode': # Egram data
+       
+        tag = self.eventTags[nodeID]
+        if tag:
+          node.RemoveObserver(tag)
+          
+        del self.eventTags[nodeID]
+
+
   #--------------------------------------------------
   # Observers
 
-  def addObservers(self):
-    self.scene.AddObserver(slicer.vtkMRMLScene.NodeAddedEvent, self.onNodeAddedEvent)
-    self.scene.AddObserver(slicer.vtkMRMLScene.NodeAboutToBeRemovedEvent, self.onNodeRemovedEvent)    
-    self.scene.AddObserver(slicer.vtkMRMLScene.EndImportEvent, self.onSceneImportedEvent)
-    self.scene.AddObserver(slicer.vtkMRMLScene.EndCloseEvent, self.onSceneClosedEvent)
+  def addSceneObservers(self):
+    slicer.mrmlScene.AddObserver(slicer.vtkMRMLScene.NodeAddedEvent, self.onNodeAddedEvent)
+    slicer.mrmlScene.AddObserver(slicer.vtkMRMLScene.NodeAboutToBeRemovedEvent, self.onNodeRemovedEvent)    
+    slicer.mrmlScene.AddObserver(slicer.vtkMRMLScene.EndImportEvent, self.onSceneImportedEvent)
+    slicer.mrmlScene.AddObserver(slicer.vtkMRMLScene.EndCloseEvent, self.onSceneClosedEvent)
 
 
   @vtk.calldata_type(vtk.VTK_OBJECT)    
@@ -173,21 +223,19 @@ class MRTrackingRecording(MRTrackingPanelBase):
 
   @vtk.calldata_type(vtk.VTK_OBJECT)
   def onNodeRemovedEvent(self, caller, event, obj=None):
-    pass
+    
+    self.removeNodeObserver(caller)
 
   
   @vtk.calldata_type(vtk.VTK_OBJECT)
   def onSceneImportedEvent(self, caller, eventId, callData):
     pass
 
+  
   @vtk.calldata_type(vtk.VTK_OBJECT)  
   def onSceneClosedEvent(self, caller, eventId, callData):
-    pass
-
-
-  @vtk.calldata_type(vtk.VTK_OBJECT)  
-  def onIncomingNodeModifiedEvent(self, caller, event):
-    pass
+    
+    self.stopRecording()
 
 
   @vtk.calldata_type(vtk.VTK_OBJECT)  
@@ -211,19 +259,30 @@ class MRTrackingRecording(MRTrackingPanelBase):
       currentTime = time.time()
       outStr = ''
       
-      if nCoils > 0:
+      if nTrans > 0:
         # Check if the node has been updated
         tnode = tdnode.GetTransformNode(0)
         mTime = tnode.GetTransformToWorldMTime()
-        
-        if mTime > self.lastMTime[tnode.GetID()]:
-          self.lastMTime[tnode.GetID()] = mTime
-          outStr = outStr + str(currentTime) + ',' + tnode.GetName() + ',' + 'nCoils'
+
+        nodeID = tnode.GetID()
+        if not(nodeID in self.lastMTime):
+          self.lastMTime[nodeID] = 0
           
-          for i in range(nCoils):
+        if mTime > self.lastMTime[nodeID]:
+          self.lastMTime[nodeID] = mTime
+          outStr = outStr + str(currentTime) + ',' + tdnode.GetName() + ',' + str(nTrans)
+          
+          for i in range(nTrans):
             tnode = tdnode.GetTransformNode(i)
             trans = tnode.GetTransformToParent()
             v = trans.GetPosition()
             outStr = outStr + ',' + str(v[0]) + ',' + str(v[1]) + ',' + str(v[2])
-        
-          self.fout
+
+          outStr = outStr + '\n'
+          self.recfile.write(outStr)
+
+          
+  @vtk.calldata_type(vtk.VTK_OBJECT)  
+  def onEgramNodeModifiedEvent(self, caller, event):    
+    pass
+    
