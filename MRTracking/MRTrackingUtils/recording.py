@@ -7,7 +7,38 @@ from MRTrackingUtils.panelbase import *
 
 #------------------------------------------------------------
 #
-# MRTrackingIGTLConnector class
+# MRTrackingRecording
+#
+
+#
+# This recording class records received catheter tracking and Egram data and save them in an output file.
+# The class detects every MRML node that are used to receive data from catheter tracking systems
+# (e.g., EnSite, MR scanner) based on their node types. Those types include:
+#
+#    - 'vtkMRMLIGTLTrackingDataBundleNode'
+#    - 'vtkMRMLTextNode'
+#
+# Each frame of tracking and Egram data is stored as a line in the output file with the following format:
+#
+#    TYPE NAME TIMESTAMP DATA
+#
+# where
+#
+#    TYPE:      Data type, either 'TDATA' or 'STRING'.
+#    NAME:      The message name, which is also used as a node name when the message is imported in 3D Slicer.     
+#    TIMESTAMP: Time stamp (floating point converted to a string)
+#    DATA:      Tracking or string data.
+#
+# The fields are separated by a single tab '\n'. The DATA fields ends at the end of line (EOL). 
+# When the line contains a TDATA frame, the DATA field is formatted as:
+#
+#    X_0 Y_0 Z_0 X_1 Y_1 Z_1 ... X_(N-1) Y_(N-1) Z_(N-1)
+#
+# When a line contains a STRING frame, the DATA field simply contains a ASCII string with EOLs replaced with tabs.
+#
+# The recorded data can later be used to replay the tracking using MRCatheterTrackingSim, which is available at:
+#
+#    https://github.com/tokjun/MRCatheterTrackingSim
 #
 
 class MRTrackingRecording(MRTrackingPanelBase):
@@ -56,7 +87,7 @@ class MRTrackingRecording(MRTrackingPanelBase):
     
     dlg = qt.QFileDialog()
     dlg.setFileMode(qt.QFileDialog.AnyFile)
-    dlg.setNameFilter("CSV files (*.csv)")
+    dlg.setNameFilter("TSV files (*.tsv)")
     dlg.setAcceptMode(qt.QFileDialog.AcceptOpen)
     
     if dlg.exec_():
@@ -242,8 +273,8 @@ class MRTrackingRecording(MRTrackingPanelBase):
   def onTrackingNodeModifiedEvent(self, caller, event):
 
     #
-    # Format: 
-    #    TimeStamp,BundleName,NumberOfCoils,X_0,Y_0,Z_0,X_1,Y_1,Z_1, ..., X_(N-1),Y_(N-1),Z_(N-1)
+    # Format:
+    #    TYPE NAME TIMESTAMP X_0 Y_0 Z_0 X_1 Y_1 Z_1 ... X_(N-1) Y_(N-1) Z_(N-1)
     #    
 
     parentID = str(caller.GetAttribute('MRTracking.recording.parent'))
@@ -252,12 +283,15 @@ class MRTrackingRecording(MRTrackingPanelBase):
       return
 
     tdnode = slicer.mrmlScene.GetNodeByID(parentID)
+    
+    if tdnode == None:
+      return
 
-    if tdnode and tdnode.GetClassName() == 'vtkMRMLIGTLTrackingDataBundleNode':
+    if tdnode.GetClassName() == 'vtkMRMLIGTLTrackingDataBundleNode':
       
       nTrans = tdnode.GetNumberOfTransformNodes()
       currentTime = time.time()
-      outStr = ''
+      outStr = 'TDATA '
       
       if nTrans > 0:
         # Check if the node has been updated
@@ -270,19 +304,45 @@ class MRTrackingRecording(MRTrackingPanelBase):
           
         if mTime > self.lastMTime[nodeID]:
           self.lastMTime[nodeID] = mTime
-          outStr = outStr + str(currentTime) + ',' + tdnode.GetName() + ',' + str(nTrans)
+          outStr = outStr + tdnode.GetName() + '\t' + str(currentTime) + '\t'
           
           for i in range(nTrans):
             tnode = tdnode.GetTransformNode(i)
             trans = tnode.GetTransformToParent()
             v = trans.GetPosition()
-            outStr = outStr + ',' + str(v[0]) + ',' + str(v[1]) + ',' + str(v[2])
+            outStr = outStr + '\t' + str(v[0]) + '\t' + str(v[1]) + '\t' + str(v[2])
 
           outStr = outStr + '\n'
           self.recfile.write(outStr)
 
+      
           
   @vtk.calldata_type(vtk.VTK_OBJECT)  
-  def onEgramNodeModifiedEvent(self, caller, event):    
-    pass
+  def onEgramNodeModifiedEvent(self, caller, event):
+
+    #
+    # Format:
+    #    TYPE NAME TIMESTAMP STRING
+    #    
+
+    if caller.GetClassName() != 'vtkMRMLTextNode':
+      return
+
+    node = caller
+    currentTime = time.time()    
+    mTime = node.GetMTime()
+
+    nodeID = node.GetID()
+    if not(nodeID in self.lastMTime):
+      self.lastMTime[nodeID] = 0
+
+    if mTime > self.lastMTime[nodeID]:
+      self.lastMTime[nodeID] = mTime
+      string = caller.GetText()
+      string = string.replace('\n', '\t')
+      outStr = 'STRING ' + node.GetName() + '\t' + str(currentTime) + '\t' + string + '\n'
+      self.recfile.write(outStr)
+    
+
+
     
