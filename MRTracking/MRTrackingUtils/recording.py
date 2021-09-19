@@ -291,7 +291,7 @@ class MRTrackingRecording(MRTrackingPanelBase):
       
       nTrans = tdnode.GetNumberOfTransformNodes()
       currentTime = time.time()
-      outStr = 'TDATA '
+      outStr = 'TDATA\t'
       
       if nTrans > 0:
         # Check if the node has been updated
@@ -340,7 +340,7 @@ class MRTrackingRecording(MRTrackingPanelBase):
       self.lastMTime[nodeID] = mTime
       string = caller.GetText()
       string = string.replace('\n', '\t')
-      outStr = 'STRING ' + node.GetName() + '\t' + str(currentTime) + '\t' + string + '\n'
+      outStr = 'STRING\t' + node.GetName() + '\t' + str(currentTime) + '\t' + string + '\n'
       self.recfile.write(outStr)
     
 
