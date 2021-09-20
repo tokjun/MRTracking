@@ -134,6 +134,14 @@ class Catheter:
       return
     
     self.curveNodeID = curveNode.GetID()
+
+    # Resampled curve node
+    resampledCurveNode = self.getResampledCurveNode(curveNode)
+    if resampledCurveNode == None:
+      print('Catheter.__init__(): Error - Could not create a resampled curve node.')
+      return
+    self.resampledCurveNodeID = resampledCurveNode.GetID()
+
     
     #slicer.mrmlScene.AddObserver(slicer.vtkMRMLScene.NodeRemovedEvent, self.onNodeRemovedEvent)
     self.name = name
@@ -439,7 +447,25 @@ class Catheter:
     if currentTime > self.acquisitionWindowCurrent[1]: # Current window has been expired
       self.acquisitionWindowCurrent[0] = currentTime + self.acquisitionWindowDelay[0] / 1000.0
       self.acquisitionWindowCurrent[1] = currentTime + self.acquisitionWindowDelay[1] / 1000.0
+
+
+  def getResampledCurveNode(self, curveNode):
+    
+    resampledCurveNodeID = curveNode.GetAttribute('MRTracking.ResampledCurveNode')
+    resampledCurveNode = None
+    if resampledCurveNodeID:
+      resampledCurveNode = slicer.mrmlScene.GetNodeByID(resampledCurveNodeID)
       
+    if resampledCurveNode == None:
+      resampledCurveNode = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLMarkupsCurveNode')
+      if resampledCurveNode == None:
+        return None
+      resampledCurveNodeID = resampledCurveNode.GetID()
+      curveNode.SetAttribute('MRTracking.ResampledCurveNode', resampledCurveNodeID)
+
+    return resampledCurveNode
+  
+
         
   def updateCatheterNode(self):
 
@@ -449,22 +475,24 @@ class Catheter:
     #  return
 
     curveNode = None
+    resampledCurveNode = None
     
     if self.curveNodeID:
       curveNode = slicer.mrmlScene.GetNodeByID(self.curveNodeID)
-      
+
     if curveNode == None:
       curveNode = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLMarkupsCurveNode')
       self.curveNodeID = curveNode.GetID()
-      #
-      # TODO: Save curveNode information
-      #
 
-    if curveNode == None:
-      print('updateCatheter(): Error - Could not create a curve node')
-      return
+    if self.resampledCurveNodeID:
+      resampledCurveNode = slicer.mrmlScene.GetNodeByID(self.resampledCurveNodeID)
+
+    if resampledCurveNode == None:
+      resampledCurveNode = self.getResampledCurveNode(curveNode)
+      self.resampledCurveNodeID = resampledCurveNode.GetID()
     
     prevState = curveNode.StartModify()
+    #curveNode.SetCurveTypeToPolynomial()
 
     nCoils = len(self.activeCoils)
     
@@ -588,7 +616,7 @@ class Catheter:
       curveDisplayNode.SetTextScale(self.radius*5)
       curveDisplayNode.SetLineThickness(2.0)  # Thickness is defined as a scale from the glyph size.
       curveDisplayNode.SetHandlesInteractive(False)
-      #curveDisplayNode.OccludedVisibilityOff()
+      curveDisplayNode.OccludedVisibilityOff()
       #curveDisplayNode.OutlineVisibilityOff()
       curveDisplayNode.EndModify(prevState)
 
