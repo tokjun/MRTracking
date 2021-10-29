@@ -173,6 +173,16 @@ class MRTrackingCatheterConfig(MRTrackingPanelBase):
     self.showCoilLabelCheckBox.checked = 0
     self.showCoilLabelCheckBox.setToolTip("Show/hide coil labels")
     configFormLayout.addRow("Show Coil Labels: ", self.showCoilLabelCheckBox)
+
+    #
+    # Sheath
+    #
+    self.sheathRangeLineEdit = qt.QLineEdit()
+    self.sheathRangeLineEdit.text = '0-3'
+    self.sheathRangeLineEdit.readOnly = False
+    self.sheathRangeLineEdit.frame = True
+    configFormLayout.addRow('Sheath Coils (e.g., "0-3"): ', self.sheathRangeLineEdit)
+
     
     #--------------------------------------------------
     # Coordinate System
@@ -312,6 +322,7 @@ class MRTrackingCatheterConfig(MRTrackingPanelBase):
     self.trackingDataSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onTrackingDataSelected)
     self.egramDataSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onEgramDataSelected)
     self.catheterRegPointsLineEdit.editingFinished.connect(self.onCatheterRegPointsChanged)
+    self.sheathRangeLineEdit.editingFinished.connect(self.onCatheterSheathRangeChanged)
     self.catheterDiameterSliderWidget.connect("valueChanged(double)", self.onCatheterDiameterChanged)
     self.catheterOpacitySliderWidget.connect("valueChanged(double)", self.onCatheterOpacityChanged)
     self.colorButton.connect('clicked(bool)', self.onColorButtonClicked)
@@ -476,6 +487,20 @@ class MRTrackingCatheterConfig(MRTrackingPanelBase):
     try:
       array = [float(ns) for ns in strarray]
       self.setCoilPositions(array, True)
+    except ValueError:
+      print('Format error in coil position string.')
+
+  def onCatheterSheathRangeChanged(self):
+    text = self.sheathRangeLineEdit.text
+    print("onCatheterSheathRangeChanged(%s)" % (text))
+    
+    strarray = text.split('-')
+    try:
+      array = [int(ns) for ns in strarray]
+      if len(array) == 2:
+        self.setSheathRange(array[0], array[1])
+      else:
+        print('Illegal format.')
     except ValueError:
       print('Format error in coil position string.')
 
@@ -652,7 +677,7 @@ class MRTrackingCatheterConfig(MRTrackingPanelBase):
       #self.registration.trackingData = self.TrackingData
       self.setTipLength(td.coilPositions[0])  # The first coil position match the tip length
 
-        
+
   def setCatheterDiameter(self, diameter):
     td = self.currentCatheter
     if td:
@@ -682,7 +707,11 @@ class MRTrackingCatheterConfig(MRTrackingPanelBase):
       td.setShowCoilLabel(show)
       td.updateCatheter()
         
-    
+  def setSheathRange(self, ch0, ch1):
+    td = self.currentCatheter
+    if td:
+      td.setSheathRange(ch0, ch1)
+      
   def setActiveCoils(self, coils0, coilOrder0):
     print("setActiveCoils(self, coils1, coilOrder1)")
     td = self.currentCatheter      

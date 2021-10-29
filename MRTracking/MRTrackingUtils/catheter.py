@@ -167,12 +167,17 @@ class Catheter:
     self.tipPoly = None
     self.coilLength = 3.0
 
+    # Sheath model
+    self.sheathModelNode = None 
+    self.sheathPoly = None
+
     # Coil configuration
     self.tipLength = 10.0
     self.coilPositions = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
     self.activeCoils = [True, True, True, True, False, False, False, False]
     self.showCoilLabel = False
     self.coilOrder = True
+    self.sheathRange = [-1, -1]
 
     # Egram data
     self.egramDataNodeID = None
@@ -668,7 +673,36 @@ class Catheter:
       pe = numpy.array(p0) + numpy.array(n10) * self.coilLength/2.0
 
       self.updateCoilModelNode(self.coilModelNodes[i], self.coilPolyObjs[i], ps, pe, self.radius*1.5, [0.7, 0.7, 0.7], self.opacity)
-      
+
+
+    # Draw Sheath
+    if self.sheathPoly==None:
+      self.sheathPoly = vtk.vtkPolyData()
+    
+    if self.sheathModelNode == None:
+      self.sheathModelNode = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLModelNode')
+      self.sheathModelNode.SetName('Sheath')
+      curveNode.SetAttribute('MRTracking.' + str(self.catheterID) + '.sheathModel', self.sheathModelNode.GetID())
+    
+    sheathIndex0 = -1
+    sheathIndex1 = -1
+
+    if (self.sheathRange[0] >= 0) and (self.sheathRange[1] >= 0) and (self.sheathRange[0] <= self.sheathRange[1]):
+      sheathIndex0 = curveNode.GetCurvePointIndexFromControlPointIndex(self.sheathRange[0])
+      sheathIndex1 = curveNode.GetCurvePointIndexFromControlPointIndex(self.sheathRange[1])
+
+    curvePoints = []
+
+    for i in range(sheathIndex0, sheathIndex1+1):
+      curveNode.GetCurvePointToWorldTransformAtPointIndex(i, matrix)
+      p = [0.0]*3
+      p[0] = matrix.GetElement(0, 3)
+      p[1] = matrix.GetElement(1, 3)
+      p[2] = matrix.GetElement(2, 3)
+      curvePoints.append(p)
+
+    self.updateSheathModelNode(self.sheathModelNode, self.sheathPoly, curvePoints, self.radius*1.3, [0.4, 0.4, 0.4], 1.0)
+    
     
     # Add a extended tip
     # make sure that there is more than one points
@@ -778,6 +812,63 @@ class Catheter:
     coilDispNode.SetSliceDisplayModeToIntersection()
     coilDispNode.EndModify(prevState)
 
+
+  def updateSheathModelNode(self, sheathModelNode, poly, curvePoints, radius, color, opacity):
+
+    print("updateSheathModelNode() N = %d" % len(curvePoints))
+
+    npoints = len(curvePoints)
+    
+    points = vtk.vtkPoints()
+    cellArray = vtk.vtkCellArray()
+    points.SetNumberOfPoints(npoints)
+    cellArray.InsertNextCell(npoints)
+
+    i = 0
+    for p in curvePoints:
+      points.SetPoint(i, p)
+      cellArray.InsertCellPoint(i)
+      i = i + 1
+
+    poly.Initialize()
+    poly.SetPoints(points)
+    poly.SetLines(cellArray)
+
+    tubeFilter = vtk.vtkTubeFilter()
+    tubeFilter.SetInputData(poly)
+    tubeFilter.SetRadius(radius)
+    tubeFilter.SetNumberOfSides(20)
+    tubeFilter.CappingOn()
+    tubeFilter.Update()
+
+    apd = vtk.vtkAppendPolyData()
+
+    if vtk.VTK_MAJOR_VERSION <= 5:
+      apd.AddInput(tubeFilter.GetOutput())
+    else:
+      apd.AddInputConnection(tubeFilter.GetOutputPort())
+    apd.Update()
+    
+    sheathModelNode.SetAndObservePolyData(apd.GetOutput())
+    sheathModelNode.Modified()
+
+    sheathDispID = sheathModelNode.GetDisplayNodeID()
+    if sheathDispID == None:
+      sheathDispNode = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLModelDisplayNode')
+      sheathDispNode.SetScene(slicer.mrmlScene)
+      sheathModelNode.SetAndObserveDisplayNodeID(sheathDispNode.GetID());
+      sheathDispID = sheathModelNode.GetDisplayNodeID()
+      
+    sheathDispNode = slicer.mrmlScene.GetNodeByID(sheathDispID)
+
+    prevState = sheathDispNode.StartModify()
+    sheathDispNode.SetColor(color)
+    sheathDispNode.SetOpacity(opacity)
+    sheathDispNode.Visibility2DOn()
+    sheathDispNode.SetSliceDisplayModeToIntersection()
+    sheathDispNode.EndModify(prevState)
+    
+    
     
   def updateTipModelNode(self, tipModelNode, poly, p0, pe, radius, color, opacity):
     points = vtk.vtkPoints()
@@ -962,7 +1053,22 @@ class Catheter:
       return 1
     return 0
 
-  
+
+  def setSheathRange(self, ch0, ch1):
+
+    print("setSheathRange(%d, %d)" % (ch0, ch1))
+    # Make sure that 0 <= ch0 <= ch1 < <number of coils>
+    #if ch0 > ch1:
+    #  return 0
+    #if ch0 < 0 or ch0 >= len(self.activeCoils):
+    #  return 0
+    #if ch1 < 0 or ch1 >= len(self.activeCoils):
+    #  return 0
+
+    self.sheathRange = [ch0, ch1]
+    return 1
+      
+
   def setCutOffFrequency(self, freq):
 
     self.cutOffFrequency = freq
