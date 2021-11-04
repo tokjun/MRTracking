@@ -635,8 +635,9 @@ class Catheter:
       curveDisplayNode.SetLineThickness(2.0)  # Thickness is defined as a scale from the glyph size.
       #curveDisplayNode.SetLineThickness(0.5)  # Thickness is defined as a scale from the glyph size.
       curveDisplayNode.SetHandlesInteractive(False)
-      curveDisplayNode.OccludedVisibilityOn()
-      #curveDisplayNode.OutlineVisibilityOff()
+      curveDisplayNode.OccludedVisibilityOff()
+      curveDisplayNode.SetOccludedOpacity(0.0)
+      curveDisplayNode.OutlineVisibilityOff()
       curveDisplayNode.EndModify(prevState)
 
     # Update models for the coils
@@ -664,15 +665,15 @@ class Catheter:
     # Draw Sheath
     sheathIndex0 = -1
     sheathIndex1 = -1
-    p0 = [0.0]*3
-    p1 = [0.0]*3
     if (self.sheathRange[0] >= 0) and (self.sheathRange[1] >= 0) and (self.sheathRange[0] <= self.sheathRange[1]) and (self.sheathRange[1] < nCoils):
+      p0 = [0.0]*3
+      p1 = [0.0]*3
       self.coilPoints.GetPoint(self.sheathRange[0], p0)
       self.coilPoints.GetPoint(self.sheathRange[1], p1)
       sheathIndex0 = curveNode.GetClosestCurvePointIndexToPositionWorld(p0)
       sheathIndex1 = curveNode.GetClosestCurvePointIndexToPositionWorld(p1)
 
-    if (sheathIndex0 > 0):
+    if (sheathIndex0 >= 0):
       curvePoints = vtk.vtkPoints()
       curvePoints.SetNumberOfPoints(sheathIndex1-sheathIndex0+1)
       p = [0.0]*3
@@ -777,6 +778,14 @@ class Catheter:
     
   def updateSheathModelNode(self, points, radius, color, opacity):
 
+    curveNode = None
+    if self.curveNodeID:
+      curveNode = slicer.mrmlScene.GetNodeByID(self.curveNodeID)
+
+    if curveNode == None:
+      print('Catheter.updateCoilModel(): No cathterNode is found.')
+      return
+
     if self.sheathPoly==None:
       self.sheathPoly = vtk.vtkPolyData()
     
@@ -806,10 +815,7 @@ class Catheter:
 
     apd = vtk.vtkAppendPolyData()
 
-    if vtk.VTK_MAJOR_VERSION <= 5:
-      apd.AddInput(tubeFilter.GetOutput())
-    else:
-      apd.AddInputConnection(tubeFilter.GetOutputPort())
+    apd.AddInputConnection(tubeFilter.GetOutputPort())
     apd.Update()
     
     self.sheathModelNode.SetAndObservePolyData(apd.GetOutput())
