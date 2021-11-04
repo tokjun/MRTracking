@@ -155,19 +155,16 @@ class Catheter:
     self.coilAppendPolyData = None
     self.coilTransformArray = []
     self.coilTransformFilterArray = []
-    
-    # Tip model
-    self.tipModelNode = None      # TODO: The node ID is saved in Tracking Data Node
-    self.tipTransformNode = None  # TODO: The node ID is saved in Tracking Data Node
-    self.tipPoly = None
     self.coilLength = 3.0
 
     # Sheath model
     self.sheathModelNode = None 
     self.sheathPoly = None
 
-    # Coil configuration
     self.tipLength = 10.0
+    self.tipTransformNode = None
+
+    # Coil configuration
     self.coilPositions = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
     self.activeCoils = [True, True, True, True, False, False, False, False]
     self.showCoilLabel = False
@@ -472,10 +469,10 @@ class Catheter:
     nActiveCoils = sum(self.activeCoils)
     
     lastCoil = nCoils - 1
-    fFlip = (not self.coilOrder)
+    fFlip = self.coilOrder
     egramPoint = None;
 
-    # for resampling
+    # Point resampling for better curve interpolation
     if self.coilPoints == None:
       self.coilPoints = vtk.vtkPoints()
     self.coilPoints.SetNumberOfPoints(nActiveCoils)
@@ -495,7 +492,6 @@ class Catheter:
         coilID = j
         if fFlip:
           coilID = nActiveCoils - j - 1
-        #curveNode.SetNthControlPointPosition(coilID, v[0] * self.axisDirections[0], v[1] * self.axisDirections[1], v[2] * self.axisDirections[2])
         
         p = [v[0] * self.axisDirections[0], v[1] * self.axisDirections[1], v[2] * self.axisDirections[2]]
         self.coilPoints.SetPoint(coilID, p)
@@ -505,13 +501,16 @@ class Catheter:
           
         j += 1
 
-    curveNode.EndModify(prevState)
-
     interpolatedPoints = vtk.vtkPoints()
     slicer.vtkMRMLMarkupsCurveNode.ResamplePoints(self.coilPoints, interpolatedPoints, 10.0, False)
     nInterpolatedPoints = interpolatedPoints.GetNumberOfPoints()
     curveNode.SetControlPointPositionsWorld(interpolatedPoints)
+    p = self.computeExtendedTipPosition(curveNode, self.tipLength)
+    v = vtk.vtkVector3d(p[0], p[1], p[2])
+    curveNode.AddControlPoint(v)
     
+    curveNode.EndModify(prevState)
+
     self.updateCatheter()
 
     # Egram data
@@ -564,6 +563,51 @@ class Catheter:
             prMarkupsNode.Modified();
 
 
+  def computeExtendedTipPosition(self, curveNode, tipLength):
+            
+    # Add a extended tip
+    # make sure that there is more than one points
+    if curveNode.GetNumberOfControlPoints() < 2:
+      return None
+    
+    lastPoint = curveNode.GetNumberOfControlPoints()-1
+    
+    ## The 'curve end point matrix' (normal vectors + the curve end position)
+    matrix = vtk.vtkMatrix4x4()
+    
+    ## Assuming that the tip is at index=0 
+    n10 = numpy.array([0.0, 0.0, 0.0])
+    p0  = numpy.array([0.0, 0.0, 0.0])
+    cpi = curveNode.GetCurvePointIndexFromControlPointIndex(lastPoint)
+
+    #curveNode.GetNthControlPointPosition(0, p0)
+    curveNode.GetCurvePointToWorldTransformAtPointIndex(cpi, matrix)
+    p0[0] = matrix.GetElement(0, 3)
+    p0[1] = matrix.GetElement(1, 3)
+    p0[2] = matrix.GetElement(2, 3)
+    n10[0] = matrix.GetElement(0, 2)
+    n10[1] = matrix.GetElement(1, 2)
+    n10[2] = matrix.GetElement(2, 2)
+
+    # Tip location
+    # The sign for the normal vector is '-' because the normal vector point toward points
+    # with larger indecies.
+    pe = p0 + n10 * tipLength
+
+    # Update Tip transform (for volume reslicing)
+    if self.tipTransformNode == None:
+      self.tipTransformNode = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLLinearTransformNode')
+      self.tipTransformNode.SetName(curveNode.GetName() + '-TipTransform')
+      
+    matrix.SetElement(0, 3, pe[0])
+    matrix.SetElement(1, 3, pe[1])
+    matrix.SetElement(2, 3, pe[2])
+    self.tipTransformNode.SetMatrixTransformToParent(matrix)
+                          
+      
+    return pe
+  
+
   def updateCatheter(self):
 
     curveNode = None
@@ -588,8 +632,8 @@ class Catheter:
       curveDisplayNode.SetUseGlyphScale(False)
       curveDisplayNode.SetGlyphSize(self.radius)
       curveDisplayNode.SetTextScale(self.radius*5)
-      #curveDisplayNode.SetLineThickness(2.0)  # Thickness is defined as a scale from the glyph size.
-      curveDisplayNode.SetLineThickness(0.5)  # Thickness is defined as a scale from the glyph size.
+      curveDisplayNode.SetLineThickness(2.0)  # Thickness is defined as a scale from the glyph size.
+      #curveDisplayNode.SetLineThickness(0.5)  # Thickness is defined as a scale from the glyph size.
       curveDisplayNode.SetHandlesInteractive(False)
       curveDisplayNode.OccludedVisibilityOn()
       #curveDisplayNode.OutlineVisibilityOff()
@@ -622,13 +666,11 @@ class Catheter:
     sheathIndex1 = -1
     p0 = [0.0]*3
     p1 = [0.0]*3
-    if (self.sheathRange[0] >= 0) and (self.sheathRange[1] >= 0) and (self.sheathRange[0] <= self.sheathRange[1]):
+    if (self.sheathRange[0] >= 0) and (self.sheathRange[1] >= 0) and (self.sheathRange[0] <= self.sheathRange[1]) and (self.sheathRange[1] < nCoils):
       self.coilPoints.GetPoint(self.sheathRange[0], p0)
       self.coilPoints.GetPoint(self.sheathRange[1], p1)
       sheathIndex0 = curveNode.GetClosestCurvePointIndexToPositionWorld(p0)
       sheathIndex1 = curveNode.GetClosestCurvePointIndexToPositionWorld(p1)
-      #sheathIndex0 = curveNode.GetCurvePointIndexFromControlPointIndex(self.sheathRange[0])
-      #sheathIndex1 = curveNode.GetCurvePointIndexFromControlPointIndex(self.sheathRange[1])
 
     if (sheathIndex0 > 0):
       curvePoints = vtk.vtkPoints()
@@ -643,64 +685,7 @@ class Catheter:
         curvePoints.SetPoint(idx, p)
         idx = idx+1
       
-      self.updateSheathModelNode(curvePoints, self.radius*1.3, [0.4, 0.4, 0.4], 1.0)
-    
-    
-    # Add a extended tip
-    # make sure that there is more than one points
-    if curveNode.GetNumberOfControlPoints() < 2:
-      return
-
-    #
-    # TODO: the tip model should be managed in a seprate class. 
-    #
-    if self.tipPoly==None:
-      self.tipPoly = vtk.vtkPolyData()
-    
-    if self.tipModelNode == None:
-      self.tipModelNode = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLModelNode')
-      self.tipModelNode.SetName('Tip')
-      curveNode.SetAttribute('MRTracking.' + str(self.catheterID) + '.tipModel', self.tipModelNode.GetID())
-      
-        
-    if self.tipTransformNode == None:
-      self.tipTransformNode = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLLinearTransformNode')
-      self.tipTransformNode.SetName('TipTransform')
-      curveNode.SetAttribute('MRTracking.' + str(self.catheterID) + '.tipTransform', self.tipTransformNode.GetID())
-
-    ## The 'curve end point matrix' (normal vectors + the curve end position)
-    matrix = vtk.vtkMatrix4x4()
-    
-    ## Assuming that the tip is at index=0 
-    n10 = [0.0, 0.0, 0.0]
-    p0  = [0.0, 0.0, 0.0]
-    cpi = curveNode.GetCurvePointIndexFromControlPointIndex(0)
-
-    curveNode.GetNthControlPointPosition(0, p0)
-    curveNode.GetCurvePointToWorldTransformAtPointIndex(cpi, matrix)
-    n10[0] = matrix.GetElement(0, 2)
-    n10[1] = matrix.GetElement(1, 2)
-    n10[2] = matrix.GetElement(2, 2)
-
-    # Tip location
-    # The sign for the normal vector is '-' because the normal vector point toward points
-    # with larger indecies.
-    pe = numpy.array(p0) - numpy.array(n10) * self.tipLength
-  
-    self.updateTipModelNode(self.tipModelNode, self.tipPoly, p0, pe, self.radius, self.modelColor, self.opacity)
-
-    ## Update the 'catheter tip matrix' (normal vectors + the catheter tip position)
-    ## Note that the catheter tip matrix is different from the curve end matrix
-    matrix.SetElement(0, 3, pe[0])
-    matrix.SetElement(1, 3, pe[1])
-    matrix.SetElement(2, 3, pe[2])
-    self.tipTransformNode.SetMatrixTransformToParent(matrix)
-    
-    #matrix = vtk.vtkMatrix4x4()
-    #matrix.DeepCopy((t[0], s[0], n10[0], pe[0],
-    #                 t[1], s[1], n10[1], pe[1],
-    #                 t[2], s[2], n10[2], pe[2],
-    #                 0, 0, 0, 1))
+      self.updateSheathModelNode(curvePoints, self.radius*1.3, [0.4, 0.4, 0.4], self.opacity)
 
 
   def updateCoilModel(self, transArray, radius, color, opacity):
@@ -736,7 +721,7 @@ class Catheter:
       for trans in transArray:
         cylinder = vtk.vtkCylinderSource()
         cylinder.SetRadius(radius)
-        cylinder.SetHeight(3)
+        cylinder.SetHeight(self.coilLength)
         cylinder.SetCenter(0.0, 0.0, 0.0)
         cylinder.CappingOn()
         cylinder.SetResolution(20)
@@ -767,8 +752,9 @@ class Catheter:
       for trans in transArray:
         self.coilTransformFilterArray[i].SetTransform(trans)
         self.coilTransformFilterArray[i].Update()
-        
-      self.coilAppendPolyData.Update()
+
+      if self.coilAppendPolyData:
+        self.coilAppendPolyData.Update()
       
     coilModelNode.Modified()
 
@@ -799,7 +785,6 @@ class Catheter:
       self.sheathModelNode.SetName('Sheath')
       curveNode.SetAttribute('MRTracking.' + str(self.catheterID) + '.sheathModel', self.sheathModelNode.GetID())
       
-    
     npoints = points.GetNumberOfPoints()
     
     cellArray = vtk.vtkCellArray()
@@ -846,66 +831,6 @@ class Catheter:
     sheathDispNode.SetSliceDisplayModeToIntersection()
     sheathDispNode.EndModify(prevState)
     
-    
-    
-  def updateTipModelNode(self, tipModelNode, poly, p0, pe, radius, color, opacity):
-    points = vtk.vtkPoints()
-    cellArray = vtk.vtkCellArray()
-    points.SetNumberOfPoints(2)
-    cellArray.InsertNextCell(2)
-    
-    points.SetPoint(0, p0)
-    cellArray.InsertCellPoint(0)
-    points.SetPoint(1, pe)
-    cellArray.InsertCellPoint(1)
-
-    poly.Initialize()
-    poly.SetPoints(points)
-    poly.SetLines(cellArray)
-
-    tubeFilter = vtk.vtkTubeFilter()
-    tubeFilter.SetInputData(poly)
-    tubeFilter.SetRadius(radius)
-    tubeFilter.SetNumberOfSides(20)
-    tubeFilter.CappingOn()
-    tubeFilter.Update()
-
-    # Sphere represents the locator tip
-    sphere = vtk.vtkSphereSource()
-    sphere.SetRadius(radius)
-    sphere.SetCenter(pe)
-    sphere.Update()
-
-    apd = vtk.vtkAppendPolyData()
-
-    if vtk.VTK_MAJOR_VERSION <= 5:
-      apd.AddInput(sphere.GetOutput())
-      apd.AddInput(tubeFilter.GetOutput())
-    else:
-      apd.AddInputConnection(sphere.GetOutputPort())
-      apd.AddInputConnection(tubeFilter.GetOutputPort())
-    apd.Update()
-    
-    tipModelNode.SetAndObservePolyData(apd.GetOutput())
-    tipModelNode.Modified()
-
-    tipDispID = tipModelNode.GetDisplayNodeID()
-    if tipDispID == None:
-      tipDispNode = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLModelDisplayNode')
-      tipDispNode.SetScene(slicer.mrmlScene)
-      tipModelNode.SetAndObserveDisplayNodeID(tipDispNode.GetID());
-      tipDispID = tipModelNode.GetDisplayNodeID()
-      
-    tipDispNode = slicer.mrmlScene.GetNodeByID(tipDispID)
-
-    prevState = tipDispNode.StartModify()
-    tipDispNode.SetColor(color)
-    tipDispNode.SetOpacity(opacity)
-    #tipDispNode.SliceIntersectionVisibilityOn()
-    tipDispNode.Visibility2DOn()
-    tipDispNode.SetSliceDisplayModeToIntersection()
-    tipDispNode.EndModify(prevState)
-
             
   #--------------------------------------------------
   # Parameter access
@@ -967,33 +892,6 @@ class Catheter:
     return 0
 
 
-  def setTipModelNode(self, node):
-
-    if node == None:
-      return 0
-    
-    self.tipModelNode = node
-    return 1
-    #if self.logic:
-    #  self.logic.getParameterNode().SetParameter("TD.%s.tipModelNode.%s" % (self.name), node.GetID())
-    #  return 1
-    #return 0
-
-  
-  def setTipTransformNode(self, node):
-      
-    if node == None:
-      return 0
-    
-    self.tipTransformNode = node
-    return 1
-    #if self.logic:
-    #  self.logic.getParameterNode().SetParameter("TD.%s.tipTransformNode.%s" % (self.name), node.GetID())
-    #  return 1
-    #return 0
-
-  
-  #self.tipPoly = [None, None]
   def setShowCoilLabel(self, s):
     
     self.showCoilLabel = s
