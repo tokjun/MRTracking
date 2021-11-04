@@ -148,10 +148,13 @@ class Catheter:
     
     self.lastMTime = 0
 
-    # Coil models
-    self.coilModelNodes = []
-    self.coilTransformNodes = []
-    self.coilPolyObjs = []
+    # Coil model
+    self.coilPoints = vtk.vtkPoints()
+    self.coilModelNodeID = ''
+    self.coilPolyArray = []
+    self.coilAppendPolyData = None
+    self.coilTransformArray = []
+    self.coilTransformFilterArray = []
     
     # Tip model
     self.tipModelNode = None      # TODO: The node ID is saved in Tracking Data Node
@@ -448,11 +451,6 @@ class Catheter:
 
   def updateCatheterNode(self):
 
-    #tdnode = slicer.mrmlScene.GetNodeByID(self.trackingDataNodeID)
-    #if tdnode == None:
-    #  print('updateCatheter(): Error - no TrackingDataNode.')
-    #  return
-
     curveNode = None
     
     if self.curveNodeID:
@@ -473,22 +471,14 @@ class Catheter:
     
     nActiveCoils = sum(self.activeCoils)
     
-    #if curveNode.GetNumberOfControlPoints() != nActiveCoils:
-    #  curveNode.RemoveAllControlPoints()
-    #  for i in range(nActiveCoils):
-    #    p = vtk.vtkVector3d()
-    #    p.SetX(0.0)
-    #    p.SetY(0.0)
-    #    p.SetZ(0.0)
-    #    curveNode.AddControlPoint(p, "P_%d" % i)
-
     lastCoil = nCoils - 1
     fFlip = (not self.coilOrder)
     egramPoint = None;
 
     # for resampling
-    coilPoints = vtk.vtkPoints()
-    coilPoints.SetNumberOfPoints(nActiveCoils)
+    if self.coilPoints == None:
+      self.coilPoints = vtk.vtkPoints()
+    self.coilPoints.SetNumberOfPoints(nActiveCoils)
     
     j = 0
     for i in range(nCoils):
@@ -508,7 +498,7 @@ class Catheter:
         #curveNode.SetNthControlPointPosition(coilID, v[0] * self.axisDirections[0], v[1] * self.axisDirections[1], v[2] * self.axisDirections[2])
         
         p = [v[0] * self.axisDirections[0], v[1] * self.axisDirections[1], v[2] * self.axisDirections[2]]
-        coilPoints.SetPoint(coilID, p)
+        self.coilPoints.SetPoint(coilID, p)
         
         if coilID == 0:
           egramPoint = v;
@@ -518,11 +508,11 @@ class Catheter:
     curveNode.EndModify(prevState)
 
     interpolatedPoints = vtk.vtkPoints()
-    slicer.vtkMRMLMarkupsCurveNode.ResamplePoints(coilPoints, interpolatedPoints, 10.0, False)
+    slicer.vtkMRMLMarkupsCurveNode.ResamplePoints(self.coilPoints, interpolatedPoints, 10.0, False)
     nInterpolatedPoints = interpolatedPoints.GetNumberOfPoints()
     curveNode.SetControlPointPositionsWorld(interpolatedPoints)
     
-    self.updateCatheter(coilPoints)
+    self.updateCatheter()
 
     # Egram data
     if (egramPoint != None) and (self.pointRecording == True):
@@ -574,7 +564,7 @@ class Catheter:
             prMarkupsNode.Modified();
 
 
-  def updateCatheter(self, coilPoints):
+  def updateCatheter(self):
 
     curveNode = None
     
@@ -598,85 +588,43 @@ class Catheter:
       curveDisplayNode.SetUseGlyphScale(False)
       curveDisplayNode.SetGlyphSize(self.radius)
       curveDisplayNode.SetTextScale(self.radius*5)
-      curveDisplayNode.SetLineThickness(2.0)  # Thickness is defined as a scale from the glyph size.
+      #curveDisplayNode.SetLineThickness(2.0)  # Thickness is defined as a scale from the glyph size.
+      curveDisplayNode.SetLineThickness(0.5)  # Thickness is defined as a scale from the glyph size.
       curveDisplayNode.SetHandlesInteractive(False)
-      curveDisplayNode.OccludedVisibilityOff()
+      curveDisplayNode.OccludedVisibilityOn()
       #curveDisplayNode.OutlineVisibilityOff()
       curveDisplayNode.EndModify(prevState)
 
     # Update models for the coils
     # Coil models
     #nCoils =  curveNode.GetNumberOfControlPoints()
-    nCoils = coilPoints.GetNumberOfPoints()
-    nNodes = len(self.coilModelNodes)
+    nCoils = self.coilPoints.GetNumberOfPoints()
     
-    if nNodes != nCoils:
-      
-      # Remove nodes
-      for i in range(0, nNodes):
-        slicer.mrmlScene.RemoveNode(self.coilModelNodes[i])
-        slicer.mrmlScene.RemoveNode(self.coilTransformNodes[i])
-        #slicer.mrmlScene.RemoveNode(self.coilPolyObjs[i])
-        
-      self.coilModelNodes = []
-      self.coilTransformNodes = []
-      self.coilPolyObjs = []
-
-      for i in range(0, nCoils):
-        n = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLModelNode')
-        n.SetName(curveNode.GetName() + '-Coil-' + str(i))
-        self.coilModelNodes.append(n)
-        
-        t = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLLinearTransformNode')
-        t.SetName(curveNode.GetName() + '-Coil-' + str(i) + 'Trans')
-        self.coilTransformNodes.append(t)
-        
-        self.coilPolyObjs.append(vtk.vtkPolyData())
+    if len(self.coilTransformArray) != nCoils:
+      self.coilTransformArray = []
+      for i in range(nCoils):
+        trans = vtk.vtkTransform()
+        self.coilTransformArray.append(trans)
 
     p = [0.0]*3
-    n10 = numpy.array([0.0]*3)
-    p0  = numpy.array([0.0]*3)
-    
     for i in range(0, nCoils):
-      coilPoints.GetPoint(i, p)
+      self.coilPoints.GetPoint(i, p)
       cpi = curveNode.GetClosestCurvePointIndexToPositionWorld(p)
       
       matrix = vtk.vtkMatrix4x4()
-
-      #cpi = curveNode.GetCurvePointIndexFromControlPointIndex(idx)
-      
-      #curveNode.GetNthControlPointPosition(i, p0)
       curveNode.GetCurvePointToWorldTransformAtPointIndex(cpi, matrix)
-      p0[0] = matrix.GetElement(0, 3)
-      p0[1] = matrix.GetElement(1, 3)
-      p0[2] = matrix.GetElement(2, 3)
-      n10[0] = matrix.GetElement(0, 2)
-      n10[1] = matrix.GetElement(1, 2)
-      n10[2] = matrix.GetElement(2, 2)
-      
-      # The sign for the normal vector is '-' because the normal vector point toward points
-      # with larger indecies.
-      ps = p0 - n10 * self.coilLength/2.0
-      pe = p0 + n10 * self.coilLength/2.0
+      self.coilTransformArray[i].SetMatrix(matrix)
 
-      self.updateCoilModelNode(self.coilModelNodes[i], self.coilPolyObjs[i], ps, pe, self.radius*1.5, [0.7, 0.7, 0.7], self.opacity)
+    self.updateCoilModel(self.coilTransformArray, self.radius*1.5, [0.7, 0.7, 0.7], self.opacity)
 
     # Draw Sheath
-    if self.sheathPoly==None:
-      self.sheathPoly = vtk.vtkPolyData()
-    
-    if self.sheathModelNode == None:
-      self.sheathModelNode = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLModelNode')
-      self.sheathModelNode.SetName('Sheath')
-      curveNode.SetAttribute('MRTracking.' + str(self.catheterID) + '.sheathModel', self.sheathModelNode.GetID())
-    
     sheathIndex0 = -1
     sheathIndex1 = -1
     p0 = [0.0]*3
     p1 = [0.0]*3
     if (self.sheathRange[0] >= 0) and (self.sheathRange[1] >= 0) and (self.sheathRange[0] <= self.sheathRange[1]):
-      coilPoints.GetPoint(self.sheathRange[0], p0)
-      coilPoints.GetPoint(self.sheathRange[1], p1)
+      self.coilPoints.GetPoint(self.sheathRange[0], p0)
+      self.coilPoints.GetPoint(self.sheathRange[1], p1)
       sheathIndex0 = curveNode.GetClosestCurvePointIndexToPositionWorld(p0)
       sheathIndex1 = curveNode.GetClosestCurvePointIndexToPositionWorld(p1)
       #sheathIndex0 = curveNode.GetCurvePointIndexFromControlPointIndex(self.sheathRange[0])
@@ -695,7 +643,7 @@ class Catheter:
         curvePoints.SetPoint(idx, p)
         idx = idx+1
       
-      self.updateSheathModelNode(self.sheathModelNode, self.sheathPoly, curvePoints, self.radius*1.3, [0.4, 0.4, 0.4], 1.0)
+      self.updateSheathModelNode(curvePoints, self.radius*1.3, [0.4, 0.4, 0.4], 1.0)
     
     
     # Add a extended tip
@@ -755,39 +703,73 @@ class Catheter:
     #                 0, 0, 0, 1))
 
 
-  def updateCoilModelNode(self, coilModelNode, poly, ps, pe, radius, color,  opacity):
-    
-    #coilModelNodes[i], selfcoilPolyObjs[i], ps, pe, self.radius*1.2, [0.2, 0.2, 0.2], self.opacity)
-    points = vtk.vtkPoints()
-    cellArray = vtk.vtkCellArray()
-    points.SetNumberOfPoints(2)
-    cellArray.InsertNextCell(2)
-    
-    points.SetPoint(0, ps)
-    cellArray.InsertCellPoint(0)
-    points.SetPoint(1, pe)
-    cellArray.InsertCellPoint(1)
+  def updateCoilModel(self, transArray, radius, color, opacity):
 
-    poly.Initialize()
-    poly.SetPoints(points)
-    poly.SetLines(cellArray)
+    curveNode = None
+    if self.curveNodeID:
+      curveNode = slicer.mrmlScene.GetNodeByID(self.curveNodeID)
 
-    tubeFilter = vtk.vtkTubeFilter()
-    tubeFilter.SetInputData(poly)
-    tubeFilter.SetRadius(radius)
-    tubeFilter.SetNumberOfSides(20)
-    tubeFilter.CappingOn()
-    tubeFilter.Update()
+    if curveNode == None:
+      print('Catheter.updateCoilModel(): No cathterNode is found.')
+      return
 
-    apd = vtk.vtkAppendPolyData()
-
-    if vtk.VTK_MAJOR_VERSION <= 5:
-      apd.AddInput(tubeFilter.GetOutput())
+    coilModelNode = None
+    if self.coilModelNodeID == '':
+      coilModelNode = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLModelNode')
+      coilModelNode.SetName(curveNode.GetName() + '-Coil')
+      self.coilModelNodeID = coilModelNode.GetID()
     else:
-      apd.AddInputConnection(tubeFilter.GetOutputPort())
-    apd.Update()
-    
-    coilModelNode.SetAndObservePolyData(apd.GetOutput())
+      coilModelNode = slicer.mrmlScene.GetNodeByID(self.coilModelNodeID)
+
+    if coilModelNode == None:
+      print('Catheter.updateCoilModel(): No model node is found.')
+      return
+
+    nPoints = len(transArray)
+
+    if len(self.coilPolyArray) != nPoints:
+      self.coilPolyArray = []
+      self.coilAppendPolyData = vtk.vtkAppendPolyData()
+      #self.coilTransformArray = []
+      self.coilTransformFilterArray = []      
+
+      for trans in transArray:
+        cylinder = vtk.vtkCylinderSource()
+        cylinder.SetRadius(radius)
+        cylinder.SetHeight(3)
+        cylinder.SetCenter(0.0, 0.0, 0.0)
+        cylinder.CappingOn()
+        cylinder.SetResolution(20)
+        cylinder.Update()
+        
+        tfilter0 = vtk.vtkTransformPolyDataFilter()
+        trans0 = vtk.vtkTransform()
+        trans0.RotateX(90.0)
+        trans0.Update()
+        tfilter0.SetInputConnection(cylinder.GetOutputPort())
+        tfilter0.SetTransform(trans0)
+        tfilter0.Update()
+        
+        tfilter = vtk.vtkTransformPolyDataFilter()
+        tfilter.SetInputConnection(tfilter0.GetOutputPort())
+        tfilter.SetTransform(trans)
+        tfilter.Update()
+        self.coilTransformFilterArray.append(tfilter)
+                
+        self.coilAppendPolyData.AddInputConnection(tfilter.GetOutputPort())
+        
+      self.coilAppendPolyData.Update()
+      coilModelNode.SetAndObservePolyData(self.coilAppendPolyData.GetOutput())
+        
+    else:
+      # If the number of coils does not change, just update the transforms
+      i = 0
+      for trans in transArray:
+        self.coilTransformFilterArray[i].SetTransform(trans)
+        self.coilTransformFilterArray[i].Update()
+        
+      self.coilAppendPolyData.Update()
+      
     coilModelNode.Modified()
 
     coilDispID = coilModelNode.GetDisplayNodeID()
@@ -805,10 +787,19 @@ class Catheter:
     coilDispNode.Visibility2DOn()
     coilDispNode.SetSliceDisplayModeToIntersection()
     coilDispNode.EndModify(prevState)
+      
+    
+  def updateSheathModelNode(self, points, radius, color, opacity):
 
-
-  def updateSheathModelNode(self, sheathModelNode, poly, points, radius, color, opacity):
-
+    if self.sheathPoly==None:
+      self.sheathPoly = vtk.vtkPolyData()
+    
+    if self.sheathModelNode == None:
+      self.sheathModelNode = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLModelNode')
+      self.sheathModelNode.SetName('Sheath')
+      curveNode.SetAttribute('MRTracking.' + str(self.catheterID) + '.sheathModel', self.sheathModelNode.GetID())
+      
+    
     npoints = points.GetNumberOfPoints()
     
     cellArray = vtk.vtkCellArray()
@@ -817,12 +808,12 @@ class Catheter:
     for i in range(npoints):
       cellArray.InsertCellPoint(i)
 
-    poly.Initialize()
-    poly.SetPoints(points)
-    poly.SetLines(cellArray)
+    self.sheathPoly.Initialize()
+    self.sheathPoly.SetPoints(points)
+    self.sheathPoly.SetLines(cellArray)
 
     tubeFilter = vtk.vtkTubeFilter()
-    tubeFilter.SetInputData(poly)
+    tubeFilter.SetInputData(self.sheathPoly)
     tubeFilter.SetRadius(radius)
     tubeFilter.SetNumberOfSides(20)
     tubeFilter.CappingOn()
@@ -836,15 +827,15 @@ class Catheter:
       apd.AddInputConnection(tubeFilter.GetOutputPort())
     apd.Update()
     
-    sheathModelNode.SetAndObservePolyData(apd.GetOutput())
-    sheathModelNode.Modified()
+    self.sheathModelNode.SetAndObservePolyData(apd.GetOutput())
+    self.sheathModelNode.Modified()
 
-    sheathDispID = sheathModelNode.GetDisplayNodeID()
+    sheathDispID = self.sheathModelNode.GetDisplayNodeID()
     if sheathDispID == None:
       sheathDispNode = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLModelDisplayNode')
       sheathDispNode.SetScene(slicer.mrmlScene)
-      sheathModelNode.SetAndObserveDisplayNodeID(sheathDispNode.GetID());
-      sheathDispID = sheathModelNode.GetDisplayNodeID()
+      self.sheathModelNode.SetAndObserveDisplayNodeID(sheathDispNode.GetID());
+      sheathDispID = self.sheathModelNode.GetDisplayNodeID()
       
     sheathDispNode = slicer.mrmlScene.GetNodeByID(sheathDispID)
 
