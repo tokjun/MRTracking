@@ -255,7 +255,9 @@ class MRTrackingRecording(MRTrackingPanelBase):
   @vtk.calldata_type(vtk.VTK_OBJECT)
   def onNodeRemovedEvent(self, caller, event, obj=None):
     
-    self.removeNodeObserver(caller)
+    #self.removeNodeObserver(caller)
+    pass
+    
 
   
   @vtk.calldata_type(vtk.VTK_OBJECT)

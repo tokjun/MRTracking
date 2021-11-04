@@ -135,14 +135,6 @@ class Catheter:
     
     self.curveNodeID = curveNode.GetID()
 
-    # Resampled curve node
-    resampledCurveNode = self.getResampledCurveNode(curveNode)
-    if resampledCurveNode == None:
-      print('Catheter.__init__(): Error - Could not create a resampled curve node.')
-      return
-    self.resampledCurveNodeID = resampledCurveNode.GetID()
-
-    
     #slicer.mrmlScene.AddObserver(slicer.vtkMRMLScene.NodeRemovedEvent, self.onNodeRemovedEvent)
     self.name = name
     self.catheterID = None
@@ -454,24 +446,6 @@ class Catheter:
       self.acquisitionWindowCurrent[1] = currentTime + self.acquisitionWindowDelay[1] / 1000.0
 
 
-  def getResampledCurveNode(self, curveNode):
-    
-    resampledCurveNodeID = curveNode.GetAttribute('MRTracking.ResampledCurveNode')
-    resampledCurveNode = None
-    if resampledCurveNodeID:
-      resampledCurveNode = slicer.mrmlScene.GetNodeByID(resampledCurveNodeID)
-      
-    if resampledCurveNode == None:
-      resampledCurveNode = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLMarkupsCurveNode')
-      if resampledCurveNode == None:
-        return None
-      resampledCurveNodeID = resampledCurveNode.GetID()
-      curveNode.SetAttribute('MRTracking.ResampledCurveNode', resampledCurveNodeID)
-
-    return resampledCurveNode
-  
-
-        
   def updateCatheterNode(self):
 
     #tdnode = slicer.mrmlScene.GetNodeByID(self.trackingDataNodeID)
@@ -480,7 +454,6 @@ class Catheter:
     #  return
 
     curveNode = None
-    resampledCurveNode = None
     
     if self.curveNodeID:
       curveNode = slicer.mrmlScene.GetNodeByID(self.curveNodeID)
@@ -489,13 +462,6 @@ class Catheter:
       curveNode = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLMarkupsCurveNode')
       self.curveNodeID = curveNode.GetID()
 
-    if self.resampledCurveNodeID:
-      resampledCurveNode = slicer.mrmlScene.GetNodeByID(self.resampledCurveNodeID)
-
-    if resampledCurveNode == None:
-      resampledCurveNode = self.getResampledCurveNode(curveNode)
-      self.resampledCurveNodeID = resampledCurveNode.GetID()
-    
     prevState = curveNode.StartModify()
     #curveNode.SetCurveTypeToPolynomial()
 
@@ -507,19 +473,23 @@ class Catheter:
     
     nActiveCoils = sum(self.activeCoils)
     
-    if curveNode.GetNumberOfControlPoints() != nActiveCoils:
-      curveNode.RemoveAllControlPoints()
-      for i in range(nActiveCoils):
-        p = vtk.vtkVector3d()
-        p.SetX(0.0)
-        p.SetY(0.0)
-        p.SetZ(0.0)
-        curveNode.AddControlPoint(p, "P_%d" % i)
+    #if curveNode.GetNumberOfControlPoints() != nActiveCoils:
+    #  curveNode.RemoveAllControlPoints()
+    #  for i in range(nActiveCoils):
+    #    p = vtk.vtkVector3d()
+    #    p.SetX(0.0)
+    #    p.SetY(0.0)
+    #    p.SetZ(0.0)
+    #    curveNode.AddControlPoint(p, "P_%d" % i)
 
     lastCoil = nCoils - 1
     fFlip = (not self.coilOrder)
     egramPoint = None;
-      
+
+    # for resampling
+    coilPoints = vtk.vtkPoints()
+    coilPoints.SetNumberOfPoints(nActiveCoils)
+    
     j = 0
     for i in range(nCoils):
       if self.activeCoils[i]:
@@ -535,15 +505,24 @@ class Catheter:
         coilID = j
         if fFlip:
           coilID = nActiveCoils - j - 1
-        curveNode.SetNthControlPointPosition(coilID, v[0] * self.axisDirections[0], v[1] * self.axisDirections[1], v[2] * self.axisDirections[2])
+        #curveNode.SetNthControlPointPosition(coilID, v[0] * self.axisDirections[0], v[1] * self.axisDirections[1], v[2] * self.axisDirections[2])
+        
+        p = [v[0] * self.axisDirections[0], v[1] * self.axisDirections[1], v[2] * self.axisDirections[2]]
+        coilPoints.SetPoint(coilID, p)
+        
         if coilID == 0:
           egramPoint = v;
           
         j += 1
 
     curveNode.EndModify(prevState)
+
+    interpolatedPoints = vtk.vtkPoints()
+    slicer.vtkMRMLMarkupsCurveNode.ResamplePoints(coilPoints, interpolatedPoints, 10.0, False)
+    nInterpolatedPoints = interpolatedPoints.GetNumberOfPoints()
+    curveNode.SetControlPointPositionsWorld(interpolatedPoints)
     
-    self.updateCatheter()
+    self.updateCatheter(coilPoints)
 
     # Egram data
     if (egramPoint != None) and (self.pointRecording == True):
@@ -595,7 +574,7 @@ class Catheter:
             prMarkupsNode.Modified();
 
 
-  def updateCatheter(self):
+  def updateCatheter(self, coilPoints):
 
     curveNode = None
     
@@ -627,7 +606,8 @@ class Catheter:
 
     # Update models for the coils
     # Coil models
-    nCoils =  curveNode.GetNumberOfControlPoints()
+    #nCoils =  curveNode.GetNumberOfControlPoints()
+    nCoils = coilPoints.GetNumberOfPoints()
     nNodes = len(self.coilModelNodes)
     
     if nNodes != nCoils:
@@ -636,7 +616,7 @@ class Catheter:
       for i in range(0, nNodes):
         slicer.mrmlScene.RemoveNode(self.coilModelNodes[i])
         slicer.mrmlScene.RemoveNode(self.coilTransformNodes[i])
-        slicer.mrmlScene.RemoveNode(self.coilPolyObjs[i])
+        #slicer.mrmlScene.RemoveNode(self.coilPolyObjs[i])
         
       self.coilModelNodes = []
       self.coilTransformNodes = []
@@ -653,27 +633,33 @@ class Catheter:
         
         self.coilPolyObjs.append(vtk.vtkPolyData())
 
-        
+    p = [0.0]*3
+    n10 = numpy.array([0.0]*3)
+    p0  = numpy.array([0.0]*3)
+    
     for i in range(0, nCoils):
+      coilPoints.GetPoint(i, p)
+      cpi = curveNode.GetClosestCurvePointIndexToPositionWorld(p)
+      
       matrix = vtk.vtkMatrix4x4()
 
-      n10 = [0.0, 0.0, 0.0]
-      p0  = [0.0, 0.0, 0.0]
-      cpi = curveNode.GetCurvePointIndexFromControlPointIndex(i)
+      #cpi = curveNode.GetCurvePointIndexFromControlPointIndex(idx)
       
-      curveNode.GetNthControlPointPosition(i, p0)
+      #curveNode.GetNthControlPointPosition(i, p0)
       curveNode.GetCurvePointToWorldTransformAtPointIndex(cpi, matrix)
+      p0[0] = matrix.GetElement(0, 3)
+      p0[1] = matrix.GetElement(1, 3)
+      p0[2] = matrix.GetElement(2, 3)
       n10[0] = matrix.GetElement(0, 2)
       n10[1] = matrix.GetElement(1, 2)
       n10[2] = matrix.GetElement(2, 2)
       
       # The sign for the normal vector is '-' because the normal vector point toward points
       # with larger indecies.
-      ps = numpy.array(p0) - numpy.array(n10) * self.coilLength/2.0
-      pe = numpy.array(p0) + numpy.array(n10) * self.coilLength/2.0
+      ps = p0 - n10 * self.coilLength/2.0
+      pe = p0 + n10 * self.coilLength/2.0
 
       self.updateCoilModelNode(self.coilModelNodes[i], self.coilPolyObjs[i], ps, pe, self.radius*1.5, [0.7, 0.7, 0.7], self.opacity)
-
 
     # Draw Sheath
     if self.sheathPoly==None:
@@ -686,22 +672,30 @@ class Catheter:
     
     sheathIndex0 = -1
     sheathIndex1 = -1
-
+    p0 = [0.0]*3
+    p1 = [0.0]*3
     if (self.sheathRange[0] >= 0) and (self.sheathRange[1] >= 0) and (self.sheathRange[0] <= self.sheathRange[1]):
-      sheathIndex0 = curveNode.GetCurvePointIndexFromControlPointIndex(self.sheathRange[0])
-      sheathIndex1 = curveNode.GetCurvePointIndexFromControlPointIndex(self.sheathRange[1])
+      coilPoints.GetPoint(self.sheathRange[0], p0)
+      coilPoints.GetPoint(self.sheathRange[1], p1)
+      sheathIndex0 = curveNode.GetClosestCurvePointIndexToPositionWorld(p0)
+      sheathIndex1 = curveNode.GetClosestCurvePointIndexToPositionWorld(p1)
+      #sheathIndex0 = curveNode.GetCurvePointIndexFromControlPointIndex(self.sheathRange[0])
+      #sheathIndex1 = curveNode.GetCurvePointIndexFromControlPointIndex(self.sheathRange[1])
 
-    curvePoints = []
-
-    for i in range(sheathIndex0, sheathIndex1+1):
-      curveNode.GetCurvePointToWorldTransformAtPointIndex(i, matrix)
+    if (sheathIndex0 > 0):
+      curvePoints = vtk.vtkPoints()
+      curvePoints.SetNumberOfPoints(sheathIndex1-sheathIndex0+1)
       p = [0.0]*3
-      p[0] = matrix.GetElement(0, 3)
-      p[1] = matrix.GetElement(1, 3)
-      p[2] = matrix.GetElement(2, 3)
-      curvePoints.append(p)
-
-    self.updateSheathModelNode(self.sheathModelNode, self.sheathPoly, curvePoints, self.radius*1.3, [0.4, 0.4, 0.4], 1.0)
+      idx = 0
+      for i in range(sheathIndex0, sheathIndex1+1):
+        curveNode.GetCurvePointToWorldTransformAtPointIndex(i, matrix)
+        p[0] = matrix.GetElement(0, 3)
+        p[1] = matrix.GetElement(1, 3)
+        p[2] = matrix.GetElement(2, 3)
+        curvePoints.SetPoint(idx, p)
+        idx = idx+1
+      
+      self.updateSheathModelNode(self.sheathModelNode, self.sheathPoly, curvePoints, self.radius*1.3, [0.4, 0.4, 0.4], 1.0)
     
     
     # Add a extended tip
@@ -813,22 +807,15 @@ class Catheter:
     coilDispNode.EndModify(prevState)
 
 
-  def updateSheathModelNode(self, sheathModelNode, poly, curvePoints, radius, color, opacity):
+  def updateSheathModelNode(self, sheathModelNode, poly, points, radius, color, opacity):
 
-    print("updateSheathModelNode() N = %d" % len(curvePoints))
-
-    npoints = len(curvePoints)
+    npoints = points.GetNumberOfPoints()
     
-    points = vtk.vtkPoints()
     cellArray = vtk.vtkCellArray()
-    points.SetNumberOfPoints(npoints)
     cellArray.InsertNextCell(npoints)
 
-    i = 0
-    for p in curvePoints:
-      points.SetPoint(i, p)
+    for i in range(npoints):
       cellArray.InsertCellPoint(i)
-      i = i + 1
 
     poly.Initialize()
     poly.SetPoints(points)
