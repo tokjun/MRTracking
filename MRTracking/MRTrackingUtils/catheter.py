@@ -181,7 +181,7 @@ class Catheter:
     self.prevRecordedPoint = numpy.array([0.0, 0.0, 0.0])
     
     # Coordinate system
-    self.axisDirections = [1.0, 1.0, 1.0]
+    self.axisDirections = numpy.array([1.0, 1.0, 1.0])
     
     # Visual settings
     self.opacity = 1.0
@@ -446,6 +446,45 @@ class Catheter:
       self.acquisitionWindowCurrent[1] = currentTime + self.acquisitionWindowDelay[1] / 1000.0
 
 
+  def getActiveCoilPositions(self, posArray=None):
+    # Get a list of coil positions orderd from distal to proximal.
+    # This function takes account of self.coilOrder parameter.
+    # If posArray is not specified, it creates a new array and returns it.
+
+    fReturn = (posArray==None)
+    
+    nActiveCoils = sum(self.activeCoils)
+    nCoils = len(self.activeCoils)
+
+    # Create or resize posArray
+    if posArray == None:
+      posArray = numpy.zeros((nActiveCoils,3))
+    else:
+      posArray.resize(nActiveCoils,3)
+
+    fFlip = self.coilOrder
+    
+    j = 0
+    for i in range(nCoils):
+      if self.activeCoils[i]:
+        tnode = self.filteredTransformNodes[i]
+        trans = tnode.GetTransformToParent()
+        v = trans.GetPosition()
+
+        if fFlip:
+          posArray[-1-j] = v
+        else:
+          posArray[j] = v
+          
+        j = j + 1
+
+    # Adjust axis directions
+    posArray = posArray*self.axisDirections
+
+    if fReturn:
+      return posArray
+      
+
   def updateCatheterNode(self):
 
     curveNode = None
@@ -456,57 +495,49 @@ class Catheter:
     if curveNode == None:
       curveNode = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLMarkupsCurveNode')
       self.curveNodeID = curveNode.GetID()
-
+    
     prevState = curveNode.StartModify()
     #curveNode.SetCurveTypeToPolynomial()
-
-    nCoils = len(self.activeCoils)
     
+    nActiveCoils = sum(self.activeCoils)
+
+    # TODO: It would be more efficient if posArray is allocated only once.
+    posArray = self.getActiveCoilPositions()
+
     # Update time stamp
     ## TODO: Ideally, the time stamp should come from the data source rather than 3D Slicer.
     curveNode.SetAttribute('MRTracking.lastTS', '%f' % self.lastTS)
     
-    nActiveCoils = sum(self.activeCoils)
-    
-    lastCoil = nCoils - 1
-    fFlip = self.coilOrder
-    egramPoint = None;
-
     # Point resampling for better curve interpolation
     if self.coilPoints == None:
       self.coilPoints = vtk.vtkPoints()
     self.coilPoints.SetNumberOfPoints(nActiveCoils)
-    
-    j = 0
-    for i in range(nCoils):
-      if self.activeCoils[i]:
-        tnode = self.filteredTransformNodes[i]
-        trans = tnode.GetTransformToParent()
-        v = trans.GetPosition()
-        
-        # Apply the registration transform, if activated. (GUI is defined in registration.py)
-        if self.registration and self.registration.applyTransform and (self.registration.applyTransform.catheterID == self.catheterID):
-          if self.registration.registrationTransform:
-            v = self.registration.registrationTransform.TransformPoint(v)
 
-        coilID = j
-        if fFlip:
-          coilID = nActiveCoils - j - 1
-        
-        p = [v[0] * self.axisDirections[0], v[1] * self.axisDirections[1], v[2] * self.axisDirections[2]]
-        self.coilPoints.SetPoint(coilID, p)
-        
-        if coilID == 0:
-          egramPoint = v;
-          
-        j += 1
-
+    # Apply the registration transform, if activated. (GUI is defined in registration.py)
+    i = 0
+    if self.registration and \
+        self.registration.applyTransform and \
+        self.registration.applyTransform.catheterID == self.catheterID and \
+        self.registration.registrationTransform:
+      for v in posArray:
+        p = self.registration.registrationTransform.TransformPoint(v)
+        posArray[i] = p
+        self.coilPoints.SetPoint(i, p)
+        i = i + 1
+    else:
+      for v in posArray:
+        posArray[i] = v
+        self.coilPoints.SetPoint(i, v)
+        i = i + 1
+            
+    egramPoint = posArray[0]
+            
     interpolatedPoints = vtk.vtkPoints()
     slicer.vtkMRMLMarkupsCurveNode.ResamplePoints(self.coilPoints, interpolatedPoints, 10.0, False)
     nInterpolatedPoints = interpolatedPoints.GetNumberOfPoints()
     curveNode.SetControlPointPositionsWorld(interpolatedPoints)
     p = self.computeExtendedTipPosition(curveNode, self.tipLength)
-    v = vtk.vtkVector3d(p[0], p[1], p[2])
+    v = vtk.vtkVector3d(p)
     curveNode.AddControlPoint(v)
     
     curveNode.EndModify(prevState)
@@ -514,11 +545,10 @@ class Catheter:
     self.updateCatheter()
 
     # Egram data
-    if (egramPoint != None) and (self.pointRecording == True):
-      p = numpy.array(egramPoint)
+    if self.pointRecording == True:
       d = numpy.linalg.norm(p-self.prevRecordedPoint)
       if d > self.pointRecordingDistance:
-        self.prevRecordedPoint = p
+        self.prevRecordedPoint = egramPoint
         #egram = self.getEgramData(index)
         (egramHeader, egramTable) = self.getEgramData()
         # TODO: Make sure if the following 'flip' is correctly working
@@ -527,7 +557,7 @@ class Catheter:
 
         prMarkupsNode = self.pointRecordingMarkupsNode
         if prMarkupsNode:
-          id = prMarkupsNode.AddFiducial(egramPoint[0] * self.axisDirections[0], egramPoint[1] * self.axisDirections[1], egramPoint[2] * self.axisDirections[2])
+          id = prMarkupsNode.AddFiducial(egramPoint[0], egramPoint[1], egramPoint[2])
           #prMarkupsNode.SetNthControlPointDescription(id, '%f' % egram[0])
           mask = self.activeCoils
           if fFlip:
