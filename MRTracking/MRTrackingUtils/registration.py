@@ -372,10 +372,16 @@ class MRTrackingFiducialRegistration():
       print("Error: Fiducials Node for 'To' is not available.")
       return
 
-    ## Get TrackingData 
-    coilPos0 = self.fromCatheter.coilPositions
-    coilPos1 = self.toCatheter.coilPositions
+    ## Get TrackingData
+    coilPos0 = numpy.array(self.fromCatheter.coilPositions)
+    coilPos0.resize(8)
+    coilPos1 = numpy.array(self.toCatheter.coilPositions)
+    coilPos1.resize(8)
+    coilPos0 = coilPos0[self.fromCatheter.activeCoils] # Remove inactive coils
+    coilPos1 = coilPos1[self.toCatheter.activeCoils] # Remove inactive coils
+    # TODO: Catheter class should provide this feature
 
+    
     # Assign the 'from' and 'to' catheters to 0 and 1
     curve0Node = fromCurveNode
     curve1Node = toCurveNode
@@ -388,8 +394,15 @@ class MRTrackingFiducialRegistration():
     # The corresponding points on the 'to' catheters are estimated by intepolation (by calling
     # getInterpolatedFiducialPoints())
     #
-    pointList0 = self.fromCatheter.getFiducialPoints()
-    pointList1  = self.toCatheter.getFiducialPoints()
+    #pointList0 = self.fromCatheter.getFiducialPoints()
+    #pointList1  = self.toCatheter.getFiducialPoints()
+    pointList0 = self.fromCatheter.coilPointsNP
+    pointList1  = self.toCatheter.coilPointsNP
+
+    # NOTE: Never use getInterpolatedFiducialPoints() with self.fromCatheter, because
+    #  getInterpolatedFiducialPoints() calculates interpolated points based on the curve length
+    #  in the post-registration coordinate system. This is not an issue when the function is called
+    #  from self.toCatheter, because self.toCatheter is never transformed after registration.
     [pointList1Interp, pointMask1Interp] = self.toCatheter.getInterpolatedFiducialPoints(coilPos0)
 
     if pointList1Interp == None:
@@ -418,27 +431,22 @@ class MRTrackingFiducialRegistration():
     pos0 = [0.0] * 3
     pos1 = [0.0] * 3
 
-    invTransform = None
-    if self.applyTransform and self.registrationTransform:
-      invTransform = self.registrationTransform.GetInverse()
-      
-    nCoils0 = len(pointList0)
+    #nCoils0 = len(pointList0)
+    nPoints0 = len(pointMask1Interp)
+    nPoints1 = len(pointMask1Interp)
+    nPoints = min(nPoints0, nPoints1)
     
-    for j in range(nCoils0):
+    for j in range(nPoints):
 
       if pointMask1Interp[j] == False:
         # Skip if the point is not valid.
         continue
       
-      pos0 = pointList0[j].copy()
-      pos1 = pointList1Interp[j].copy()
+      #pos0 = pointList0[j].copy()
+      #pos1 = pointList1Interp[j].copy()
+      pos0 = pointList0[j]
+      pos1 = pointList1Interp[j]
 
-      if self.applyTransform and invTransform:
-        v = invTransform.TransformPoint(pos0)
-        pos0[0] = v[0]
-        pos0[1] = v[1]
-        pos0[2] = v[2]
-      
       # Record the coordinates
       nCurve0 = curve0FiducialsNode.GetNumberOfFiducials()
       
@@ -459,9 +467,12 @@ class MRTrackingFiducialRegistration():
       
     # Combined tracking data
     ctdnode = self.trackingDataSelector.currentNode()
-
     
     if ctdnode:
+
+      # Replace pointList0/pointList1 with coil points in the world coordinate system.
+      pointList0 = self.fromCatheter.getCoilPointsAlongCurve()
+      pointList1 = self.toCatheter.getCoilPointsAlongCurve()
       
       self.InitializeCombinedTrackingData(ctdnode)
 
@@ -473,14 +484,16 @@ class MRTrackingFiducialRegistration():
       if timeElapsed0 < timeElapsed1:
 
         # Catheter 0 is up-to-date. We use pointList0 and pointList0Interp
-        [pointList0Interp, pointMask0Interp] = self.fromCatheter.getInterpolatedFiducialPoints(coilPos1)
-        
-        for i in range(len(pointList0)):
+        [pointList0Interp, pointMask0Interp] = self.fromCatheter.getInterpolatedFiducialPoints(coilPos1, world=True)
+
+        n = min(len(pointList0), len(coilPos0))
+        for i in range(n):
           cp = coilPos0[i]
           point = pointList0[i]
           coilList.append((cp, point))
-          
-        for i in range(len(pointList0Interp)):
+
+        n = min(len(pointList0Interp), len(coilPos1))
+        for i in range(n):
           if pointMask0Interp[i]:
             cp = coilPos1[i]
             point = pointList0Interp[i]
@@ -488,13 +501,14 @@ class MRTrackingFiducialRegistration():
               
       else:
         # Catheter 1 is up-to-date. We use pointList1 and pointList1Interp
-        
-        for i in range(len(pointList1)):
+        n = min(len(pointList1), len(coilPos1))
+        for i in range(n):
           cp = coilPos1[i]
           point = pointList1[i]
           coilList.append((cp, point))
-          
-        for i in range(len(pointList1Interp)):
+
+        n = min(len(pointList1Interp), len(coilPos0))
+        for i in range(n):
           if pointMask1Interp[i]:
             cp = coilPos0[i]
             point = pointList1Interp[i]
@@ -786,13 +800,15 @@ class MRTrackingFiducialRegistration():
         pass
       
     
-  def InitializeCombinedTrackingData(self, ctdnode, ):
+  def InitializeCombinedTrackingData(self, ctdnode):
     
     if ctdnode == None:
       return
 
-    pointListFrom = self.fromCatheter.getFiducialPoints()
-    pointListTo   = self.toCatheter.getFiducialPoints()
+    #pointListFrom = self.fromCatheter.getFiducialPoints()
+    #pointListTo   = self.toCatheter.getFiducialPoints()
+    pointListFrom = self.fromCatheter.getCoilPointsAlongCurve()
+    pointListTo = self.toCatheter.getCoilPointsAlongCurve()
     
     # Make sure that the number of transforms under the combined tracking data node matches
     # the total number of tracking coils. Note that not all the transforms will be used

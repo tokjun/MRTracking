@@ -149,6 +149,7 @@ class Catheter:
     self.lastMTime = 0
 
     # Coil model
+    self.coilPointsNP = numpy.array([])
     self.coilPoints = vtk.vtkPoints()
     self.coilModelNodeID = ''
     self.coilPolyArray = []
@@ -460,7 +461,7 @@ class Catheter:
     if posArray == None:
       posArray = numpy.zeros((nActiveCoils,3))
     else:
-      posArray.resize(nActiveCoils,3)
+      numpy.resize(posArray, (nActiveCoils,3))
 
     fFlip = self.coilOrder
     
@@ -501,9 +502,8 @@ class Catheter:
     
     nActiveCoils = sum(self.activeCoils)
 
-    # TODO: It would be more efficient if posArray is allocated only once.
-    posArray = self.getActiveCoilPositions()
-
+    self.coilPointsNP = self.getActiveCoilPositions()
+    
     # Update time stamp
     ## TODO: Ideally, the time stamp should come from the data source rather than 3D Slicer.
     curveNode.SetAttribute('MRTracking.lastTS', '%f' % self.lastTS)
@@ -513,35 +513,76 @@ class Catheter:
       self.coilPoints = vtk.vtkPoints()
     self.coilPoints.SetNumberOfPoints(nActiveCoils)
 
-    # Apply the registration transform, if activated. (GUI is defined in registration.py)
+    ## Apply the registration transform, if activated. (GUI is defined in registration.py)
+    #i = 0
+    #if self.registration and \
+    #    self.registration.applyTransform and \
+    #    self.registration.applyTransform.catheterID == self.catheterID and \
+    #    self.registration.registrationTransform:
+    #  for v in posArray:
+    #    p = self.registration.registrationTransform.TransformPoint(v)
+    #    posArray[i] = p
+    #    self.coilPoints.SetPoint(i, p)
+    #    i = i + 1
+    #else:
+    #  for v in posArray:
+    #    posArray[i] = v
+    #    self.coilPoints.SetPoint(i, v)
+    #    i = i + 1
+
+    # Convert to vtkPoints
     i = 0
-    if self.registration and \
-        self.registration.applyTransform and \
-        self.registration.applyTransform.catheterID == self.catheterID and \
-        self.registration.registrationTransform:
-      for v in posArray:
-        p = self.registration.registrationTransform.TransformPoint(v)
-        posArray[i] = p
-        self.coilPoints.SetPoint(i, p)
-        i = i + 1
-    else:
-      for v in posArray:
-        posArray[i] = v
-        self.coilPoints.SetPoint(i, v)
-        i = i + 1
+    for v in self.coilPointsNP:
+      self.coilPoints.SetPoint(i, v)
+      i = i + 1
             
-    egramPoint = posArray[0]
+    egramPoint = self.coilPointsNP[0]
             
     interpolatedPoints = vtk.vtkPoints()
     slicer.vtkMRMLMarkupsCurveNode.ResamplePoints(self.coilPoints, interpolatedPoints, 10.0, False)
     nInterpolatedPoints = interpolatedPoints.GetNumberOfPoints()
-    curveNode.SetControlPointPositionsWorld(interpolatedPoints)
-    p = self.computeExtendedTipPosition(curveNode, self.tipLength)
-    v = vtk.vtkVector3d(p)
-    curveNode.AddControlPoint(v)
+    #curveNode.SetControlPointPositionsWorld(interpolatedPoints)
+    # Set pre-registration coordinates
+    nControlPoints = curveNode.GetNumberOfControlPoints()
+    if nControlPoints > nInterpolatedPoints:
+      i = 0
+      for i in range(nInterpolatedPoints):
+        p = interpolatedPoints.GetPoint(i)
+        curveNode.SetNthControlPointPosition(i, p[0], p[1], p[2])
+      for i in range(nInterpolatedPoints, nControlPoints):
+        curveNode.RemoveNthControlPoint(nInterpolatedPoints)
+    else:
+      i = 0
+      for i in range(nControlPoints):
+        p = interpolatedPoints.GetPoint(i)
+        curveNode.SetNthControlPointPosition(i, p[0], p[1], p[2])
+      for i in range(nControlPoints,nInterpolatedPoints):
+        p = interpolatedPoints.GetPoint(i)
+        v = vtk.vtkVector3d(p)
+        curveNode.InsertControlPoint(i, v)
+    
+    (f, p) = self.computeExtendedTipPosition(curveNode, self.tipLength)
+    if f:
+      v = vtk.vtkVector3d(p)
+      curveNode.AddControlPoint(v)
     
     curveNode.EndModify(prevState)
 
+    # Apply registration transform to the curve node and Egram poit
+    # NOTE: This must be done before calling self.updateCatheter() because the drawing of
+    #  the sheath and the coils relies on the transforms to the world obtained from the curve node.
+    if self.registration and \
+        self.registration.applyTransform and \
+        self.registration.applyTransform.catheterID == self.catheterID and \
+        self.registration.registrationTransform:
+      
+      # Egram point
+      egramPoint = self.registration.registrationTransform.TransformPoint(egramPoint)
+      curveNode.SetAndObserveTransformNodeID(self.registration.registrationTransformNode.GetID())
+    else:
+      # Remove the transform, if it has already been applyed to the curve node.
+      curveNode.SetAndObserveTransformNodeID('')
+    
     self.updateCatheter()
 
     # Egram data
@@ -598,26 +639,38 @@ class Catheter:
     # Add a extended tip
     # make sure that there is more than one points
     if curveNode.GetNumberOfControlPoints() < 2:
-      return None
+      return (False, None)
     
     lastPoint = curveNode.GetNumberOfControlPoints()-1
+
+    if lastPoint < 2:
+      # Not possible to compute an extended tip position.
+      return (False, None)
     
     ## The 'curve end point matrix' (normal vectors + the curve end position)
     matrix = vtk.vtkMatrix4x4()
     
     ## Assuming that the tip is at index=0 
-    n10 = numpy.array([0.0, 0.0, 0.0])
-    p0  = numpy.array([0.0, 0.0, 0.0])
+    #n10 = numpy.array([0.0, 0.0, 0.0])
+    #p0  = numpy.array([0.0, 0.0, 0.0])
+
     cpi = curveNode.GetCurvePointIndexFromControlPointIndex(lastPoint)
+    
+    curvePoints = curveNode.GetCurvePoints()
+    p0 = numpy.array(curvePoints.GetPoint(cpi))
+    p1 = numpy.array(curvePoints.GetPoint(cpi-1))
 
     #curveNode.GetNthControlPointPosition(0, p0)
-    curveNode.GetCurvePointToWorldTransformAtPointIndex(cpi, matrix)
-    p0[0] = matrix.GetElement(0, 3)
-    p0[1] = matrix.GetElement(1, 3)
-    p0[2] = matrix.GetElement(2, 3)
-    n10[0] = matrix.GetElement(0, 2)
-    n10[1] = matrix.GetElement(1, 2)
-    n10[2] = matrix.GetElement(2, 2)
+    # curveNode.GetCurvePointToWorldTransformAtPointIndex(cpi, matrix)
+    # p0[0] = matrix.GetElement(0, 3)
+    # p0[1] = matrix.GetElement(1, 3)
+    # p0[2] = matrix.GetElement(2, 3)
+    # n10[0] = matrix.GetElement(0, 2)
+    # n10[1] = matrix.GetElement(1, 2)
+    # n10[2] = matrix.GetElement(2, 2)
+
+    n10 = p0 - p1
+    n10 = n10 / numpy.linalg.norm(n10)
 
     # Tip location
     # The sign for the normal vector is '-' because the normal vector point toward points
@@ -625,6 +678,7 @@ class Catheter:
     pe = p0 + n10 * tipLength
 
     # Update Tip transform (for volume reslicing)
+    # Note Tip transform must be further transformed with the registration transform.
     if self.tipTransformNode == None:
       self.tipTransformNode = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLLinearTransformNode')
       self.tipTransformNode.SetName(curveNode.GetName() + '-TipTransform')
@@ -633,9 +687,9 @@ class Catheter:
     matrix.SetElement(1, 3, pe[1])
     matrix.SetElement(2, 3, pe[2])
     self.tipTransformNode.SetMatrixTransformToParent(matrix)
-                          
-      
-    return pe
+    
+    return (True, pe)
+
   
 
   def updateCatheter(self):
@@ -685,10 +739,10 @@ class Catheter:
     for i in range(0, nCoils):
       self.coilPoints.GetPoint(i, p)
       cpi = curveNode.GetClosestCurvePointIndexToPositionWorld(p)
-      
-      matrix = vtk.vtkMatrix4x4()
-      curveNode.GetCurvePointToWorldTransformAtPointIndex(cpi, matrix)
-      self.coilTransformArray[i].SetMatrix(matrix)
+      if cpi >= 0:
+        matrix = vtk.vtkMatrix4x4()
+        curveNode.GetCurvePointToWorldTransformAtPointIndex(cpi, matrix)
+        self.coilTransformArray[i].SetMatrix(matrix)
 
     self.updateCoilModel(self.coilTransformArray, self.radius*1.5, [0.7, 0.7, 0.7], self.opacity)
 
@@ -867,7 +921,8 @@ class Catheter:
     sheathDispNode.SetSliceDisplayModeToIntersection()
     sheathDispNode.EndModify(prevState)
     
-            
+
+    
   #--------------------------------------------------
   # Parameter access
   #
@@ -1094,9 +1149,39 @@ class Catheter:
       posList.append(pos)
 
     return posList
+
   
+  def getCoilPointsAlongCurve(self):
+
+    r = []
+
+    if self.curveNodeID == None:
+      return r
+    
+    curveNode = slicer.mrmlScene.GetNodeByID(self.curveNodeID)
+    if curveNode == None:
+      return r
+    
+    curvePoly = curveNode.GetCurve()
+    locator = vtk.vtkPointLocator()
+    locator.SetDataSet(curvePoly)
+    locator.BuildLocator()
+    
+    nPoints = len(self.coilPointsNP)
+    curvePointsWorld = curveNode.GetCurvePointsWorld()
+    
+    for s in range(nPoints):
+      pos = [0.0]*3
+      cp = self.coilPointsNP[s]
+      pid = locator.FindClosestPoint(cp)
+      curvePointsWorld.GetPoint(pid, pos)
+      r.append(pos)
+
+    return r
+      
   
-  def getInterpolatedFiducialPoints(self, distFromTip):
+
+  def getInterpolatedFiducialPoints(self, distFromTip, world=False):
     #
     #   (posList, mask) = getInterpolatedFiducialPoints(distFromTip)
     #
@@ -1112,6 +1197,7 @@ class Catheter:
     # calculate intermediate points between the tracking sensors.
     # The reason to have the mask is that the coordinates of the points cannot be computed by interpolation,
     # if, for example, the point given by 'distFromTip' is not in between two coils.
+    # When 'world'=True, the posList are in the world coordinate system
     #
 
     if self.curveNodeID == None:
@@ -1123,17 +1209,43 @@ class Catheter:
     
     numpy.array([0.0, 0.0, 0.0])
     cpos = numpy.array(self.coilPositions)
+    cpos.resize(8)
+    cpos = cpos[self.activeCoils]   # Remove inactive coils
+    
     interval = cpos[1:] - cpos[:-1]
     trans = vtk.vtkMatrix4x4()
 
     mask = []
     posList = []
-    upperIndexLimit = curveNode.GetNumberOfControlPoints() - 2
+    #upperIndexLimit = curveNode.GetNumberOfControlPoints() - 2
+    upperIndexLimit = len(self.coilPointsNP) - 2
+
+    # TODO: The curve length is measured in the transformed space - this may cause an issue when
+    #   the registration transform is not rigid.
+
+    curvePoly = curveNode.GetCurve()
+    curvePoints = None
+    if world:
+      curvePoints = curveNode.GetCurvePointsWorld()
+    else:
+      curvePoints = curveNode.GetCurvePoints()
+    
+    locator = vtk.vtkPointLocator()
+    locator.SetDataSet(curvePoly)
+    locator.BuildLocator()
     
     for d in distFromTip:
       pos = [0.0]*3
 
       # The following gives the index of the lower end of the segment that includes 'd':
+      #
+      #  Example: If cpos and d have the following values:
+      #       cpos = [10.0, 15.0, 20.0, 25.0, 30.0]
+      #       d = 23.0
+      #  The segment that includes 'd' is [20.0, 25.0], and the lower end is 20.0 (cpos[2]).
+      #  's' can be computed as sum([True, True, True, False, False]) - 1 = 2.
+      #
+
       s = numpy.sum(d >= cpos) - 1
 
       # Out of range
@@ -1141,23 +1253,34 @@ class Catheter:
         posList.append(pos)
         mask.append(False)
         continue
-      
-      p0 = curveNode.GetCurvePointIndexFromControlPointIndex(s)
-      p1 = curveNode.GetCurvePointIndexFromControlPointIndex(s+1)
+
+      # Find the coil point on the curve
+      cp = self.coilPointsNP[s]
+      p0 = locator.FindClosestPoint(cp)
+      cp = self.coilPointsNP[s+1]
+      p1 = locator.FindClosestPoint(cp)
+      #p0 = curveNode.GetCurvePointIndexFromControlPointIndex(s)
+      #p1 = curveNode.GetCurvePointIndexFromControlPointIndex(s+1)
       clen = curveNode.GetCurveLengthBetweenStartEndPointsWorld(p0, p1)
       a = d - cpos[s]
-      b = interval[s]
-      pindexm =  curveNode.GetCurvePointIndexAlongCurveWorld(p0, clen * a / b)
-      if pindexm >= 0:
-        curveNode.GetCurvePointToWorldTransformAtPointIndex(pindexm, trans)
-        pos[0] = trans.GetElement(0, 3)
-        pos[1] = trans.GetElement(1, 3)
-        pos[2] = trans.GetElement(2, 3)
-        posList.append(pos)
-        mask.append(True)
-      else:
-        posList.append(pos)
-        mask.append(False)
+
+      # In the following code, make sure that 'd' is less than the last element of 'cpos' to perform
+      # interpolation.
+      # TODO: if 'd' is greater than the last element of 'cpos', extrapolate the curve.
+      if s < len(interval):
+        b = interval[s]
+        pindexm =  curveNode.GetCurvePointIndexAlongCurveWorld(p0, clen * a / b)
+        if pindexm >= 0:
+          #curveNode.GetCurvePointToWorldTransformAtPointIndex(pindexm, trans)
+          curvePoints.GetPoint(pindexm, pos)
+          #pos[0] = trans.GetElement(0, 3)
+          #pos[1] = trans.GetElement(1, 3)
+          #pos[2] = trans.GetElement(2, 3)
+          posList.append(pos)
+          mask.append(True)
+        else:
+          posList.append(pos)
+          mask.append(False)
 
     return (posList, mask)
   
