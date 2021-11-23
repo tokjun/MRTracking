@@ -72,16 +72,19 @@ class MRTrackingWidget(ScriptedLoadableModuleWidget):
     #
     #--------------------------------------------------
 
+
+    mainTabWidget = qt.QTabWidget()
+    self.layout.addWidget(mainTabWidget)
     
     #--------------------------------------------------
     # GUI components
     
     #
-    # Connection Area
+    # Connection Tab
     #
-    connectionCollapsibleButton = ctk.ctkCollapsibleButton()
-    connectionCollapsibleButton.text = "Connection (OpenIGTLink)"
-    self.layout.addWidget(connectionCollapsibleButton)
+    
+    connectionCollapsibleButton = qt.QFrame()
+    mainTabWidget.addTab(connectionCollapsibleButton, "Connection")
 
     # Layout within the dummy collapsible button
     connectionFormLayout = qt.QFormLayout(connectionCollapsibleButton)
@@ -102,75 +105,87 @@ class MRTrackingWidget(ScriptedLoadableModuleWidget):
     # Tracking Node
     #--------------------------------------------------
 
-    catheterCollapsibleButton = ctk.ctkCollapsibleButton()
-    catheterCollapsibleButton.text = "Tracking Node"
-    self.layout.addWidget(catheterCollapsibleButton)
-
-    #catheterFormLayout = qt.QVBoxLayout(catheterCollapsibleButton)
+    catheterFrame = qt.QFrame()
+    mainTabWidget.addTab(catheterFrame, "Tracking")
+    
+    catheterSpacer = qt.QSpacerItem(0,0, qt.QSizePolicy.Expanding, qt.QSizePolicy.Expanding)
+    catheterLayout = qt.QVBoxLayout(catheterFrame)
+    catheterInnerFrame = qt.QFrame()
+    catheterLayout.addWidget(catheterInnerFrame)
+    catheterLayout.addSpacerItem(catheterSpacer)
 
     self.catheterConfig = MRTrackingCatheterConfig("Catheter Configuration")
     self.catheterConfig.setCatheterCollection(self.logic.catheters)
-    self.catheterConfig.buildGUI(catheterCollapsibleButton)
-    
-    #self.catheterConfig.setMRTrackingLogic(self.logic)
+    self.catheterConfig.buildGUI(catheterInnerFrame)
 
-    #--------------------------------------------------
-    # Tracking node selector
-
-    trackingDataSelectorFrame = qt.QFrame()
-    #trackingDataSelectorFrame.setFrameStyle(qt.QFrame.StyledPanel | qt.QFrame.Plain);
-    #trackingDataSelectorFrame.setLineWidth(1);
-    trackingDataSelectorLayout = qt.QFormLayout(trackingDataSelectorFrame)
-    
     #--------------------------------------------------
     # Surface Model & Mapping
     #--------------------------------------------------
     
-    mappingCollapsibleButton = ctk.ctkCollapsibleButton()
-    mappingCollapsibleButton.text = "Surface Model Mapping"
-    self.layout.addWidget(mappingCollapsibleButton)
-
+    mappingFrame = qt.QFrame()
+    mainTabWidget.addTab(mappingFrame, "Mapping")
+    
+    mappingSpacer = qt.QSpacerItem(0,0, qt.QSizePolicy.Expanding, qt.QSizePolicy.Expanding)
+    mappingLayout = qt.QVBoxLayout(mappingFrame)
+    mappingInnerFrame = qt.QFrame()
+    mappingLayout.addWidget(mappingInnerFrame)
+    mappingLayout.addSpacerItem(mappingSpacer)
+    
     self.surfaceMapping = MRTrackingSurfaceMapping("Surface Mapping")
     self.surfaceMapping.setCatheterCollection(self.logic.catheters)
-    self.surfaceMapping.buildGUI(mappingCollapsibleButton)
-    # self.surfaceMapping.setMRTrackingLogic(self.logic)
+    self.surfaceMapping.buildGUI(mappingInnerFrame)
+
 
     #--------------------------------------------------
     # Image Reslice
     #--------------------------------------------------
 
-    resliceCollapsibleButton = ctk.ctkCollapsibleButton()
-    resliceCollapsibleButton.text = "Image Reslice"
-    self.layout.addWidget(resliceCollapsibleButton)
+    resliceFrame = qt.QFrame()
+    mainTabWidget.addTab(resliceFrame, "Reslice")
+
+    resliceSpacer = qt.QSpacerItem(0,0, qt.QSizePolicy.Expanding, qt.QSizePolicy.Expanding)
+    resliceLayout = qt.QVBoxLayout(resliceFrame)
+    resliceInnerFrame = qt.QFrame()
+    resliceLayout.addWidget(resliceInnerFrame)
+    resliceLayout.addSpacerItem(resliceSpacer)
 
     self.reslice = MRTrackingReslice("Image Reslice")
     self.reslice.setCatheterCollection(self.logic.catheters)    
-    self.reslice.buildGUI(resliceCollapsibleButton)
+    self.reslice.buildGUI(resliceInnerFrame)
     
     #--------------------------------------------------
     # Point-to-Point registration
     #--------------------------------------------------
 
-    registrationCollapsibleButton = ctk.ctkCollapsibleButton()
-    registrationCollapsibleButton.text = "Point-to-Point Registration"
-    self.layout.addWidget(registrationCollapsibleButton)
+    registrationFrame = qt.QFrame()
+    mainTabWidget.addTab(registrationFrame, "Reslice")
+
+    registrationSpacer = qt.QSpacerItem(0,0, qt.QSizePolicy.Expanding, qt.QSizePolicy.Expanding)
+    registrationLayout = qt.QVBoxLayout(registrationFrame)
+    registrationInnerFrame = qt.QFrame()
+    registrationLayout.addWidget(registrationInnerFrame)
+    registrationLayout.addSpacerItem(registrationSpacer)
 
     self.registration =  MRTrackingFiducialRegistration()
     self.registration.setCatheterCollection(self.logic.catheters)
-    self.registration.buildGUI(registrationCollapsibleButton)
+    self.registration.buildGUI(registrationInnerFrame)
 
     #--------------------------------------------------
     # Recording
     #--------------------------------------------------
 
-    recordingCollapsibleButton = ctk.ctkCollapsibleButton()
-    recordingCollapsibleButton.text = "Recording"
-    self.layout.addWidget(recordingCollapsibleButton)
+    recordingFrame = qt.QFrame()
+    mainTabWidget.addTab(recordingFrame, "Recording")
+
+    recordingSpacer = qt.QSpacerItem(0,0, qt.QSizePolicy.Expanding, qt.QSizePolicy.Expanding)
+    recordingLayout = qt.QVBoxLayout(recordingFrame)
+    recordingInnerFrame = qt.QFrame()
+    recordingLayout.addWidget(recordingInnerFrame)
+    recordingLayout.addSpacerItem(recordingSpacer)
 
     self.recording = MRTrackingRecording("Recording")
     self.recording.setCatheterCollection(self.logic.catheters)    
-    self.recording.buildGUI(recordingCollapsibleButton, False)
-    
+    self.recording.buildGUI(recordingInnerFrame, False)
     
     #--------------------------------------------------
     # Connections
