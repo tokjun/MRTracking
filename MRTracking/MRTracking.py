@@ -11,6 +11,7 @@ from MRTrackingUtils.qcomboboxcatheter import *
 from MRTrackingUtils.catheter import *
 from MRTrackingUtils.catheterconfig import *
 from MRTrackingUtils.recording import *
+from MRTrackingUtils.statusdisplay import *
 import numpy
 import functools
 
@@ -41,6 +42,7 @@ class MRTracking(ScriptedLoadableModule):
 #
 # MRTrackingWidget
 #
+        
 class MRTrackingWidget(ScriptedLoadableModuleWidget):
   
   def setup(self):
@@ -72,34 +74,40 @@ class MRTrackingWidget(ScriptedLoadableModuleWidget):
     #
     #--------------------------------------------------
 
+    #--------------------------------------------------
+    # GUI components
+    
+    self.statusWidget = StatusDisplayWidget()
+    self.layout.addWidget(self.statusWidget)
+    self.statusWidget.startTimer()
+    self.statusWidget.setCatheterCollection(self.logic.catheters)
 
+    #
+    # Main Tab
+    #
     mainTabWidget = qt.QTabWidget()
     self.layout.addWidget(mainTabWidget)
     
     #--------------------------------------------------
-    # GUI components
-    
-    #
-    # Connection Tab
-    #
-    
-    connectionCollapsibleButton = qt.QFrame()
-    mainTabWidget.addTab(connectionCollapsibleButton, "Connection")
-
-    # Layout within the dummy collapsible button
-    connectionFormLayout = qt.QFormLayout(connectionCollapsibleButton)
-
-    #--------------------------------------------------
     # Connection
     #--------------------------------------------------
+
+    connectionFrame = qt.QFrame()
+    mainTabWidget.addTab(connectionFrame, "Connection")
+
+    # Layout within the dummy collapsible button
+    connectionFormLayout = qt.QFormLayout(connectionFrame)
 
     self.igtlConnector1 = MRTrackingIGTLConnector("Connector 1  (MRI)")
     self.igtlConnector1.port = 18944
     self.igtlConnector1.buildGUI(connectionFormLayout, minimal=True, createNode=True)
+    self.statusWidget.addConnector(self.igtlConnector1)
 
     self.igtlConnector2 = MRTrackingIGTLConnector("Connector 2 (NavX)")
     self.igtlConnector2.port = 18945
     self.igtlConnector2.buildGUI(connectionFormLayout, minimal=True, createNode=True)
+    self.statusWidget.addConnector(self.igtlConnector2)
+
 
     #--------------------------------------------------
     # Tracking Node
@@ -158,7 +166,7 @@ class MRTrackingWidget(ScriptedLoadableModuleWidget):
     #--------------------------------------------------
 
     registrationFrame = qt.QFrame()
-    mainTabWidget.addTab(registrationFrame, "Reslice")
+    mainTabWidget.addTab(registrationFrame, "Registration")
 
     registrationSpacer = qt.QSpacerItem(0,0, qt.QSizePolicy.Expanding, qt.QSizePolicy.Expanding)
     registrationLayout = qt.QVBoxLayout(registrationFrame)
