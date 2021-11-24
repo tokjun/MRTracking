@@ -484,6 +484,7 @@ class MRTrackingCatheterConfig(MRTrackingPanelBase):
     print("onCatheterRegPointsChanged(%s)" % (text))
 
     strarray = text.split(',')
+    print(strarray)
     try:
       array = [float(ns) for ns in strarray]
       self.setCoilPositions(array, True)
@@ -665,13 +666,14 @@ class MRTrackingCatheterConfig(MRTrackingPanelBase):
   def setCoilPositions(self, array, save=False):
     td = self.currentCatheter            
     if td:
-      if len(array) <= len(td.coilPositions):
-        td.coilPositions = array
-        #i = 0
-        #for p in array:
-        #  td.coilPositions[index][i] = p
-        #  td.setCoilPositions(index, p)
-        #  i = i + 1
+      n = len(array)
+      max_n = len(td.coilPositions)
+      if n > max_n:
+        print ("Warning: The number of coil positions is greater than the number of coils.")
+        n = 8
+      td.coilPositions[:n] = array[:n]
+      if n < max_n:
+        td.coilPositions[n:] = [0.0]*(max_n-n)
       print(td.coilPositions)
       # Make sure that the registration class instance references the tracking data
       #self.registration.trackingData = self.TrackingData
