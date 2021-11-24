@@ -164,7 +164,7 @@ class MRTrackingCatheterConfig(MRTrackingPanelBase):
     self.catheterRegPointsLineEdit.readOnly = False
     self.catheterRegPointsLineEdit.frame = True
     #self.catheterRegPointsLineEdit.styleSheet = "QLineEdit { background:transparent; }"
-    configFormLayout.addRow("Cath Reg. Points: ", self.catheterRegPointsLineEdit)
+    configFormLayout.addRow("Coil positions: ", self.catheterRegPointsLineEdit)
 
     #
     # Check box to show/hide coil labels 

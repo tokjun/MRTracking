@@ -20,8 +20,9 @@ class StatusDisplayWidget(qt.QWidget):
     self.inner_margin_x = 5
     self.inner_margin_y = 5
     self.font_h   = 12
-    self.led_r_h    = 8
-    self.led_r_w    = 8
+    self.font_w   = 8
+    self.led_r_h    = 10
+    self.led_r_w    = 10
     self.led_intv_x = 32
     self.name_w   = 160
     
@@ -109,33 +110,24 @@ class StatusDisplayWidget(qt.QWidget):
             qp.setPen(self.pen_fg_act)
           else:
             qp.setPen(self.pen_fg_base)
-          qp.drawText(self.margin_x + self.inner_margin_x, self.catheter_base_y + self.catheter_row_h*i + self.font_h, cath.name + ' :')
+          text_y = self.catheter_base_y + self.catheter_row_h*i + self.font_h
+          qp.drawText(self.margin_x + self.inner_margin_x, text_y, cath.name + ' :')
 
-          # Tip
-          if cath.coilOrder: # Distal -> Proximal
-            qp.setPen(self.pen_led_on)
-            qp.drawRect(self.catheter_base_x-self.led_r_w, self.catheter_base_y+self.catheter_row_h*i,
-                        self.led_r_w*2, self.led_r_h*2)
-            qp.setPen(self.pen_led_off)
-            qp.drawRect(self.catheter_base_x+self.led_intv_x*9-self.led_r_w, self.catheter_base_y+self.catheter_row_h*i,
-                        self.led_r_w*2, self.led_r_h*2)
-          else:
-            qp.setPen(self.pen_led_off)
-            qp.drawRect(self.catheter_base_x-self.led_r_w, self.catheter_base_y+self.catheter_row_h*i,
-                        self.led_r_w*2, self.led_r_h*2)
-            qp.setPen(self.pen_led_on)
-            qp.drawRect(self.catheter_base_x+self.led_intv_x*9-self.led_r_w, self.catheter_base_y+self.catheter_row_h*i,
-                        self.led_r_w*2, self.led_r_h*2)
-            
           # Coil activation
           for j in range(8):
-            if cath.activeCoils[j]:
+            c_id = j
+            if not cath.coilOrder: # Proximal -> Distal
+              c_id = 7-j
+            
+            if cath.activeCoils[c_id]:
               qp.setPen(self.pen_led_on)
             else:
               qp.setPen(self.pen_led_off)
-            qp.drawEllipse(qt.QPoint(self.catheter_base_x+self.led_intv_x*(j+1),
-                                     self.catheter_base_y+self.catheter_row_h*i+self.led_r_h),
+
+            x = self.catheter_base_x+self.led_intv_x*j
+            qp.drawEllipse(qt.QPoint(x+self.font_w/2, self.catheter_base_y+self.catheter_row_h*i+self.font_h/2),
                            self.led_r_w, self.led_r_h)
+            qp.drawText(x, text_y, str(c_id+1))
       
     qp.end()
 
