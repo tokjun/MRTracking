@@ -169,7 +169,7 @@ class Catheter:
     self.coilPositions = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
     self.activeCoils = [True, True, True, True, False, False, False, False]
     self.showCoilLabel = False
-    self.coilOrder = True
+    self.coilOrder = True         # 'Distal first' = True; 'Proximal first' = False
     self.sheathRange = [-1, -1]
 
     # Egram data
@@ -463,7 +463,8 @@ class Catheter:
     else:
       numpy.resize(posArray, (nActiveCoils,3))
 
-    fFlip = self.coilOrder
+    # If the coil order is 'Distal First', set a flag to flip the coil order.
+    fFlip = (not self.coilOrder)
     
     j = 0
     for i in range(nCoils):
@@ -1193,7 +1194,7 @@ class Catheter:
     #   mask        : A list of booleans representing whether the positions in the array are valid.
     #
     # Estimate the coordinates of the given point on the catheter by interpolation.
-    # Unlike getRegistrationFiducialNode(), getInterpolatedFiducialPoints() can be used to
+    # Unlike getFiducialPoints(), getInterpolatedFiducialPoints() can be used to
     # calculate intermediate points between the tracking sensors.
     # The reason to have the mask is that the coordinates of the points cannot be computed by interpolation,
     # if, for example, the point given by 'distFromTip' is not in between two coils.

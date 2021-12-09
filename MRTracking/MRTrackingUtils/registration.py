@@ -381,6 +381,10 @@ class MRTrackingFiducialRegistration():
     coilPos1 = coilPos1[self.toCatheter.activeCoils] # Remove inactive coils
     # TODO: Catheter class should provide this feature
 
+    print('==== coils ====')
+    print(coilPos0)
+    print(coilPos1)
+
     
     # Assign the 'from' and 'to' catheters to 0 and 1
     curve0Node = fromCurveNode
@@ -399,11 +403,19 @@ class MRTrackingFiducialRegistration():
     pointList0 = self.fromCatheter.coilPointsNP
     pointList1  = self.toCatheter.coilPointsNP
 
+    print('==== pointList ====')
+    print(pointList0)
+    print(pointList1)
+
     # NOTE: Never use getInterpolatedFiducialPoints() with self.fromCatheter, because
     #  getInterpolatedFiducialPoints() calculates interpolated points based on the curve length
     #  in the post-registration coordinate system. This is not an issue when the function is called
     #  from self.toCatheter, because self.toCatheter is never transformed after registration.
     [pointList1Interp, pointMask1Interp] = self.toCatheter.getInterpolatedFiducialPoints(coilPos0)
+    
+    print('==== Interp reg points ====')
+    print(pointList1Interp)
+    print(pointMask1Interp)
 
     if pointList1Interp == None:
       print("Error: Could not estimate the fiducial points.")
@@ -412,6 +424,8 @@ class MRTrackingFiducialRegistration():
     # Check time stamp
     curve0Time = float(curve0Node.GetAttribute('MRTracking.lastTS'))
     curve1Time = float(curve1Node.GetAttribute('MRTracking.lastTS'))
+    print('==== curve0Time = %f, curve1Time = %f' % (curve0Time, curve1Time))
+    
 
     # Check if it is too early to perform new registration
     timeElapsed0 = curve0Time - self.prevCollectionTime
