@@ -463,7 +463,7 @@ class Catheter:
     else:
       numpy.resize(posArray, (nActiveCoils,3))
 
-    # If the coil order is 'Distal First', set a flag to flip the coil order.
+    # If the coil order is 'Proximal First', set a flag to flip the coil order.
     fFlip = (not self.coilOrder)
     
     j = 0
@@ -565,7 +565,7 @@ class Catheter:
     (f, p) = self.computeExtendedTipPosition(curveNode, self.tipLength)
     if f:
       v = vtk.vtkVector3d(p)
-      curveNode.AddControlPoint(v)
+      curveNode.InsertControlPoint(0,v)
     
     curveNode.EndModify(prevState)
 
@@ -655,11 +655,11 @@ class Catheter:
     #n10 = numpy.array([0.0, 0.0, 0.0])
     #p0  = numpy.array([0.0, 0.0, 0.0])
 
-    cpi = curveNode.GetCurvePointIndexFromControlPointIndex(lastPoint)
+    #cpi = curveNode.GetCurvePointIndexFromControlPointIndex(lastPoint)
     
     curvePoints = curveNode.GetCurvePoints()
-    p0 = numpy.array(curvePoints.GetPoint(cpi))
-    p1 = numpy.array(curvePoints.GetPoint(cpi-1))
+    p0 = numpy.array(curvePoints.GetPoint(0))
+    p1 = numpy.array(curvePoints.GetPoint(1))
 
     #curveNode.GetNthControlPointPosition(0, p0)
     # curveNode.GetCurvePointToWorldTransformAtPointIndex(cpi, matrix)
