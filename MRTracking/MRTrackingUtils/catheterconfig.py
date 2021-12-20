@@ -98,17 +98,6 @@ class MRTrackingCatheterConfig(MRTrackingPanelBase):
 
     layout.addWidget(configGroupBox)
     configFormLayout = qt.QFormLayout(configGroupBox)
-
-    ##
-    ## Tip Length (legnth between the catheter tip and the first coil)
-    ##
-    #self.tipLengthSliderWidget = ctk.ctkSliderWidget()
-    #self.tipLengthSliderWidget.singleStep = 0.5
-    #self.tipLengthSliderWidget.minimum = 0.0
-    #self.tipLengthSliderWidget.maximum = 100.0
-    #self.tipLengthSliderWidget.value = 10.0
-    #self.tipLengthSliderWidget.setToolTip("Set the length of the catheter tip.")
-    #configFormLayout.addRow("Cath %d Tip Length (mm): " % cath, self.tipLengthSliderWidget[cath])
     
     #
     # Catheter #cath Catheter diameter
@@ -656,13 +645,6 @@ class MRTrackingCatheterConfig(MRTrackingPanelBase):
     td.egramDataNodeID = edatanode.GetID()
 
 
-  def setTipLength(self, length):
-    td = self.currentCatheter      
-    if td:
-      td.setTipLength(length)
-      td.updateCatheter()
-
-        
   def setCoilPositions(self, array, save=False):
     td = self.currentCatheter            
     if td:
@@ -671,13 +653,13 @@ class MRTrackingCatheterConfig(MRTrackingPanelBase):
       if n > max_n:
         print ("Warning: The number of coil positions is greater than the number of coils.")
         n = 8
-      td.coilPositions[:n] = array[:n]
+        
+      coilPositions = [0.0] * 8
+      coilPositions[:n] = array[:n]
       if n < max_n:
-        td.coilPositions[n:] = [0.0]*(max_n-n)
-      print(td.coilPositions)
-      # Make sure that the registration class instance references the tracking data
-      #self.registration.trackingData = self.TrackingData
-      self.setTipLength(td.coilPositions[0])  # The first coil position match the tip length
+        coilPositions[n:] = [0.0]*(max_n-n)
+
+      td.setCoilPosition(coilPositions)
 
 
   def setCatheterDiameter(self, diameter):
@@ -888,7 +870,6 @@ class MRTrackingCatheterConfig(MRTrackingPanelBase):
     value = [int(b) for b in td.activeCoils]
     settings.setValue(self.moduleName + '/' + 'ActiveCoils.' + cathName, value)
     settings.setValue(self.moduleName + '/' + 'CoilPositions.' + cathName, td.coilPositions)
-    #settings.setValue(self.moduleName + '/' + 'TipLength.' + cathName, td.tipLength)
     settings.setValue(self.moduleName + '/' + 'CoilOrder.' + cathName, int(td.coilOrder))
     settings.setValue(self.moduleName + '/' + 'AxisDirections.' + cathName, td.axisDirections)
     settings.setValue(self.moduleName + '/' + 'CutOffFrequency.' + cathName, td.cutOffFrequency)
@@ -923,7 +904,6 @@ class MRTrackingCatheterConfig(MRTrackingPanelBase):
     settings.remove(self.moduleName + '/' + 'TrackingDataBundleNode.' + cathName)
     settings.remove(self.moduleName + '/' + 'ActiveCoils.' + cathName)
     settings.remove(self.moduleName + '/' + 'CoilPositions.' + cathName)
-    #settings.remove(self.moduleName + '/' + 'TipLength.' + cathName)
     settings.remove(self.moduleName + '/' + 'CoilOrder.' + cathName)
     settings.remove(self.moduleName + '/' + 'AxisDirections.' + cathName)
     settings.remove(self.moduleName + '/' + 'CutOffFrequency.' + cathName)

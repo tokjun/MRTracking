@@ -162,7 +162,6 @@ class Catheter:
     self.sheathModelNode = None 
     self.sheathPoly = None
 
-    self.tipLength = 10.0
     self.tipTransformNode = None
 
     # Coil configuration
@@ -248,6 +247,9 @@ class Catheter:
 
     # Registration
     self.registration = None
+
+    # Distortion correction
+    self.distortionTransformNode = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLGridTransformNode')
     
     ## Default values for self.coilPositions:
     self.defaultCoilPositions = {}
@@ -265,6 +267,13 @@ class Catheter:
     
   def setName(self, name):
     self.name = name
+    
+    if self.curveNodeID:
+      curveNode = slicer.mrmlScene.GetNodeByID(self.curveNodeID)
+      if curveNode:
+        curveNode.SetName(self.name + '_curve')
+
+    # TODO: Change the filtered transform names?
 
     
   # Will be obsolete
@@ -305,7 +314,7 @@ class Catheter:
       # Since TrackingDataBundle does not invoke ModifiedEvent, obtain the first child node
       if tdnode.GetNumberOfTransformNodes() > 0:
         # Create transform nodes for filtered tracking data
-        self.setFilteredTransforms(tdnode, self.activeCoils)
+        self.setFilteredTransforms(tdnode)
 
         ## TODO: Using the first node to trigger the event may cause a timing issue.
         ## TODO: Using the filtered transform node will invoke the event handler every 15 ms as fixed in
@@ -348,9 +357,8 @@ class Catheter:
     else:
       return None
 
-
     
-  def setFilteredTransforms(self, tdnode, activeCoils, createNew=True):
+  def setFilteredTransforms(self, tdnode, createNew=True):
     #
     # To fileter the transforms under the TrackingDataBundleNode, prepare transform nodes
     # to store the filtered transforms.
@@ -359,10 +367,6 @@ class Catheter:
     
     for i in range(nTransforms):
 
-      ## Skip if the coil is not active
-      #if self.activeCoils[i] == False:
-      #  continue
-      
       inputNode = tdnode.GetTransformNode(i)
 
       # TODO: The following code does not work if two Catheter instances use the same coil channels
@@ -487,6 +491,63 @@ class Catheter:
       return posArray
       
 
+  def getActiveCoilPositionsFromTip(self):
+    # Get a list of coil positions from the tip orderd from distal to proximal.
+    # The tip positions are the distances along the catheter from the tip.
+    # This function takes account of self.coilOrder parameter.
+    # If posArray is not specified, it creates a new array and returns it.
+
+    nActiveCoils = sum(self.activeCoils)
+    nCoils = len(self.activeCoils)
+
+    posArray = numpy.array(self.coilPositions)
+    posArray = posArray[self.activeCoils[:len(self.coilPositions)]]
+    
+    # If the coil order is 'Proximal First', set a flag to flip the coil order.
+    if (not self.coilOrder):
+      posArray = posArray[::-1]
+
+    return posArray
+
+    
+  #def createDistortionTransform(self):
+  #
+  #  rasBounds = [0,]*6
+  #  rasBounds = [-20,20,-20,20,-20,20]
+  #  
+  #  from math import floor, ceil
+  #
+  #  trans = vtk.vtkTransform()
+  #  trans.Translate(10,20,30)
+  #  trans.rotateZ(20)
+  #  
+  #  origin = map(int,map(floor,rasBounds[::2]))
+  #  maxes = map(int,map(ceil,rasBounds[1::2]))
+  #  boundSize = [m - o for m,o in zip(maxes,origin) ]
+  #  spacing = [1.0, 1.0, 1.0]
+  #  samples = [ceil(b / s) for b,s in zip(boundSize,spacing)]
+  #  extent = [0,]*6
+  #  extent[::2] = [0,]*3
+  #  extent[1::2] = samples
+  #  extent = map(int,extent)
+  #  
+  #  toGrid = vtk.vtkTransformToGrid()
+  #  toGrid.SetGridOrigin(origin)
+  #  toGrid.SetGridSpacing(spacing)
+  #  toGrid.SetGridExtent(extent)
+  #  toGrid.SetInput(trans)
+  #  toGrid.Update()
+  #  gridTransform = vtk.vtkGridTransform()
+  #  gridTransform.SetDisplacementGridData(toGrid.GetOutput())
+  #
+  #  if self.distortionTransformNode == None:
+  #    gridNode = slicer.vtkMRMLGridTransformNode()
+  #    gridNode.SetName(state.transform.GetName()+"-grid")
+  #    slicer.mrmlScene.AddNode(gridNode)
+  #    
+  #  gridNode.SetAndObserveTransformFromParent(gridTransform)
+    
+    
   def updateCatheterNode(self):
 
     curveNode = None
@@ -497,6 +558,7 @@ class Catheter:
     if curveNode == None:
       curveNode = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLMarkupsCurveNode')
       self.curveNodeID = curveNode.GetID()
+      curveNode.SetName(self.name + '_curve')
     
     prevState = curveNode.StartModify()
     #curveNode.SetCurveTypeToPolynomial()
@@ -504,7 +566,7 @@ class Catheter:
     nActiveCoils = sum(self.activeCoils)
 
     self.coilPointsNP = self.getActiveCoilPositions()
-    
+
     # Update time stamp
     ## TODO: Ideally, the time stamp should come from the data source rather than 3D Slicer.
     curveNode.SetAttribute('MRTracking.lastTS', '%f' % self.lastTS)
@@ -514,33 +576,32 @@ class Catheter:
       self.coilPoints = vtk.vtkPoints()
     self.coilPoints.SetNumberOfPoints(nActiveCoils)
 
-    ## Apply the registration transform, if activated. (GUI is defined in registration.py)
-    #i = 0
-    #if self.registration and \
-    #    self.registration.applyTransform and \
-    #    self.registration.applyTransform.catheterID == self.catheterID and \
-    #    self.registration.registrationTransform:
-    #  for v in posArray:
-    #    p = self.registration.registrationTransform.TransformPoint(v)
-    #    posArray[i] = p
-    #    self.coilPoints.SetPoint(i, p)
-    #    i = i + 1
-    #else:
-    #  for v in posArray:
-    #    posArray[i] = v
-    #    self.coilPoints.SetPoint(i, v)
-    #    i = i + 1
-
-    # Convert to vtkPoints
-    i = 0
-    for v in self.coilPointsNP:
+    # Convert to vtkPoints. The total length of the catheter is also estimated (without interpolation)
+    length = 0.0
+    vPrev = self.coilPointsNP[0]
+    self.coilPoints.SetPoint(0, vPrev)
+    i = 1
+    for v in self.coilPointsNP[1:]:
       self.coilPoints.SetPoint(i, v)
+      length = length + numpy.linalg.norm(v-vPrev)
+      vPrev = v
       i = i + 1
-            
+
+    # Determin the resampling interval. Aim to divide the catheter into 10 segments.
+    resamplingIntv = length / 10.0
+
+    if resamplingIntv < 0.01: # The minimum value for resamplingIntv is 0.01.
+      resamplingIntv = 0.01
+
+    # Distortion correction
+    #self.distortionTransform
+    # TODO: Make sure to apply toransform to egram point.
+    #self.createDistortionTransform()
+      
     egramPoint = self.coilPointsNP[0]
             
     interpolatedPoints = vtk.vtkPoints()
-    slicer.vtkMRMLMarkupsCurveNode.ResamplePoints(self.coilPoints, interpolatedPoints, 10.0, False)
+    slicer.vtkMRMLMarkupsCurveNode.ResamplePoints(self.coilPoints, interpolatedPoints, resamplingIntv, False)
     nInterpolatedPoints = interpolatedPoints.GetNumberOfPoints()
     #curveNode.SetControlPointPositionsWorld(interpolatedPoints)
     # Set pre-registration coordinates
@@ -561,8 +622,11 @@ class Catheter:
         p = interpolatedPoints.GetPoint(i)
         v = vtk.vtkVector3d(p)
         curveNode.InsertControlPoint(i, v)
-    
-    (f, p) = self.computeExtendedTipPosition(curveNode, self.tipLength)
+
+    coilPosFromTip = self.getActiveCoilPositionsFromTip()
+    tipLength = coilPosFromTip[0]
+
+    (f, p) = self.computeExtendedTipPosition(curveNode, tipLength)
     if f:
       v = vtk.vtkVector3d(p)
       curveNode.InsertControlPoint(0,v)
@@ -636,7 +700,7 @@ class Catheter:
 
 
   def computeExtendedTipPosition(self, curveNode, tipLength):
-            
+
     # Add a extended tip
     # make sure that there is more than one points
     if curveNode.GetNumberOfControlPoints() < 2:
@@ -647,28 +711,13 @@ class Catheter:
     if lastPoint < 2:
       # Not possible to compute an extended tip position.
       return (False, None)
-    
+
     ## The 'curve end point matrix' (normal vectors + the curve end position)
     matrix = vtk.vtkMatrix4x4()
-    
-    ## Assuming that the tip is at index=0 
-    #n10 = numpy.array([0.0, 0.0, 0.0])
-    #p0  = numpy.array([0.0, 0.0, 0.0])
 
-    #cpi = curveNode.GetCurvePointIndexFromControlPointIndex(lastPoint)
-    
     curvePoints = curveNode.GetCurvePoints()
     p0 = numpy.array(curvePoints.GetPoint(0))
     p1 = numpy.array(curvePoints.GetPoint(1))
-
-    #curveNode.GetNthControlPointPosition(0, p0)
-    # curveNode.GetCurvePointToWorldTransformAtPointIndex(cpi, matrix)
-    # p0[0] = matrix.GetElement(0, 3)
-    # p0[1] = matrix.GetElement(1, 3)
-    # p0[2] = matrix.GetElement(2, 3)
-    # n10[0] = matrix.GetElement(0, 2)
-    # n10[1] = matrix.GetElement(1, 2)
-    # n10[2] = matrix.GetElement(2, 2)
 
     n10 = p0 - p1
     n10 = n10 / numpy.linalg.norm(n10)
@@ -966,15 +1015,6 @@ class Catheter:
     return 0
 
   
-  def setTipLength(self, length):
-    
-    self.tipLength= length
-    if self.logic:
-      self.logic.getParameterNode().SetParameter("TD.%s.tipLength.0" % self.name, str(self.tipLength))
-      return 1
-    return 0
-
-
   def setCoilPosition(self, position):
 
     self.coilPositions = position
@@ -1466,8 +1506,6 @@ class Catheter:
       
       self.modelColor = self.getParamFloatArray("TD.%s.modelColor.0" % self.name, self.modelColor)
       
-      self.tipLength = self.getParamFloat("TD.%s.tipLength.0" % self.name, self.tipLength)
-      
       self.coilPositions = self.getParamFloatArray("TD.%s.coilPosition.0" % self.name, self.coilPositions)
       
       self.activeCoils = self.getParamBoolArray("TD.%s.activeCoils.0" % self.name, self.activeCoils)
@@ -1487,7 +1525,6 @@ class Catheter:
     self.parameterNode.SetParameter("TD.%s.radius" % (trackingDataName), str(self.radius))
     self.parameterNode.SetParameter("TD.%s.radius" % (trackingDataName), str(self.radius))
     self.parameterNode.SetParameter("TD.%s.modelColor" % (trackingDataName), str(self.modelColor))
-    self.parameterNode.SetParameter("TD.%s.tipLength" % (tipLength), str(self.tipLenngth))
     
 
   def loadParameters(self, parameterNode):
