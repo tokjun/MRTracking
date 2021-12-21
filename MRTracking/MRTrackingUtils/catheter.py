@@ -110,7 +110,6 @@ class CatheterCollection(QObject):
 
     return None
 
-
   
 class Catheter:
 
@@ -450,16 +449,19 @@ class Catheter:
       self.acquisitionWindowCurrent[0] = currentTime + self.acquisitionWindowDelay[0] / 1000.0
       self.acquisitionWindowCurrent[1] = currentTime + self.acquisitionWindowDelay[1] / 1000.0
 
-
-  def getActiveCoilPositions(self, posArray=None):
+    
+  def getActiveCoilPositions(self, posArray=None, activeCoils=None):
     # Get a list of coil positions orderd from distal to proximal.
     # This function takes account of self.coilOrder parameter.
     # If posArray is not specified, it creates a new array and returns it.
 
     fReturn = (posArray==None)
+
+    if activeCoils == None:
+      activeCoils = self.activeCoils
     
-    nActiveCoils = sum(self.activeCoils)
-    nCoils = len(self.activeCoils)
+    nActiveCoils = sum(activeCoils)
+    nCoils = len(activeCoils)
 
     # Create or resize posArray
     if posArray == None:
@@ -472,7 +474,7 @@ class Catheter:
     
     j = 0
     for i in range(nCoils):
-      if self.activeCoils[i]:
+      if activeCoils[i]:
         tnode = self.filteredTransformNodes[i]
         trans = tnode.GetTransformToParent()
         v = trans.GetPosition()
