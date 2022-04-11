@@ -660,16 +660,16 @@ class Catheter:
         #egram = self.getEgramData(index)
         (egramHeader, egramTable) = self.getEgramData()
         # TODO: Make sure if the following 'flip' is correctly working
-        if fFlip:
-          egramTable.reverse()
+        #if fFlip:
+        #  egramTable.reverse()
 
         prMarkupsNode = self.pointRecordingMarkupsNode
         if prMarkupsNode:
           id = prMarkupsNode.AddFiducial(egramPoint[0], egramPoint[1], egramPoint[2])
           #prMarkupsNode.SetNthControlPointDescription(id, '%f' % egram[0])
           mask = self.activeCoils
-          if fFlip:
-            mask.reverse()
+          #if fFlip:
+          #  mask.reverse()
           # Find the first active coil
           # TODO: Make sure that this is correct
           ch = 0
