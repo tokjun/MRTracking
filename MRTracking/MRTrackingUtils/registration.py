@@ -63,6 +63,8 @@ class MRTrackingFiducialRegistration():
 
     registrationLayout = qt.QFormLayout(parent)
 
+    # From/To Catheters
+    
     self.fromCatheterComboBox = QComboBoxCatheter()
     self.fromCatheterComboBox.setCatheterCollection(self.catheters)
     self.fromCatheterComboBox.currentIndexChanged.connect(self.onFromCatheterSelected)
@@ -75,6 +77,33 @@ class MRTrackingFiducialRegistration():
     
     registrationLayout.addRow("Catheter (To): ", self.toCatheterComboBox)
 
+    # Registration Fiducials
+    
+    self.fromFiducialsSelector = slicer.qMRMLNodeComboBox()
+    self.fromFiducialsSelector.nodeTypes = ( ("vtkMRMLMarkupsFiducialNode"), "" )
+    self.fromFiducialsSelector.selectNodeUponCreation = False
+    self.fromFiducialsSelector.addEnabled = True
+    self.fromFiducialsSelector.removeEnabled = False
+    self.fromFiducialsSelector.noneEnabled = True
+    self.fromFiducialsSelector.showHidden = True
+    self.fromFiducialsSelector.showChildNodeTypes = False
+    self.fromFiducialsSelector.setMRMLScene( slicer.mrmlScene )
+    self.fromFiducialsSelector.setToolTip( "Registration fiducials obtained by the 'To' catheter." )
+    registrationLayout.addRow("Fiducials (From): ", self.fromFiducialsSelector)
+
+    self.toFiducialsSelector = slicer.qMRMLNodeComboBox()
+    self.toFiducialsSelector.nodeTypes = ( ("vtkMRMLMarkupsFiducialNode"), "" )
+    self.toFiducialsSelector.selectNodeUponCreation = False
+    self.toFiducialsSelector.addEnabled = True
+    self.toFiducialsSelector.removeEnabled = False
+    self.toFiducialsSelector.noneEnabled = True
+    self.toFiducialsSelector.showHidden = True
+    self.toFiducialsSelector.showChildNodeTypes = False
+    self.toFiducialsSelector.setMRMLScene( slicer.mrmlScene )
+    self.toFiducialsSelector.setToolTip( "Registration fiducials obtained by the 'From' catheter." )
+    registrationLayout.addRow("Fiducials (To): ", self.toFiducialsSelector)
+
+    
     # #
     # # Fiducial points used (either "tip only" or "all"
     # #
@@ -294,6 +323,10 @@ class MRTrackingFiducialRegistration():
       return
 
     self.fromCatheter.registration = self
+
+    # TODO: Should the catheter keep the fiducial node, or should the registration class (this class) manages
+    # the fiducial nodes for both 'to' and 'from' catheters? Fiducials are always paired with 'to' catheter,
+    # and it might not make sense for the catheter to keep the one side of those pairs.
     
     fiducialsNode = self.fromCatheter.getRegistrationFiducialNode()
     if fiducialsNode == None:
