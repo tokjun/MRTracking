@@ -766,8 +766,8 @@ class MRTrackingFiducialRegistration():
       # If SetAndObserveTransformFromParent() is used, use 'to' as a source and 'from' as a target.
       # If SetAndObserveTransformToParent() is used, use 'from' as a source and 'to' as a target.
       #Note that 'from' points are set as targets unlike rigid/affine registration.
-      tpsTransform.SetSourceLandmarks(toPoints)
-      tpsTransform.SetTargetLandmarks(fromPoints)
+      tpsTransform.SetSourceLandmarks(fromPoints)
+      tpsTransform.SetTargetLandmarks(toPoints)
       tpsTransform.Update()
 
       self.registrationTransformNode.SetAndObserveTransformToParent(tpsTransform)
