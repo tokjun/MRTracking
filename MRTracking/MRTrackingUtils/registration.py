@@ -761,9 +761,10 @@ class MRTrackingFiducialRegistration():
       
       tpsTransform = vtk.vtkThinPlateSplineTransform()
       tpsTransform.SetBasisToR()
-      
-      tpsTransform.SetSourceLandmarks(fromPoints)
-      tpsTransform.SetTargetLandmarks(toPoints)
+
+      # Set inputs. Note that 'from' points are set as targets unlike rigid/affine registration.
+      tpsTransform.SetSourceLandmarks(toPoints)
+      tpsTransform.SetTargetLandmarks(fromPoints)
       tpsTransform.Update()
 
       self.registrationTransformNode.SetAndObserveTransformFromParent(tpsTransform)
