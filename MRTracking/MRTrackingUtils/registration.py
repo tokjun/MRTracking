@@ -300,6 +300,8 @@ class MRTrackingFiducialRegistration():
     #
     # Connect signals and slots
     #
+    self.fromFiducialsSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onFromFiducialsSelected)
+    self.toFiducialsSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onToFiducialsSelected)
     self.collectButton.connect(qt.SIGNAL("clicked()"), self.onCollectPoints)
     self.clearButton.connect(qt.SIGNAL("clicked()"), self.onClearPoints)
     self.runButton.connect(qt.SIGNAL("clicked()"), self.onRunRegistration)
@@ -333,9 +335,11 @@ class MRTrackingFiducialRegistration():
       fiducialsNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLMarkupsFiducialNode")
       fiducialsNode.SetName('RegistrationPoints-' + str(self.fromCatheter.catheterID))
       self.fromCatheter.setRegistrationFiducialNode(fiducialsNode.GetID())
-      
+
     dnode = fiducialsNode.GetDisplayNode()
     dnode.SetVisibility(self.fiducialsVisible)
+    
+    self.fromFiducialsSelector.setCurrentNode(fiducialsNode)
 
     
   def onToCatheterSelected(self):
@@ -356,6 +360,30 @@ class MRTrackingFiducialRegistration():
     dnode = fiducialsNode.GetDisplayNode()
     dnode.SetVisibility(self.fiducialsVisible)
 
+    self.toFiducialsSelector.setCurrentNode(fiducialsNode)
+
+
+  def onFromFiducialsSelected(self):
+    
+    fiducialsNode = self.fromFiducialsSelector.currentNode()
+
+    if fiducialsNode != None:
+      self.fromCatheter.setRegistrationFiducialNode(fiducialsNode.GetID())
+      dnode = fiducialsNode.GetDisplayNode()
+      dnode.SetVisibility(self.fiducialsVisible)
+      self.fromFiducialsSelector.setCurrentNode(fiducialsNode)
+    
+      
+  def onToFiducialsSelected(self):
+    
+    fiducialsNode = self.toFiducialsSelector.currentNode()
+    
+    if fiducialsNode != None:
+      self.toCatheter.setRegistrationFiducialNode(fiducialsNode.GetID())
+      dnode = fiducialsNode.GetDisplayNode()
+      dnode.SetVisibility(self.fiducialsVisible)
+      self.toFiducialsSelector.setCurrentNode(fiducialsNode)
+    
 
   def onCollectPoints(self, auto=False):
 
@@ -608,7 +636,7 @@ class MRTrackingFiducialRegistration():
       else:
         i += 1
 
-    
+        
   def onClearPoints(self):
 
     fromFiducialsNode = self.fromCatheter.getRegistrationFiducialNode()
