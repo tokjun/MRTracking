@@ -7,6 +7,7 @@ import sitkUtils
 import SimpleITK as sitk
 from scipy.interpolate import Rbf
 from MRTrackingUtils.qcomboboxcatheter import *
+from MRTrackingUtils.qpointrecordingframe  import *
 from MRTrackingUtils.panelbase import *
 
 #from scipy.interpolate import griddata
@@ -29,19 +30,32 @@ class MRTrackingSurfaceMapping(MRTrackingPanelBase):
 
   def buildMainPanel(self, frame):
 
-    mappingLayout = qt.QFormLayout(frame)
+    layout = qt.QVBoxLayout(frame)
 
-    self.egramRecordPointsSelector = slicer.qMRMLNodeComboBox()
-    self.egramRecordPointsSelector.nodeTypes = ( ("vtkMRMLMarkupsFiducialNode"), "" )
-    self.egramRecordPointsSelector.selectNodeUponCreation = True
-    self.egramRecordPointsSelector.addEnabled = True
-    self.egramRecordPointsSelector.removeEnabled = False
-    self.egramRecordPointsSelector.noneEnabled = True
-    self.egramRecordPointsSelector.showHidden = True
-    self.egramRecordPointsSelector.showChildNodeTypes = False
-    self.egramRecordPointsSelector.setMRMLScene( slicer.mrmlScene )
-    self.egramRecordPointsSelector.setToolTip( "Fiducials for recording Egram data" )
-    mappingLayout.addRow("Points: ", self.egramRecordPointsSelector)
+    pointGroupBox = ctk.ctkCollapsibleGroupBox()
+    pointGroupBox.title = "Recording"
+    pointGroupBox.collapsed = False
+    
+    layout.addWidget(pointGroupBox)
+    pointLayout = qt.QVBoxLayout(pointGroupBox)
+    self.precording = QPointRecordingFrame(catheterComboBoxOn=False)
+    self.precording.setCatheterComboBox(self.catheterComboBox, self.catheters)
+    pointLayout.addWidget(self.precording)
+
+    mappingLayout = qt.QFormLayout(frame)
+    layout.addLayout(mappingLayout)
+
+    # self.egramRecordPointsSelector = slicer.qMRMLNodeComboBox()
+    # self.egramRecordPointsSelector.nodeTypes = ( ("vtkMRMLMarkupsFiducialNode"), "" )
+    # self.egramRecordPointsSelector.selectNodeUponCreation = True
+    # self.egramRecordPointsSelector.addEnabled = True
+    # self.egramRecordPointsSelector.removeEnabled = False
+    # self.egramRecordPointsSelector.noneEnabled = True
+    # self.egramRecordPointsSelector.showHidden = True
+    # self.egramRecordPointsSelector.showChildNodeTypes = False
+    # self.egramRecordPointsSelector.setMRMLScene( slicer.mrmlScene )
+    # self.egramRecordPointsSelector.setToolTip( "Fiducials for recording Egram data" )
+    # mappingLayout.addRow("Points: ", self.egramRecordPointsSelector)
 
     self.modelSelector = slicer.qMRMLNodeComboBox()
     self.modelSelector.nodeTypes = ( ("vtkMRMLModelNode"), "" )
@@ -125,8 +139,8 @@ class MRTrackingSurfaceMapping(MRTrackingPanelBase):
     self.colorRangeWidget.maximum = 50.0
     mappingLayout.addRow("Color range: ", self.colorRangeWidget)
     
-    self.catheterComboBox.currentIndexChanged.connect(self.onCatheterSelected)    
-    self.egramRecordPointsSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onEgramRecordPointsSelected)
+    #self.catheterComboBox.currentIndexChanged.connect(self.onCatheterSelected)    
+    #self.egramRecordPointsSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onEgramRecordPointsSelected)
     self.modelSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onModelSelected)
     self.pointRecordingDistanceSliderWidget.connect("valueChanged(double)", self.pointRecordingDistanceChanged)
 
@@ -150,26 +164,27 @@ class MRTrackingSurfaceMapping(MRTrackingPanelBase):
   def onSwitchCatheter(self):
     #
     # Should be implemented in the child class
-    # 
+    #
     pass
 
+
   
-  def onEgramRecordPointsSelected(self):
-    
-    td = self.currentCatheter    
-    if td == None:
-      return
-    
-    fnode = self.egramRecordPointsSelector.currentNode()
-    if fnode:
-      td.pointRecordingMarkupsNode = fnode
-      fdnode = fnode.GetDisplayNode()
-      if fdnode == None:
-        fdnode = slicer.mrmlScene.CreateNodeByClass('vtkMRMLMarkupsFiducialDisplayNode')
-        slicer.mrmlScene.AddNode(fdnode)
-        fnode.SetAndObserveDisplayNodeID(fdnode.GetID())
-      if fnode:
-        fdnode.SetTextScale(0.0)  # Hide the label
+  #def onEgramRecordPointsSelected(self):
+  #  
+  #  td = self.currentCatheter    
+  #  if td == None:
+  #    return
+  #  
+  #  fnode = self.egramRecordPointsSelector.currentNode()
+  #  if fnode:
+  #    td.pointRecordingMarkupsNode = fnode
+  #    fdnode = fnode.GetDisplayNode()
+  #    if fdnode == None:
+  #      fdnode = slicer.mrmlScene.CreateNodeByClass('vtkMRMLMarkupsFiducialDisplayNode')
+  #      slicer.mrmlScene.AddNode(fdnode)
+  #      fnode.SetAndObserveDisplayNodeID(fdnode.GetID())
+  #    if fnode:
+  #      fdnode.SetTextScale(0.0)  # Hide the label
         
 
   def onModelSelected(self):
@@ -216,7 +231,8 @@ class MRTrackingSurfaceMapping(MRTrackingPanelBase):
       
   def onMapModel(self):
     td = self.currentCatheter            
-    markupsNode = self.egramRecordPointsSelector.currentNode()
+    #markupsNode = self.egramRecordPointsSelector.currentNode()
+    markupsNode = self.precording.getCurrentFiducials()
     modelNode = self.modelSelector.currentNode()
     
     if markupsNode and modelNode:
