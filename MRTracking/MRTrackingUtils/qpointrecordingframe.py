@@ -7,7 +7,11 @@ class QPointRecordingFrame(QFrame):
 
   # Signals
     
-  def __init__(self, catheterComboBoxOn=True):
+  def __init__(self, catheterComboBox=None, catheters=None):
+
+    if catheterComboBox==None and catheters == None:
+      print("QPointRecordingFrame: Error - 'catheters must be specified when catheterComboBox is not given.")
+      return
       
     super(QFrame, self).__init__()
     self.nChannel = 8
@@ -15,16 +19,31 @@ class QPointRecordingFrame(QFrame):
     self.catheters = None
     self.activeCoils = [0] * self.nChannel
     self.recordPointsNodeID = None
-    
-    self.catheterComboBox = None
-    
+
+    catheterComboBoxOn = True
+    if catheterComboBox:
+      self.catheterComboBox = catheterComboBox
+      catheterComboBoxOn = False
+
     self.buildGUI(catheterComboBoxOn)
 
+    if catheters:
+      self.catheterComboBox.setCatheterCollection(catheters)
+      
+    self.catheterComboBox.currentIndexChanged.connect(self.onCatheterSelected)
     
-  def setCatheterComboBox(self, catheterComboBox, catheters):
-    self.catheterComboBox = catheterComboBox
-    self.catheterComboBox.setCatheterCollection(catheters)
-    self.catheterComboBox.currentIndexChanged.connect(self.onCatheterSelected)    
+
+  #def setCatheterComboBox(self, catheterComboBox, catheters):
+  #  # Must be called when catheterComboBoxOn is False
+  #  self.catheterComboBox = catheterComboBox
+  #  self.catheterComboBox.setCatheterCollection(catheters)
+  #  self.catheterComboBox.currentIndexChanged.connect(self.onCatheterSelected)    
+  #
+  #  
+  #def setCatheters(self, catheters):
+  #  # Must be called when catheterComboBoxOn is True
+  #  if self.catheterComboBox:
+  #    self.catheterComboBox.setCatheterCollection(catheters)
     
 
   def getCurrentFiducials(self):

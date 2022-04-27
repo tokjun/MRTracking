@@ -35,11 +35,12 @@ class MRTrackingSurfaceMapping(MRTrackingPanelBase):
     pointGroupBox = ctk.ctkCollapsibleGroupBox()
     pointGroupBox.title = "Recording"
     pointGroupBox.collapsed = False
+
+    # Point recording
     
     layout.addWidget(pointGroupBox)
     pointLayout = qt.QVBoxLayout(pointGroupBox)
-    self.precording = QPointRecordingFrame(catheterComboBoxOn=False)
-    self.precording.setCatheterComboBox(self.catheterComboBox, self.catheters)
+    self.precording = QPointRecordingFrame(catheterComboBox=self.catheterComboBox)
     pointLayout.addWidget(self.precording)
 
     mappingLayout = qt.QFormLayout(frame)
