@@ -568,6 +568,7 @@ class Catheter:
     nActiveCoils = sum(self.activeCoils)
 
     self.coilPointsNP = self.getActiveCoilPositions()
+    print(self.coilPointsNP)
 
     # Update time stamp
     ## TODO: Ideally, the time stamp should come from the data source rather than 3D Slicer.
