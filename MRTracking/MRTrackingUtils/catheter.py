@@ -592,17 +592,9 @@ class Catheter:
 
     # Determin the resampling interval. Aim to divide the catheter into 10 segments.
     resamplingIntv = length / 10.0
-
     if resamplingIntv < 0.01: # The minimum value for resamplingIntv is 0.01.
       resamplingIntv = 0.01
 
-    # Distortion correction
-    #self.distortionTransform
-    # TODO: Make sure to apply toransform to egram point.
-    #self.createDistortionTransform()
-      
-    egramPoint = self.coilPointsNP[0]
-            
     interpolatedPoints = vtk.vtkPoints()
     slicer.vtkMRMLMarkupsCurveNode.ResamplePoints(self.coilPoints, interpolatedPoints, resamplingIntv, False)
     nInterpolatedPoints = interpolatedPoints.GetNumberOfPoints()
@@ -639,68 +631,35 @@ class Catheter:
     # Apply registration transform to the curve node and Egram poit
     # NOTE: This must be done before calling self.updateCatheter() because the drawing of
     #  the sheath and the coils relies on the transforms to the world obtained from the curve node.
+
+    # Distortion correction
+    #egramPoint = self.coilPointsNP[0]
+    recordingPoints = None
+    
     if self.registration and \
         self.registration.applyTransform and \
         self.registration.applyTransform.catheterID == self.catheterID and \
         self.registration.registrationTransform:
       
-      # Egram point
-      egramPoint = self.registration.registrationTransform.TransformPoint(egramPoint)
+      #egramPoint = self.registration.registrationTransform.TransformPoint(egramPoint)
+      recordingPoints = vtk.vtkPoints()  # TODO: Make it a class member to avoid creating a new objects in each iteration?
+      self.registration.registrationTransform.TransformPoints(self.coilPoints, recordingPoints)
       curveNode.SetAndObserveTransformNodeID(self.registration.registrationTransformNode.GetID())
     else:
       # Remove the transform, if it has already been applyed to the curve node.
       curveNode.SetAndObserveTransformNodeID('')
-    
+      recordingPoints = self.coilPoints
+
+    self.transformCoilPositions()
     self.updateCatheter()
 
-    # Egram data
     if self.pointRecording == True:
+      self.prevRecordedPoint = recordingPoints
+
       d = numpy.linalg.norm(p-self.prevRecordedPoint)
       if d > self.pointRecordingDistance:
-        self.prevRecordedPoint = egramPoint
-        #egram = self.getEgramData(index)
-        (egramHeader, egramTable) = self.getEgramData()
-        # TODO: Make sure if the following 'flip' is correctly working
-        #if fFlip:
-        #  egramTable.reverse()
-
-        prMarkupsNode = self.pointRecordingMarkupsNode
-        if prMarkupsNode:
-          id = prMarkupsNode.AddFiducial(egramPoint[0], egramPoint[1], egramPoint[2])
-          #prMarkupsNode.SetNthControlPointDescription(id, '%f' % egram[0])
-          mask = self.activeCoils
-          #if fFlip:
-          #  mask.reverse()
-          # Find the first active coil
-          # TODO: Make sure that this is correct
-          ch = 0
-          for a in mask:
-            if a:
-              break
-            ch = ch + 1
-          if ch >= len(mask) or ch >= len(egramTable):
-            print('Error: no active channel. ch = ' + str(ch))
-          egramValues = egramTable[ch]
-          desc = None
-          for v in egramValues:
-            if desc:
-              desc = desc + ',' + str(v)
-            else:
-              desc = str(v)
-          prMarkupsNode.SetNthControlPointDescription(id, desc)
-
-          # If the header is not registered to the markup node, do it now
-          ev = prMarkupsNode.GetAttribute('MRTracking.' + str(self.catheterID) + '.EgramParamList')
-          if ev == None:
-            attr= None
-            for eh in egramHeader:
-              if attr:
-                attr = attr + ',' + str(eh)
-              else:
-                attr = str(eh)
-            prMarkupsNode.SetAttribute('MRTracking.' + str(self.catheterID) + '.EgramParamList', attr)
-            prMarkupsNode.Modified();
-
+        self.recordPoints(recordingPoints)
+      
 
   def computeExtendedTipPosition(self, curveNode, tipLength):
 
@@ -743,7 +702,30 @@ class Catheter:
     
     return (True, pe)
 
-  
+
+  def transformCoilPositions(self):
+    # Calculate the transformed coil positions and orientations.
+    # Takes self.coilPoints as an input, and store the results in self.coilTransformArray.
+    # This function takes account of both registration transform and the interpolated catheter path.
+    # It applies the registration transform, and then find the closest point on the interpolated catheter path.
+    
+    nCoils = self.coilPoints.GetNumberOfPoints()
+    
+    if len(self.coilTransformArray) != nCoils:
+      self.coilTransformArray = []
+      for i in range(nCoils):
+        trans = vtk.vtkTransform()
+        self.coilTransformArray.append(trans)
+
+    p = [0.0]*3
+    for i in range(0, nCoils):
+      self.coilPoints.GetPoint(i, p)
+      cpi = curveNode.GetClosestCurvePointIndexToPositionWorld(p)
+      if cpi >= 0:
+        matrix = vtk.vtkMatrix4x4()
+        curveNode.GetCurvePointToWorldTransformAtPointIndex(cpi, matrix)
+        self.coilTransformArray[i].SetMatrix(matrix)
+
 
   def updateCatheter(self):
 
@@ -776,26 +758,6 @@ class Catheter:
       curveDisplayNode.SetOccludedOpacity(0.0)
       curveDisplayNode.OutlineVisibilityOff()
       curveDisplayNode.EndModify(prevState)
-
-    # Update models for the coils
-    # Coil models
-    #nCoils =  curveNode.GetNumberOfControlPoints()
-    nCoils = self.coilPoints.GetNumberOfPoints()
-    
-    if len(self.coilTransformArray) != nCoils:
-      self.coilTransformArray = []
-      for i in range(nCoils):
-        trans = vtk.vtkTransform()
-        self.coilTransformArray.append(trans)
-
-    p = [0.0]*3
-    for i in range(0, nCoils):
-      self.coilPoints.GetPoint(i, p)
-      cpi = curveNode.GetClosestCurvePointIndexToPositionWorld(p)
-      if cpi >= 0:
-        matrix = vtk.vtkMatrix4x4()
-        curveNode.GetCurvePointToWorldTransformAtPointIndex(cpi, matrix)
-        self.coilTransformArray[i].SetMatrix(matrix)
 
     self.updateCoilModel(self.coilTransformArray, self.radius*1.5, [0.7, 0.7, 0.7], self.opacity)
 
@@ -974,6 +936,64 @@ class Catheter:
     sheathDispNode.SetSliceDisplayModeToIntersection()
     sheathDispNode.EndModify(prevState)
     
+
+  def recordPoints(self, recordingPoints):
+    
+    prMarkupsNode = self.pointRecordingMarkupsNode
+    if prMarkupsNode == None:
+      return
+    
+    # Egram data
+    (egramHeader, egramTable) = self.getEgramData()
+    # TODO: Make sure if the following 'flip' is correctly working
+    #if fFlip:
+    #  egramTable.reverse()
+
+    #id = prMarkupsNode.AddFiducial(egramPoint[0], egramPoint[1], egramPoint[2])
+    #prMarkupsNode.SetNthControlPointDescription(id, '%f' % egram[0])
+    #mask = self.activeCoils
+    #if fFlip:
+    #  mask.reverse()
+    # Find the first active coil
+    # TODO: Make sure that this is correct
+    #ch = 0
+    #for a in mask:
+    #  if a:
+    #    break
+    #  ch = ch + 1
+    #if ch >= len(mask) or ch >= len(egramTable):
+    #  print('Error: no active channel. ch = ' + str(ch))
+    
+    egramTableNP = numpy.array(egramTable)
+    egramValues = egramTableNP(self.activeCoils)
+
+    nPoints = len(recordingPoints)
+    for i in range(nPoints):
+      #egramValues = egramTable[ch]
+      point = recordingPoints[i]
+      #id = prMarkupsNode.AddFiducial(egramPoint[0], egramPoint[1], egramPoint[2])
+      id = prMarkupsNode.AddFiducial(point[0], point[1], point[2])
+
+      desc = ''
+      for v in egramValues[i]:
+        if desc:
+          desc = desc + ',' + str(v)
+        else:
+          desc = str(v)
+      prMarkupsNode.SetNthControlPointDescription(id, desc)
+
+    # If the header is not registered to the markup node, do it now.
+    ev = prMarkupsNode.GetAttribute('MRTracking.' + str(self.catheterID) + '.EgramParamList')
+    if ev == None:
+      attr= None
+      for eh in egramHeader:
+        if attr:
+          attr = attr + ',' + str(eh)
+        else:
+          attr = str(eh)
+      prMarkupsNode.SetAttribute('MRTracking.' + str(self.catheterID) + '.EgramParamList', attr)
+      prMarkupsNode.Modified();
+
 
     
   #--------------------------------------------------
