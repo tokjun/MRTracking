@@ -449,7 +449,17 @@ class Catheter:
       self.acquisitionWindowCurrent[0] = currentTime + self.acquisitionWindowDelay[0] / 1000.0
       self.acquisitionWindowCurrent[1] = currentTime + self.acquisitionWindowDelay[1] / 1000.0
 
+
+  def pointsToNumpyArray(self, points, pointsNP):
+    nPoints = points.GetNumberOfPoints()
+    numpy.resize(pointsNP, (nPoints,3))
     
+    for i in range(nPoints):
+      v = points.GetPoint(i)
+      pointsNP[i] = numpy.array(v)
+
+
+      
   def getActiveCoilPositions(self, posArray=None, activeCoils=None):
     # Get a list of coil positions orderd from distal to proximal.
     # This function takes account of self.coilOrder parameter.
@@ -567,6 +577,7 @@ class Catheter:
     
     nActiveCoils = sum(self.activeCoils)
 
+    #TODO: getActiveCoilPositions() currently returns numpy.array. Should it be a VTK point?
     self.coilPointsNP = self.getActiveCoilPositions()
     print(self.coilPointsNP)
 
@@ -579,16 +590,40 @@ class Catheter:
       self.coilPoints = vtk.vtkPoints()
     self.coilPoints.SetNumberOfPoints(nActiveCoils)
 
-    # Convert to vtkPoints. The total length of the catheter is also estimated (without interpolation)
-    length = 0.0
-    vPrev = self.coilPointsNP[0]
-    self.coilPoints.SetPoint(0, vPrev)
-    i = 1
-    for v in self.coilPointsNP[1:]:
+    # Convert to vtkPoints. 
+    i = 0
+    for v in self.coilPointsNP:
       self.coilPoints.SetPoint(i, v)
-      length = length + numpy.linalg.norm(v-vPrev)
-      vPrev = v
       i = i + 1
+
+    ## ------------------------
+    ## TODO: Interpolation should be performed in the transformed space
+    transformedCoilPoints = None
+    
+    if self.registration and \
+        self.registration.applyTransform and \
+        self.registration.applyTransform.catheterID == self.catheterID and \
+        self.registration.registrationTransform:
+      
+      #egramPoint = self.registration.registrationTransform.TransformPoint(egramPoint)
+      transformedCoilPoints = vtk.vtkPoints()  # TODO: Make it a class member to avoid creating a new objects in each iteration?
+      self.registration.registrationTransform.TransformPoints(self.coilPoints, transformedCoilPoints)
+    else:
+      curveNode.SetAndObserveTransformNodeID('')
+      transformedCoilPoints = self.coilPoints
+      
+    nTransformedPoints = transformedCoilPoints.GetNumberOfPoints()
+    transformedCoilPointsNP = numpy.zeros((nTransformedPoints,3))
+    self.pointsToNumpyArray(transformedCoilPoints, transformedCoilPointsNP)
+    self.coilPointsNP = self.getActiveCoilPositions()
+      
+    length = 0.0
+    prevPoint = numpy.array(transformedCoilPoints.GetPoint(0))
+    pPrev = transformedCoilPointsNP[0]
+    for p in transformedCoilPointsNP[1:]:
+      length = length + numpy.linalg.norm(p-pPrev)
+      pPrev = p
+    
 
     # Determin the resampling interval. Aim to divide the catheter into 10 segments.
     resamplingIntv = length / 10.0
@@ -596,7 +631,8 @@ class Catheter:
       resamplingIntv = 0.01
 
     interpolatedPoints = vtk.vtkPoints()
-    slicer.vtkMRMLMarkupsCurveNode.ResamplePoints(self.coilPoints, interpolatedPoints, resamplingIntv, False)
+    #slicer.vtkMRMLMarkupsCurveNode.ResamplePoints(self.coilPoints, interpolatedPoints, resamplingIntv, False)
+    slicer.vtkMRMLMarkupsCurveNode.ResamplePoints(transformedCoilPoints, interpolatedPoints, resamplingIntv, False)
     nInterpolatedPoints = interpolatedPoints.GetNumberOfPoints()
     #curveNode.SetControlPointPositionsWorld(interpolatedPoints)
     # Set pre-registration coordinates
@@ -625,40 +661,48 @@ class Catheter:
     if f:
       v = vtk.vtkVector3d(p)
       curveNode.InsertControlPoint(0,v)
+
+    ## ------------------------
     
     curveNode.EndModify(prevState)
 
-    # Apply registration transform to the curve node and Egram poit
-    # NOTE: This must be done before calling self.updateCatheter() because the drawing of
-    #  the sheath and the coils relies on the transforms to the world obtained from the curve node.
-
-    # Distortion correction
-    #egramPoint = self.coilPointsNP[0]
-    recordingPoints = None
+    #recordingPoints = self.transformedCoilPionts
+    recordingPoints = transformedCoilPointsNP
     
-    if self.registration and \
-        self.registration.applyTransform and \
-        self.registration.applyTransform.catheterID == self.catheterID and \
-        self.registration.registrationTransform:
-      
-      #egramPoint = self.registration.registrationTransform.TransformPoint(egramPoint)
-      recordingPoints = vtk.vtkPoints()  # TODO: Make it a class member to avoid creating a new objects in each iteration?
-      self.registration.registrationTransform.TransformPoints(self.coilPoints, recordingPoints)
-      curveNode.SetAndObserveTransformNodeID(self.registration.registrationTransformNode.GetID())
-    else:
-      # Remove the transform, if it has already been applyed to the curve node.
-      curveNode.SetAndObserveTransformNodeID('')
-      recordingPoints = self.coilPoints
+    ## Apply registration transform to the curve node and Egram poit
+    ## NOTE: This must be done before calling self.updateCatheter() because the drawing of
+    ##  the sheath and the coils relies on the transforms to the world obtained from the curve node.
+    #
+    ## Distortion correction
+    ##egramPoint = self.coilPointsNP[0]
+    #recordingPoints = None
+    #
+    #if self.registration and \
+    #    self.registration.applyTransform and \
+    #    self.registration.applyTransform.catheterID == self.catheterID and \
+    #    self.registration.registrationTransform:
+    #  
+    #  #egramPoint = self.registration.registrationTransform.TransformPoint(egramPoint)
+    #  recordingPoints = vtk.vtkPoints()  # TODO: Make it a class member to avoid creating a new objects in each iteration?
+    #  self.registration.registrationTransform.TransformPoints(self.coilPoints, recordingPoints)
+    #  curveNode.SetAndObserveTransformNodeID(self.registration.registrationTransformNode.GetID())
+    #else:
+    #  # Remove the transform, if it has already been applyed to the curve node.
+    #  curveNode.SetAndObserveTransformNodeID('')
+    #  recordingPoints = self.coilPoints
 
-    self.transformCoilPositions()
+    #self.transformCoilPositions()  # TODO: Is transformCoilPositions() needed?
     self.updateCatheter()
 
     if self.pointRecording == True:
-      self.prevRecordedPoint = recordingPoints
-
+      p = recordingPoints[0]
+      
       d = numpy.linalg.norm(p-self.prevRecordedPoint)
       if d > self.pointRecordingDistance:
         self.recordPoints(recordingPoints)
+
+      self.prevRecordedPoint = p
+              
       
 
   def computeExtendedTipPosition(self, curveNode, tipLength):
@@ -965,11 +1009,11 @@ class Catheter:
     #  print('Error: no active channel. ch = ' + str(ch))
     
     egramTableNP = numpy.array(egramTable)
-    egramValues = egramTableNP(self.activeCoils)
+    #egramValues = egramTableNP[self.activeCoils]
 
     nPoints = len(recordingPoints)
     for i in range(nPoints):
-      #egramValues = egramTable[ch]
+      egramValues = egramTable[ch]
       point = recordingPoints[i]
       #id = prMarkupsNode.AddFiducial(egramPoint[0], egramPoint[1], egramPoint[2])
       id = prMarkupsNode.AddFiducial(point[0], point[1], point[2])
