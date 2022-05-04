@@ -459,8 +459,7 @@ class Catheter:
       pointsNP[i] = numpy.array(v)
 
 
-      
-  def getActiveCoilPositions(self, posArray=None, activeCoils=None):
+  def getActiveCoilPositions(self, posArray=None, activeCoils=None, egramTable=None):
     # Get a list of coil positions orderd from distal to proximal.
     # This function takes account of self.coilOrder parameter.
     # If posArray is not specified, it creates a new array and returns it.
@@ -477,7 +476,8 @@ class Catheter:
     if posArray == None:
       posArray = numpy.zeros((nActiveCoils,3))
     else:
-      numpy.resize(posArray, (nActiveCoils,3))
+      #numpy.resize(posArray, (nActiveCoils,3))
+      posArray.resize((nActiveCoils,3), refcheck=False)
 
     # If the coil order is 'Proximal First', set a flag to flip the coil order.
     fFlip = (not self.coilOrder)
@@ -489,18 +489,41 @@ class Catheter:
         trans = tnode.GetTransformToParent()
         v = trans.GetPosition()
 
+        idx = j
         if fFlip:
-          posArray[-1-j] = v
-        else:
-          posArray[j] = v
+          idx = -1-j
           
+        posArray[idx] = v
         j = j + 1
-
+        
     # Adjust axis directions
     posArray = posArray*self.axisDirections
 
     if fReturn:
       return posArray
+
+    
+  def getActiveCoilEgram(self):
+    # returns a tuple (header, arrayNP), where 'header' is an array of strings and 'arrayNP'
+    # a numpy.array of egram parameters.
+    
+    (egramHeader, egramTable) = self.getEgramData()
+    egramTableNP = numpy.array(egramTable)
+    nrows = egramTableNP.shape[0]
+
+    # If the coil order is 'Proximal First', set a flag to flip the coil order.
+    fFlip = (not self.coilOrder)
+
+    mask = self.activeCoils[0:nrows]
+    
+    # Copy egram data
+    if fFlip:
+      mask = mask[::-1]
+    egramTableNPMasked = egramTableNP[mask]
+
+    return (egramHeader, egramTableNPMasked)
+
+
       
 
   def getActiveCoilPositionsFromTip(self):
@@ -521,7 +544,9 @@ class Catheter:
 
     return posArray
 
-    
+
+
+  
   #def createDistortionTransform(self):
   #
   #  rasBounds = [0,]*6
@@ -694,12 +719,15 @@ class Catheter:
     #self.transformCoilPositions()  # TODO: Is transformCoilPositions() needed?
     self.updateCatheter()
 
+    # Get Egram data
+    egram = self.getActiveCoilEgram()
+    
     if self.pointRecording == True:
       p = recordingPoints[0]
       
       d = numpy.linalg.norm(p-self.prevRecordedPoint)
       if d > self.pointRecordingDistance:
-        self.recordPoints(recordingPoints)
+        self.recordPoints(recordingPoints, egram)
 
       self.prevRecordedPoint = p
               
@@ -981,39 +1009,20 @@ class Catheter:
     sheathDispNode.EndModify(prevState)
     
 
-  def recordPoints(self, recordingPoints):
+  def recordPoints(self, recordingPoints, egram=None):
+    # returns a tuple (header, arrayNP), where 'header' is an array of strings and 'arrayNP'
+    # a numpy.array of egram parameters.
     
     prMarkupsNode = self.pointRecordingMarkupsNode
     if prMarkupsNode == None:
       return
-    
-    # Egram data
-    (egramHeader, egramTable) = self.getEgramData()
-    # TODO: Make sure if the following 'flip' is correctly working
-    #if fFlip:
-    #  egramTable.reverse()
 
-    #id = prMarkupsNode.AddFiducial(egramPoint[0], egramPoint[1], egramPoint[2])
-    #prMarkupsNode.SetNthControlPointDescription(id, '%f' % egram[0])
-    #mask = self.activeCoils
-    #if fFlip:
-    #  mask.reverse()
-    # Find the first active coil
-    # TODO: Make sure that this is correct
-    #ch = 0
-    #for a in mask:
-    #  if a:
-    #    break
-    #  ch = ch + 1
-    #if ch >= len(mask) or ch >= len(egramTable):
-    #  print('Error: no active channel. ch = ' + str(ch))
+    egramHeader = egram[0]
+    egramTableNP = egram[1]
     
-    egramTableNP = numpy.array(egramTable)
-    #egramValues = egramTableNP[self.activeCoils]
-
     nPoints = len(recordingPoints)
     for i in range(nPoints):
-      egramValues = egramTable[ch]
+      egramValues = egramTableNP[i]
       point = recordingPoints[i]
       #id = prMarkupsNode.AddFiducial(egramPoint[0], egramPoint[1], egramPoint[2])
       id = prMarkupsNode.AddFiducial(point[0], point[1], point[2])
