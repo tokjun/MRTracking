@@ -380,7 +380,6 @@ class QPointRecordingFrame(QFrame):
       
       
   def recordPointsUpdated(self,caller,event):
-    print('recordPointsUpdated(self,caller,event)')
     if self.recordPointsNodeID:
       fNode = slicer.mrmlScene.GetNodeByID(self.recordPointsNodeID)
       nPoints = fNode.GetNumberOfFiducials()

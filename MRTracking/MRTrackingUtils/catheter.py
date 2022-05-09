@@ -175,6 +175,8 @@ class Catheter:
 
     # Point Recording
     self.pointRecording = False
+    # Recording poitns are determined by (self.activeCoils and self.pointRecordingMask)
+    self.pointRecordingMask = numpy.array([True, True, True, True, True, True, True, True])
     self.pointRecordingMarkupsNode = None
     self.pointRecordingDistance = 0.0
     self.prevRecordedPoint = numpy.array([0.0, 0.0, 0.0])
@@ -503,7 +505,7 @@ class Catheter:
       return posArray
 
     
-  def getActiveCoilEgram(self):
+  def getActiveCoilEgram(self, recordingMask):
     # returns a tuple (header, arrayNP), where 'header' is an array of strings and 'arrayNP'
     # a numpy.array of egram parameters.
     
@@ -514,11 +516,16 @@ class Catheter:
     # If the coil order is 'Proximal First', set a flag to flip the coil order.
     fFlip = (not self.coilOrder)
 
-    mask = self.activeCoils[0:nrows]
+    mask = recordingMask
     
     # Copy egram data
     if fFlip:
       mask = mask[::-1]
+
+    mask = mask[:nrows]
+
+    #print(egramTableNP)
+    #print(recordingMask)
     egramTableNPMasked = egramTableNP[mask]
 
     return (egramHeader, egramTableNPMasked)
@@ -604,7 +611,7 @@ class Catheter:
 
     #TODO: getActiveCoilPositions() currently returns numpy.array. Should it be a VTK point?
     self.coilPointsNP = self.getActiveCoilPositions()
-    print(self.coilPointsNP)
+    #print(self.coilPointsNP)
 
     # Update time stamp
     ## TODO: Ideally, the time stamp should come from the data source rather than 3D Slicer.
@@ -691,9 +698,6 @@ class Catheter:
     
     curveNode.EndModify(prevState)
 
-    #recordingPoints = self.transformedCoilPionts
-    recordingPoints = transformedCoilPointsNP
-    
     ## Apply registration transform to the curve node and Egram poit
     ## NOTE: This must be done before calling self.updateCatheter() because the drawing of
     ##  the sheath and the coils relies on the transforms to the world obtained from the curve node.
@@ -719,8 +723,17 @@ class Catheter:
     #self.transformCoilPositions()  # TODO: Is transformCoilPositions() needed?
     self.updateCatheter()
 
+    #recordingPoints = self.transformedCoilPionts
+
     # Get Egram data
-    egram = self.getActiveCoilEgram()
+    emask = numpy.logical_and(self.pointRecordingMask, self.activeCoils)    
+    egram = self.getActiveCoilEgram(emask)
+
+    nrow = transformedCoilPointsNP.shape[0]
+    pmask = self.pointRecordingMask[self.activeCoils]
+    #print(transformedCoilPointsNP)
+    #print(pmask)
+    recordingPoints = transformedCoilPointsNP[pmask]
     
     if self.pointRecording == True:
       p = recordingPoints[0]
@@ -1027,12 +1040,9 @@ class Catheter:
       #id = prMarkupsNode.AddFiducial(egramPoint[0], egramPoint[1], egramPoint[2])
       id = prMarkupsNode.AddFiducial(point[0], point[1], point[2])
 
-      desc = ''
-      for v in egramValues[i]:
-        if desc:
-          desc = desc + ',' + str(v)
-        else:
-          desc = str(v)
+      # Concatinate the values in egramTablesNP[i] as a string
+      # See https://stackoverflow.com/questions/2721521/fastest-way-to-generate-delimited-string-from-1d-numpy-array
+      desc = ','.join(numpy.char.mod('%f', egramValues))
       prMarkupsNode.SetNthControlPointDescription(id, desc)
 
     # If the header is not registered to the markup node, do it now.
