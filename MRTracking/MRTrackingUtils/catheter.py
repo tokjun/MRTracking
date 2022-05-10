@@ -179,7 +179,7 @@ class Catheter:
     self.pointRecordingMask = numpy.array([True, True, True, True, True, True, True, True])
     self.pointRecordingMarkupsNode = None
     self.pointRecordingDistance = 0.0
-    self.prevRecordedPoint = numpy.array([0.0, 0.0, 0.0])
+    self.prevRecordedPoints = numpy.array([[0.0, 0.0, 0.0]])
     
     # Coordinate system
     self.axisDirections = numpy.array([1.0, 1.0, 1.0])
@@ -736,14 +736,17 @@ class Catheter:
     recordingPoints = transformedCoilPointsNP[pmask]
     
     if self.pointRecording == True:
-      p = recordingPoints[0]
-      
-      d = numpy.linalg.norm(p-self.prevRecordedPoint)
-      if d > self.pointRecordingDistance:
+      if self.prevRecordedPoints.shape[0] == recordingPoints.shape[0]:
+        # Calculate the RMS between the current and previous recording points.
+        # If the RMS is greater than the threshold, record the current points.
+        v = self.prevRecordedPoints - recordingPoints
+        rms = numpy.sqrt(numpy.mean(numpy.sum(numpy.square(v), axis=1)))
+        if rms > self.pointRecordingDistance:
+          self.recordPoints(recordingPoints, egram)
+          self.prevRecordedPoints = recordingPoints
+      else:
         self.recordPoints(recordingPoints, egram)
-
-      self.prevRecordedPoint = p
-              
+        self.prevRecordedPoints = recordingPoints
       
 
   def computeExtendedTipPosition(self, curveNode, tipLength):

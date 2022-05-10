@@ -180,7 +180,7 @@ class QPointRecordingFrame(QFrame):
     self.pointRecordingDistanceSliderWidget.minimum = 0.0
     self.pointRecordingDistanceSliderWidget.maximum = 20.0
     self.pointRecordingDistanceSliderWidget.value = 0.0
-    #self.minIntervalSliderWidget.setToolTip("")
+    self.pointRecordingDistanceSliderWidget.setToolTip("Minimum distance between the two consecutive points to trigger recording. If multiple points are being recorded, the RMS distance is used.")
 
     pointLayout.addRow("Min. Distance: ",  self.pointRecordingDistanceSliderWidget)
 
