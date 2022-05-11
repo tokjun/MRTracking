@@ -647,7 +647,6 @@ class Catheter:
     nTransformedPoints = transformedCoilPoints.GetNumberOfPoints()
     transformedCoilPointsNP = numpy.zeros((nTransformedPoints,3))
     self.pointsToNumpyArray(transformedCoilPoints, transformedCoilPointsNP)
-    self.coilPointsNP = self.getActiveCoilPositions()
       
     length = 0.0
     prevPoint = numpy.array(transformedCoilPoints.GetPoint(0))
@@ -719,8 +718,8 @@ class Catheter:
     #  # Remove the transform, if it has already been applyed to the curve node.
     #  curveNode.SetAndObserveTransformNodeID('')
     #  recordingPoints = self.coilPoints
-
-    #self.transformCoilPositions()  # TODO: Is transformCoilPositions() needed?
+    
+    self.transformCoilPositions(curveNode, transformedCoilPoints)  # TODO: Is transformCoilPositions() needed?
     self.updateCatheter()
 
     #recordingPoints = self.transformedCoilPionts
@@ -791,13 +790,13 @@ class Catheter:
     return (True, pe)
 
 
-  def transformCoilPositions(self):
+  def transformCoilPositions(self, curveNode, coilPoints):
     # Calculate the transformed coil positions and orientations.
     # Takes self.coilPoints as an input, and store the results in self.coilTransformArray.
     # This function takes account of both registration transform and the interpolated catheter path.
     # It applies the registration transform, and then find the closest point on the interpolated catheter path.
     
-    nCoils = self.coilPoints.GetNumberOfPoints()
+    nCoils = coilPoints.GetNumberOfPoints()
     
     if len(self.coilTransformArray) != nCoils:
       self.coilTransformArray = []
@@ -807,7 +806,7 @@ class Catheter:
 
     p = [0.0]*3
     for i in range(0, nCoils):
-      self.coilPoints.GetPoint(i, p)
+      coilPoints.GetPoint(i, p)
       cpi = curveNode.GetClosestCurvePointIndexToPositionWorld(p)
       if cpi >= 0:
         matrix = vtk.vtkMatrix4x4()
