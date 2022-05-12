@@ -46,18 +46,6 @@ class MRTrackingSurfaceMapping(MRTrackingPanelBase):
     mappingLayout = qt.QFormLayout(frame)
     layout.addLayout(mappingLayout)
 
-    # self.egramRecordPointsSelector = slicer.qMRMLNodeComboBox()
-    # self.egramRecordPointsSelector.nodeTypes = ( ("vtkMRMLMarkupsFiducialNode"), "" )
-    # self.egramRecordPointsSelector.selectNodeUponCreation = True
-    # self.egramRecordPointsSelector.addEnabled = True
-    # self.egramRecordPointsSelector.removeEnabled = False
-    # self.egramRecordPointsSelector.noneEnabled = True
-    # self.egramRecordPointsSelector.showHidden = True
-    # self.egramRecordPointsSelector.showChildNodeTypes = False
-    # self.egramRecordPointsSelector.setMRMLScene( slicer.mrmlScene )
-    # self.egramRecordPointsSelector.setToolTip( "Fiducials for recording Egram data" )
-    # mappingLayout.addRow("Points: ", self.egramRecordPointsSelector)
-
     self.modelSelector = slicer.qMRMLNodeComboBox()
     self.modelSelector.nodeTypes = ( ("vtkMRMLModelNode"), "" )
     self.modelSelector.selectNodeUponCreation = True
@@ -69,36 +57,6 @@ class MRTrackingSurfaceMapping(MRTrackingPanelBase):
     self.modelSelector.setMRMLScene( slicer.mrmlScene )
     self.modelSelector.setToolTip( "Surface model node" )
     mappingLayout.addRow("Model: ", self.modelSelector)
-
-    # Minimum interval between two consective points
-    self.pointRecordingDistanceSliderWidget = ctk.ctkSliderWidget()
-    self.pointRecordingDistanceSliderWidget.singleStep = 0.1
-    self.pointRecordingDistanceSliderWidget.minimum = 0.0
-    self.pointRecordingDistanceSliderWidget.maximum = 20.0
-    self.pointRecordingDistanceSliderWidget.value = 0.0
-    #self.minIntervalSliderWidget.setToolTip("")
-
-    mappingLayout.addRow("Min. Distance: ",  self.pointRecordingDistanceSliderWidget)
-
-    activeBoxLayout = qt.QHBoxLayout()
-    self.activeGroup = qt.QButtonGroup()
-    self.activeOnRadioButton = qt.QRadioButton("ON")
-    self.activeOffRadioButton = qt.QRadioButton("Off")
-    self.activeOffRadioButton.checked = 1
-    activeBoxLayout.addWidget(self.activeOnRadioButton)
-    self.activeGroup.addButton(self.activeOnRadioButton)
-    activeBoxLayout.addWidget(self.activeOffRadioButton)
-    self.activeGroup.addButton(self.activeOffRadioButton)
-
-    mappingLayout.addRow("Active: ", activeBoxLayout)
-
-    self.resetPointButton = qt.QPushButton()
-    self.resetPointButton.setCheckable(False)
-    self.resetPointButton.text = 'Erase Points'
-    self.resetPointButton.setToolTip("Erase all the points recorded for surface mapping.")
-
-    mappingLayout.addRow(" ",  self.resetPointButton)
-
 
     # Point distance factor is used to generate a surface model from the point cloud
     self.pointDistanceFactorSliderWidget = ctk.ctkSliderWidget()
@@ -140,24 +98,12 @@ class MRTrackingSurfaceMapping(MRTrackingPanelBase):
     self.colorRangeWidget.maximum = 50.0
     mappingLayout.addRow("Color range: ", self.colorRangeWidget)
     
-    #self.catheterComboBox.currentIndexChanged.connect(self.onCatheterSelected)    
-    #self.egramRecordPointsSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onEgramRecordPointsSelected)
     self.modelSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onModelSelected)
-    self.pointRecordingDistanceSliderWidget.connect("valueChanged(double)", self.pointRecordingDistanceChanged)
-
-    #self.forceConvexCheckBox.connect('toggled(bool)', self.onSurfacePropertyChanged)
-    #self.smoothingCheckBox.connect('toggled(bool)', self.onSurfacePropertyChanged)
-    
-    self.resetPointButton.connect('clicked(bool)', self.onResetPointRecording)
     self.generateSurfaceButton.connect('clicked(bool)', self.onGenerateSurface)
     
-    #self.paramSelector.connect('currentTextChanged(QString)', self.onParamSelected)
     self.mapModelButton.connect('clicked(bool)', self.onMapModel)
     self.colorRangeWidget.connect('valuesChanged(double, double)', self.onUpdateColorRange)
     
-    self.activeOnRadioButton.connect('clicked(bool)', self.onActive)
-    self.activeOffRadioButton.connect('clicked(bool)', self.onActive)
-
     
   #--------------------------------------------------
   # GUI Slots
@@ -201,18 +147,6 @@ class MRTrackingSurfaceMapping(MRTrackingPanelBase):
         dnode.SetOpacity(0.5)
 
 
-  #def onSurfacePropertyChanged(self):
-  #  self.controlPointsUpdated()
-
-        
-  def pointRecordingDistanceChanged(self):
-    d = self.pointRecordingDistanceSliderWidget.value
-    td = self.currentCatheter    
-    if td == None:
-      return
-    td.pointRecordingDistance = d
-
-    
   def onResetPointRecording(self):
     td = self.currentCatheter        
     markupsNode = td.pointRecordingMarkupsNode
@@ -396,31 +330,8 @@ class MRTrackingSurfaceMapping(MRTrackingPanelBase):
     self.scalarBarWidget.GetScalarBarActor().SetLookupTable(self.lookupTable)
     
 
-  def onActive(self):
-    td = self.currentCatheter
-    if td == None:
-      return
-    if self.activeOnRadioButton.checked:
-      # Add observer
-      fnode = td.pointRecordingMarkupsNode
-      if fnode:
-        # Two observers are registered. The PointModifiedEvent is used to handle new points, whereas
-        # the ModifiedEvent is used to capture the change of Egram parameter list (in the attribute)
-        tag = fnode.AddObserver(vtk.vtkCommand.ModifiedEvent, self.controlPointsNodeUpdated, 2)
-        fnode.SetAttribute('SurfaceMapping.ObserverTag.Modified', str(tag))
-      td.pointRecording = True
-      
-    else:
-      td.pointRecording = False
-      fnode = td.pointRecordingMarkupsNode
-      if fnode:
-        tag = fnode.GetAttribute('SurfaceMapping.ObserverTag.Modified')
-        if tag != None:
-          fnode.RemoveObserver(int(tag))
-          fnode.SetAttribute('SurfaceMapping.ObserverTag.Modified', None)
-
-          
-  def controlPointsNodeUpdated(self,caller,event):
+  # TODO: Who should call this?
+  def onPointRecordingMarkupsNodeSelected(self):
     td = self.currentCatheter
     fnode = td.pointRecordingMarkupsNode
     paramListStr = fnode.GetAttribute('MRTracking.' + str(td.catheterID) + '.EgramParamList')

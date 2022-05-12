@@ -59,6 +59,21 @@ class QPointRecordingFrame(QFrame):
       self.catheterComboBox = QComboBoxCatheter()
       pointLayout.addRow("Catheter: ", self.catheterComboBox)
 
+    self.recordPointsSelector = slicer.qMRMLNodeComboBox()
+    self.recordPointsSelector.nodeTypes = ( ("vtkMRMLMarkupsFiducialNode"), "" )
+    self.recordPointsSelector.selectNodeUponCreation = True
+    self.recordPointsSelector.addEnabled = True
+    self.recordPointsSelector.renameEnabled = True
+    self.recordPointsSelector.removeEnabled = True
+    self.recordPointsSelector.noneEnabled = True
+    self.recordPointsSelector.showHidden = True
+    self.recordPointsSelector.showChildNodeTypes = False
+    self.recordPointsSelector.setMRMLScene( slicer.mrmlScene )
+    self.recordPointsSelector.setToolTip( "Fiducials for recorded points" )
+    pointLayout.addRow("Fiducial Node: ", self.recordPointsSelector)
+
+    self.recordPointsSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onRecordPointsSelected)
+
     #
     # Coil seleciton check boxes
     #
@@ -101,48 +116,60 @@ class QPointRecordingFrame(QFrame):
     self.visibilityOnRadioButton.connect("clicked(bool)", self.onVisibilityChanged)
     self.visibilityOffRadioButton.connect("clicked(bool)", self.onVisibilityChanged)
 
-    self.recordPointsSelector = slicer.qMRMLNodeComboBox()
-    self.recordPointsSelector.nodeTypes = ( ("vtkMRMLMarkupsFiducialNode"), "" )
-    self.recordPointsSelector.selectNodeUponCreation = True
-    self.recordPointsSelector.addEnabled = True
-    self.recordPointsSelector.renameEnabled = True
-    self.recordPointsSelector.removeEnabled = True
-    self.recordPointsSelector.noneEnabled = True
-    self.recordPointsSelector.showHidden = True
-    self.recordPointsSelector.showChildNodeTypes = False
-    self.recordPointsSelector.setMRMLScene( slicer.mrmlScene )
-    self.recordPointsSelector.setToolTip( "Fiducials for recorded points" )
-    pointLayout.addRow("Fiducial Node: ", self.recordPointsSelector)
 
-    self.recordPointsSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onRecordPointsSelected)
+    ## Trigger
+    #if sum(self.trigger.values()) > 1: # If there is a choice for trigger
+    #  triggerBoxLayout = qt.QHBoxLayout()
+    #  self.triggerGroup = qt.QButtonGroup()
+    #  
+    #  if self.trigger['manual']:
+    #    self.triggerManualRadioButton = qt.QRadioButton("Manual")
+    #    self.triggerManualRadioButton.checked = 1
+    #    triggerBoxLayout.addWidget(self.triggerManualRadioButton)
+    #    self.triggerGroup.addButton(self.triggerManualRadioButton)
+    #    self.triggerManualRadioButton.connect("clicked(bool)", self.onTriggerChanged)
+    #  
+    #  if self.trigger['distance']:
+    #    self.triggerDistanceRadioButton = qt.QRadioButton("Distance")
+    #    triggerBoxLayout.addWidget(self.triggerDistanceRadioButton)
+    #    self.triggerGroup.addButton(self.triggerDistanceRadioButton)
+    #    self.triggerDistanceRadioButton.connect("clicked(bool)", self.onTriggerChanged)
+    #  
+    #  if self.trigger['timer']:
+    #    self.triggerTimerRadioButton = qt.QRadioButton("Timer")    
+    #    triggerBoxLayout.addWidget(self.triggerTimerRadioButton)
+    #    self.triggerGroup.addButton(self.triggerTimerRadioButton)
+    #    self.triggerTimerRadioButton.connect("clicked(bool)", self.onTriggerChanged)
+    #
+    #pointLayout.addRow("Trigger: ", triggerBoxLayout)
 
 
-    # Trigger
-    if sum(self.trigger.values()) > 1: # If there is a choice for trigger
-      triggerBoxLayout = qt.QHBoxLayout()
-      self.triggerGroup = qt.QButtonGroup()
-      
-      if self.trigger['manual']:
-        self.triggerManualRadioButton = qt.QRadioButton("Manual")
-        self.triggerManualRadioButton.checked = 1
-        triggerBoxLayout.addWidget(self.triggerManualRadioButton)
-        self.triggerGroup.addButton(self.triggerManualRadioButton)
-        self.triggerManualRadioButton.connect("clicked(bool)", self.onTriggerChanged)
-      
-      if self.trigger['distance']:
-        self.triggerDistanceRadioButton = qt.QRadioButton("Distance")
-        triggerBoxLayout.addWidget(self.triggerDistanceRadioButton)
-        self.triggerGroup.addButton(self.triggerDistanceRadioButton)
-        self.triggerDistanceRadioButton.connect("clicked(bool)", self.onTriggerChanged)
-      
-      if self.trigger['timer']:
-        self.triggerTimerRadioButton = qt.QRadioButton("Timer")    
-        triggerBoxLayout.addWidget(self.triggerTimerRadioButton)
-        self.triggerGroup.addButton(self.triggerTimerRadioButton)
-        self.triggerTimerRadioButton.connect("clicked(bool)", self.onTriggerChanged)
-    
-    pointLayout.addRow("Trigger: ", triggerBoxLayout)
+    # Distance-based collection
+        # Minimum interval between two consective points
+    self.pointRecordingDistanceSliderWidget = ctk.ctkSliderWidget()
+    self.pointRecordingDistanceSliderWidget.singleStep = 0.1
+    self.pointRecordingDistanceSliderWidget.minimum = 0.0
+    self.pointRecordingDistanceSliderWidget.maximum = 20.0
+    self.pointRecordingDistanceSliderWidget.value = 0.0
+    self.pointRecordingDistanceSliderWidget.setToolTip("Minimum distance between the two consecutive points to trigger recording. If multiple points are being recorded, the RMS distance is used.")
 
+    pointLayout.addRow("Min. Distance: ",  self.pointRecordingDistanceSliderWidget)
+
+    activeBoxLayout = qt.QHBoxLayout()
+    self.activeGroup = qt.QButtonGroup()
+    self.activeOnRadioButton = qt.QRadioButton("ON")
+    self.activeOffRadioButton = qt.QRadioButton("Off")
+    self.activeOffRadioButton.checked = 1
+    activeBoxLayout.addWidget(self.activeOnRadioButton)
+    self.activeGroup.addButton(self.activeOnRadioButton)
+    activeBoxLayout.addWidget(self.activeOffRadioButton)
+    self.activeGroup.addButton(self.activeOffRadioButton)
+
+    pointLayout.addRow("Active: ", activeBoxLayout)
+
+    self.pointRecordingDistanceSliderWidget.connect("valueChanged(double)", self.pointRecordingDistanceChanged)
+    self.activeOnRadioButton.connect('clicked(bool)', self.onActive)
+    self.activeOffRadioButton.connect('clicked(bool)', self.onActive)
 
     # Manual collection
     buttonBoxLayout = qt.QHBoxLayout()    
@@ -172,35 +199,6 @@ class QPointRecordingFrame(QFrame):
     self.collectButton.connect(qt.SIGNAL("clicked()"), self.onCollectPoints)
     self.clearButton.connect(qt.SIGNAL("clicked()"), self.onClearPoints)
 
-    
-    # Distance-based collection
-        # Minimum interval between two consective points
-    self.pointRecordingDistanceSliderWidget = ctk.ctkSliderWidget()
-    self.pointRecordingDistanceSliderWidget.singleStep = 0.1
-    self.pointRecordingDistanceSliderWidget.minimum = 0.0
-    self.pointRecordingDistanceSliderWidget.maximum = 20.0
-    self.pointRecordingDistanceSliderWidget.value = 0.0
-    self.pointRecordingDistanceSliderWidget.setToolTip("Minimum distance between the two consecutive points to trigger recording. If multiple points are being recorded, the RMS distance is used.")
-
-    pointLayout.addRow("Min. Distance: ",  self.pointRecordingDistanceSliderWidget)
-
-    activeBoxLayout = qt.QHBoxLayout()
-    self.activeGroup = qt.QButtonGroup()
-    self.activeOnRadioButton = qt.QRadioButton("ON")
-    self.activeOffRadioButton = qt.QRadioButton("Off")
-    self.activeOffRadioButton.checked = 1
-    activeBoxLayout.addWidget(self.activeOnRadioButton)
-    self.activeGroup.addButton(self.activeOnRadioButton)
-    activeBoxLayout.addWidget(self.activeOffRadioButton)
-    self.activeGroup.addButton(self.activeOffRadioButton)
-
-    pointLayout.addRow("Active: ", activeBoxLayout)
-
-    self.pointRecordingDistanceSliderWidget.connect("valueChanged(double)", self.pointRecordingDistanceChanged)
-    self.activeOnRadioButton.connect('clicked(bool)', self.onActive)
-    self.activeOffRadioButton.connect('clicked(bool)', self.onActive)
-
-    
   def onActive(self):
     td = self.catheter = self.catheterComboBox.getCurrentCatheter()
     #td = self.currentCatheter
@@ -208,22 +206,22 @@ class QPointRecordingFrame(QFrame):
       return
     if self.activeOnRadioButton.checked:
       # Add observer
-      fnode = td.pointRecordingMarkupsNode
-      if fnode:
+      #fnode = td.pointRecordingMarkupsNode
+      #if fnode:
         # Two observers are registered. The PointModifiedEvent is used to handle new points, whereas
         # the ModifiedEvent is used to capture the change of Egram parameter list (in the attribute)
-        tag = fnode.AddObserver(vtk.vtkCommand.ModifiedEvent, self.controlPointsNodeUpdated, 2)
-        fnode.SetAttribute('SurfaceMapping.ObserverTag.Modified', str(tag))
+        #tag = fnode.AddObserver(vtk.vtkCommand.ModifiedEvent, self.controlPointsNodeUpdated, 2)
+        #fnode.SetAttribute('SurfaceMapping.ObserverTag.Modified', str(tag))
       td.pointRecording = True
       
     else:
       td.pointRecording = False
-      fnode = td.pointRecordingMarkupsNode
-      if fnode:
-        tag = fnode.GetAttribute('SurfaceMapping.ObserverTag.Modified')
-        if tag != None:
-          fnode.RemoveObserver(int(tag))
-          fnode.SetAttribute('SurfaceMapping.ObserverTag.Modified', None)
+      #fnode = td.pointRecordingMarkupsNode
+      #if fnode:
+        #tag = fnode.GetAttribute('SurfaceMapping.ObserverTag.Modified')
+        #if tag != None:
+        #  fnode.RemoveObserver(int(tag))
+        #  fnode.SetAttribute('SurfaceMapping.ObserverTag.Modified', None)
 
       
 
@@ -263,38 +261,37 @@ class QPointRecordingFrame(QFrame):
       self.enableCoilSelection(True)
     
 
-  def onTriggerChanged(self):
-    
-    if self.triggerManualRadioButton.checked:
-      self.enableManualTrigger(True)
-      self.enableDistanceTrigger(False)
-      self.enableTimerTrigger(False)
-    if self.triggerDistanceRadioButton.checked:
-      self.enableManualTrigger(False)
-      self.enableDistanceTrigger(True)
-      self.enableTimerTrigger(True)
-    if self.triggerTimerRadioButton.checked:
-      self.enableManualTrigger(False)
-      self.enableDistanceTrigger(False)
-      self.enableTimerTrigger(True)
-
-      
-  def enableManualTrigger(self, s):
-    if s:
-      self.collectButton.enabled = 1
-      self.clearButton.enabled = 1
-    else:
-      self.collectButton.enabled = 0
-      self.clearButton.enabled = 1
-
-      
-  def enableDistanceTrigger(self, s):
-    pass
-  
-  def enableTimerTrigger(self, s):
-    pass
-
-  
+  #def onTriggerChanged(self):
+  #  
+  #  if self.triggerManualRadioButton.checked:
+  #    self.enableManualTrigger(True)
+  #    self.enableDistanceTrigger(False)
+  #    self.enableTimerTrigger(False)
+  #  if self.triggerDistanceRadioButton.checked:
+  #    self.enableManualTrigger(False)
+  #    self.enableDistanceTrigger(True)
+  #    self.enableTimerTrigger(True)
+  #  if self.triggerTimerRadioButton.checked:
+  #    self.enableManualTrigger(False)
+  #    self.enableDistanceTrigger(False)
+  #    self.enableTimerTrigger(True)
+  #
+  #    
+  #def enableManualTrigger(self, s):
+  #  if s:
+  #    self.collectButton.enabled = 1
+  #    self.clearButton.enabled = 1
+  #  else:
+  #    self.collectButton.enabled = 0
+  #    self.clearButton.enabled = 1
+  #
+  #    
+  #def enableDistanceTrigger(self, s):
+  #  pass
+  #
+  #def enableTimerTrigger(self, s):
+  #  pass
+  #
     
   def onCollectPoints(self):
 
