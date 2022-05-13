@@ -212,10 +212,14 @@ class QPointRecordingFrame(QFrame):
         # the ModifiedEvent is used to capture the change of Egram parameter list (in the attribute)
         #tag = fnode.AddObserver(vtk.vtkCommand.ModifiedEvent, self.controlPointsNodeUpdated, 2)
         #fnode.SetAttribute('SurfaceMapping.ObserverTag.Modified', str(tag))
+
+      self.enableCoilSelection(False)
+      td.pointRecordingMask = numpy.array(self.activeCoils)
       td.pointRecording = True
       
     else:
       td.pointRecording = False
+      self.enableCoilSelection(True)
       #fnode = td.pointRecordingMarkupsNode
       #if fnode:
         #tag = fnode.GetAttribute('SurfaceMapping.ObserverTag.Modified')
