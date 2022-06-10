@@ -406,7 +406,7 @@ class QPointRecordingFrame(QFrame):
     td = self.catheterComboBox.getCurrentCatheter()
     #td = self.currentCatheter
     fnode = td.pointRecordingMarkupsNode
-    paramListStr = fnode.GetAttribute('MRTracking.' + str(td.catheterID) + '.EgramParamList')
+    paramListStr = fnode.GetAttribute('MRTracking.EgramParamList')
     if paramListStr:
       print(paramListStr)
       paramList = paramListStr.split(',')

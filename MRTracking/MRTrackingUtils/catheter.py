@@ -1048,7 +1048,7 @@ class Catheter:
       prMarkupsNode.SetNthControlPointDescription(id, desc)
 
     # If the header is not registered to the markup node, do it now.
-    ev = prMarkupsNode.GetAttribute('MRTracking.' + str(self.catheterID) + '.EgramParamList')
+    ev = prMarkupsNode.GetAttribute('MRTracking.EgramParamList')
     if ev == None:
       attr= None
       for eh in egramHeader:
@@ -1056,7 +1056,7 @@ class Catheter:
           attr = attr + ',' + str(eh)
         else:
           attr = str(eh)
-      prMarkupsNode.SetAttribute('MRTracking.' + str(self.catheterID) + '.EgramParamList', attr)
+      prMarkupsNode.SetAttribute('MRTracking.EgramParamList', attr)
       prMarkupsNode.Modified();
 
 

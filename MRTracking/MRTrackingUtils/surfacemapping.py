@@ -42,6 +42,7 @@ class MRTrackingSurfaceMapping(MRTrackingPanelBase):
     pointLayout = qt.QVBoxLayout(pointGroupBox)
     self.precording = QPointRecordingFrame(catheterComboBox=self.catheterComboBox)
     pointLayout.addWidget(self.precording)
+    self.precording.recordPointsSelector.connect("currentNodeChanged(vtkMRMLNode*)",  self. onPointRecordingMarkupsNodeSelected)
 
     mappingLayout = qt.QFormLayout(frame)
     layout.addLayout(mappingLayout)
@@ -185,7 +186,7 @@ class MRTrackingSurfaceMapping(MRTrackingPanelBase):
       paramStr = self.paramSelector.currentText
       paramIndex = -1
       if paramStr != '' and paramStr != 'None':
-        paramListStr = markupsNode.GetAttribute('MRTracking.' + str(td.catheterID) + '.EgramParamList')
+        paramListStr = markupsNode.GetAttribute('MRTracking.EgramParamList')
         if paramListStr:
           paramList = paramListStr.split(',')
           i = 0
@@ -332,9 +333,10 @@ class MRTrackingSurfaceMapping(MRTrackingPanelBase):
 
   # TODO: Who should call this?
   def onPointRecordingMarkupsNodeSelected(self):
+    print('onPointRecordingMarkupsNodeSelected()')
     td = self.currentCatheter
     fnode = td.pointRecordingMarkupsNode
-    paramListStr = fnode.GetAttribute('MRTracking.' + str(td.catheterID) + '.EgramParamList')
+    paramListStr = fnode.GetAttribute('MRTracking.EgramParamList')
     if paramListStr:
       print(paramListStr)
       paramList = paramListStr.split(',')
