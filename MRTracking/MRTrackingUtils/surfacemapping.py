@@ -362,6 +362,7 @@ class MRTrackingSurfaceMapping(MRTrackingPanelBase):
     print('Calculating bounding box... ')    
     bounds = [0.0] * 6
     markupsNode.GetBounds(bounds)
+    print(bounds)
 
     b = numpy.array(bounds)
     b = b.reshape((3,2))
@@ -372,6 +373,7 @@ class MRTrackingSurfaceMapping(MRTrackingPanelBase):
     b[:,0] = origin - boundingBoxRange
     b[:,1] = origin + boundingBoxRange
     bounds = b.reshape(-1)
+    print(bounds)
     res = 256
 
     print('Converting fiducials to poly data...')
@@ -413,8 +415,8 @@ class MRTrackingSurfaceMapping(MRTrackingPanelBase):
     imnode.SetAndObserveImageData(imdata)
     imnode.SetOrigin(imdata.GetOrigin())
     imnode.SetSpacing(imdata.GetSpacing())
-    imdata.SetOrigin([0.0, 0.0, 0.0])
-    imdata.SetSpacing([1.0, 1.0, 1.0])
+    #imdata.SetOrigin([0.0, 0.0, 0.0])
+    #imdata.SetSpacing([1.0, 1.0, 1.0])
     slicer.mrmlScene.AddNode(imnode)
 
     print('Applying BinaryThreshold...')    
@@ -498,14 +500,9 @@ class MRTrackingSurfaceMapping(MRTrackingPanelBase):
     mc.SetValue(0, 1.0)
     mc.Update()
     
-    # To remain largest region
-    confilter =vtk.vtkPolyDataConnectivityFilter()
-    confilter.SetInputData(mc.GetOutput())
-    confilter.SetExtractionModeToLargestRegion()
-    confilter.Update()
-
     #smoothFilter = vtk.vtkSmoothPolyDataFilter()
-    #smoothFilter.SetInputConnection(confilter.GetOutputPort())
+    ##smoothFilter.SetInputConnection(confilter.GetOutputPort())
+    #smoothFilter.SetInputData(mc.GetOutput())
     #smoothFilter.SetNumberOfIterations(15)
     #smoothFilter.SetRelaxationFactor(0.1)
     #smoothFilter.FeatureEdgeSmoothingOff()
@@ -513,7 +510,7 @@ class MRTrackingSurfaceMapping(MRTrackingPanelBase):
     #smoothFilter.Update()
 
     smoothFilter2 = vtk.vtkWindowedSincPolyDataFilter()
-    smoothFilter2.SetInputConnection(confilter.GetOutputPort())
+    smoothFilter2.SetInputData(mc.GetOutput())
     smoothFilter2.SetNumberOfIterations(10)
     smoothFilter2.BoundarySmoothingOff()
     smoothFilter2.FeatureEdgeSmoothingOff()
