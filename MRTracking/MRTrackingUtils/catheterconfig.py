@@ -459,13 +459,14 @@ class MRTrackingCatheterConfig(MRTrackingPanelBase):
       
   def onTrackingDataSelected(self):
     tdnode = self.trackingDataSelector.currentNode()
-    if self.currentCatheter:
+    if tdnode and self.currentCatheter:
       self.currentCatheter.setTrackingDataNodeID(tdnode.GetID())
     
 
   def onEgramDataSelected(self):
     edatanode = self.egramDataSelector.currentNode()
-    self.setEgramDataNode(edatanode)
+    if edatanode:
+      self.setEgramDataNode(edatanode)
       
 
   def onCatheterRegPointsChanged(self):

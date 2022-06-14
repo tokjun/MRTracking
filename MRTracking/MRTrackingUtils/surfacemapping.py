@@ -170,30 +170,16 @@ class MRTrackingSurfaceMapping(MRTrackingPanelBase):
     #markupsNode = self.egramRecordPointsSelector.currentNode()
     markupsNode = self.precording.getCurrentFiducials()
     modelNode = self.modelSelector.currentNode()
+
+    modelPoly = modelNode.GetPolyData()
+    if modelPoly == None:
+      print('No vtkPolyData in the model node.')
+      return
     
     if markupsNode and modelNode:
 
-      # Copy markups to numpy array
-      nPoints = markupsNode.GetNumberOfFiducials()
-      #points = numpy.ndarray(shape=(nPoints, 3))
-      pointsX = numpy.ndarray(shape=(nPoints, ))
-      pointsY = numpy.ndarray(shape=(nPoints, ))
-      pointsZ = numpy.ndarray(shape=(nPoints, ))
-      values = numpy.ndarray(shape=(nPoints, ))
-      pos = [0.0]*3
-
-      # Obtain the parameter to map
-      paramStr = self.paramSelector.currentText
-      paramIndex = -1
-      if paramStr != '' and paramStr != 'None':
-        paramListStr = markupsNode.GetAttribute('MRTracking.EgramParamList')
-        if paramListStr:
-          paramList = paramListStr.split(',')
-          i = 0
-          for p in paramList: # Check the index
-            if p == paramStr:
-              paramIndex = i
-            i = i + 1
+      # Obtain the parameter to map      
+      (paramStr, paramIndex, paramList) = self.getEgramParameterSelected(markupsNode)
 
       if paramIndex < 0: # 'None' is selected
         return
@@ -210,27 +196,39 @@ class MRTrackingSurfaceMapping(MRTrackingPanelBase):
       else: # Default
         self.colorRangeWidget.minimum = -100.0
         self.colorRangeWidget.maximum = 100.0
+
+        
+      # Select points to be used for mapping
+      pointsNP = self.fiducialsToNP(markupsNode)
       
-      for i in range(nPoints):
-        markupsNode.GetNthFiducialPosition(i, pos)
-        #points[i][0] = pos[0] # X
-        #points[i][1] = pos[1] # Y
-        #points[i][2] = pos[2] # Z
-        pointsX[i] = pos[0] # X
-        pointsY[i] = pos[1] # Y
-        pointsZ[i] = pos[2] # Z
-        desc = markupsNode.GetNthControlPointDescription(i)
-        paramsStr = desc.split(',')
-        params = [float(s) for s in paramsStr]
-        values[i] = params[paramIndex]
+      # Combine the point coordinates and the distances into a NumPy N-D array
+      distanceNP = self.getPointDistances(pointsNP, modelPoly)
+
+      # Get an array of egram parameters
+      egramNP = self.fiducialsToEgram(markupsNode, paramList)
       
-      poly = modelNode.GetPolyData()
+      # Combine the point coordinates, distances, and egram parameters
+      # pointsNP = np.array([[x_0, y_0, z_0, dist_0, egram0_0, egram1_0, ...., egramM_0],
+      #                      [x_1, y_1, z_1, dist_1, egram1_1, egram1_1, ...., egramM_1],
+      #                      [x_2, y_2, z_2, dist_2, egram1_2, egram1_2, ...., egramM_2],
+      #                                 ...
+      #                      [x_N, y_N, z_N, dist_N, egram1_N, egram1_N, ...., egramM_N]])
+      print(pointsNP.shape)
+      print(egramNP.shape)
+      print(distanceNP)
+      pointsNP = numpy.concatenate((pointsNP, distanceNP, egramNP), axis=1)
+      print(pointsNP[:,3])
+
+      # Threashold by distance (5mm)
+      pointsNP = pointsNP[numpy.abs(pointsNP[:,3]) < 5.0,:]
+      
+      print(pointsNP.shape)
+      
+
+      #poly = modelNode.GetPolyData()
       polyDataNormals = vtk.vtkPolyDataNormals()
       
-      if vtk.VTK_MAJOR_VERSION <= 5:
-        polyDataNormals.SetInput(poly)
-      else:
-        polyDataNormals.SetInputData(poly)
+      polyDataNormals.SetInputData(modelPoly)
       
       polyDataNormals.ComputeCellNormalsOn()
       polyDataNormals.Update()
@@ -242,11 +240,8 @@ class MRTrackingSurfaceMapping(MRTrackingPanelBase):
       pSurface=[0.0, 0.0, 0.0]
       minDistancePoint = [0.0, 0.0, 0.0]
       
-      # Create a list of points on the surface
-      #surfacePoints = numpy.ndarray(shape=(nPoints, 3))
-      surfacePointsX = numpy.ndarray(shape=(nPoints,))
-      surfacePointsY = numpy.ndarray(shape=(nPoints,))
-      surfacePointsZ = numpy.ndarray(shape=(nPoints,))
+      ## Create a list of points on the surface
+      surfacePoints = numpy.ndarray(shape=(nPoints,3))
       
       pointValue = vtk.vtkDoubleArray()
       pointValue.SetName("Colors")
@@ -258,17 +253,26 @@ class MRTrackingSurfaceMapping(MRTrackingPanelBase):
       p=[0.0, 0.0, 0.0]
       for id in range(nPoints):
         polyData.GetPoint(id, p)
-        #surfacePoints[id][0] = p[0]
-        #surfacePoints[id][1] = p[1]
-        #surfacePoints[id][2] = p[2]
-        surfacePointsX[id] = p[0]
-        surfacePointsY[id] = p[1]
-        surfacePointsZ[id] = p[2]
+        surfacePoints[id,:] = p
+        
+      # Copy markups to numpy array
+      pointsX = pointsNP[:,0]
+      pointsY = pointsNP[:,1]
+      pointsZ = pointsNP[:,2]
+      values  = pointsNP[:,3+paramIndex]
+      
+      surfacePointsX = surfacePoints[:,0]
+      surfacePointsY = surfacePoints[:,1]
+      surfacePointsZ = surfacePoints[:,2]
 
       # Linear interpolation
       #grid = griddata(points, values, surfacePoints, method='linear')
 
       # Radial basis function (RBF) interplation
+      # The following code is for SciPy version < 1.70
+      # A new RBF interpolator has been introduced version 1.70. Consider updating the code
+      # once 3D Slicer updates its SciPy version.
+      
       rbfi = Rbf(pointsX, pointsY, pointsZ, values)  # radial basis function interpolator instance
       grid = rbfi(surfacePointsX, surfacePointsY, surfacePointsZ)
 
@@ -291,6 +295,25 @@ class MRTrackingSurfaceMapping(MRTrackingPanelBase):
       
       actor = self.scalarBarWidget.GetScalarBarActor()
       actor.SetTitle(paramStr)
+
+
+  def getEgramParameterSelected(self, markupsNode):
+    
+    paramStr = self.paramSelector.currentText
+    paramList = []
+    paramIndex = -1
+    if paramStr != '' and paramStr != 'None':
+      paramListStr = markupsNode.GetAttribute('MRTracking.EgramParamList')
+      if paramListStr:
+        paramList = paramListStr.split(',')
+        i = 0
+        for p in paramList: # Check the index
+          if p == paramStr:
+            paramIndex = i
+          i = i + 1
+
+    return (paramStr, paramIndex, paramList)
+
 
       
   def onUpdateColorRange(self, min, max):
@@ -477,9 +500,12 @@ class MRTrackingSurfaceMapping(MRTrackingPanelBase):
     pd = vtk.vtkPolyData()
     points = vtk.vtkPoints()
     cells = vtk.vtkCellArray()
-    connectivity = vtk.vtkIntArray()
-    connectivity.SetName('Connectivity')
-
+    #connectivity = vtk.vtkIntArray()
+    #connectivity.SetName('Connectivity')
+    
+    cellIds = [0]
+    npts = 1
+    
     nPoints = markupsNode.GetNumberOfFiducials()
     
     pos = [0.0]*3
@@ -487,11 +513,58 @@ class MRTrackingSurfaceMapping(MRTrackingPanelBase):
     for i in range(nPoints):
       markupsNode.GetNthFiducialPosition(i, pos)
       points.InsertNextPoint(pos[0], pos[1], pos[2])
-
+      cellIds[0] = i
+      cells.InsertNextCell(npts,cellIds)
+    
     pd.SetPoints(points)
+    pd.SetVerts(cells)
     
     return pd
 
+
+  def fiducialsToNP(self, markupsNode):
+  
+    nPoints = markupsNode.GetNumberOfFiducials()
+    pos = [0.0]*3
+    pointsNP = numpy.ndarray(shape=(nPoints,3))
+      
+    for i in range(nPoints):
+      markupsNode.GetNthFiducialPosition(i, pos)
+      pointsNP[i,:] = pos
+    
+    return pointsNP
+  
+
+  def fiducialsToEgram(self, markupsNode, paramList):
+
+    nParams = len(paramList)
+    nPoints = markupsNode.GetNumberOfFiducials()
+    values = numpy.ndarray(shape=(nPoints, nParams))
+    
+    for i in range(nPoints):
+      desc = markupsNode.GetNthControlPointDescription(i)
+      paramsStr = desc.split(',')
+      params = [float(s) for s in paramsStr]
+      values[i,:] = params[0:nParams]
+
+    return values
+
+
+
+  def getPointDistances(self, pointsNP, modelPoly):
+
+    nPoints = pointsNP.shape[0]
+    distanceNP = numpy.ndarray(shape=(nPoints,1))
+    
+    distance = vtk.vtkImplicitPolyDataDistance()
+    distance.SetInput(modelPoly)
+    
+    for i in range(nPoints):
+      pos = pointsNP[i,:]
+      distanceNP[i,0] = distance.EvaluateFunction(pos)
+
+    return distanceNP
+  
 
   def marchingCubes(self, imageData):
     
