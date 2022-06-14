@@ -27,6 +27,7 @@ class MRTrackingSurfaceMapping(MRTrackingPanelBase):
     self.scalarBarWidget = None
     self.lookupTable = None
     self.defaultEgramValueRange = [0.0, 20.0]
+    self.prevParamStr = ''
 
   def buildMainPanel(self, frame):
 
@@ -55,6 +56,7 @@ class MRTrackingSurfaceMapping(MRTrackingPanelBase):
     self.modelSelector.nodeTypes = ( ("vtkMRMLModelNode"), "" )
     self.modelSelector.selectNodeUponCreation = True
     self.modelSelector.addEnabled = True
+    self.modelSelector.renameEnabled = True
     self.modelSelector.removeEnabled = True
     self.modelSelector.noneEnabled = True
     self.modelSelector.showHidden = True
@@ -241,6 +243,15 @@ class MRTrackingSurfaceMapping(MRTrackingPanelBase):
         self.colorRangeWidget.minimum = -100.0
         self.colorRangeWidget.maximum = 100.0
 
+      # Change the color range only when the parameter has been changed.
+      scalarRangeMin = self.defaultEgramValueRange[0]
+      scalarRangeMax = self.defaultEgramValueRange[1]
+      if paramStr == self.prevParamStr:
+        scalarRangeMin = self.colorRangeWidget.minimumValue 
+        scalarRangeMax = self.colorRangeWidget.maximumValue
+
+      self.prevParamStr = paramStr
+
       surfaceDistance = self.surfaceDistanceSliderWidget.value
       epsilon = self.epsilonSliderWidget.value
       rbfName = self.rbfSelector.currentText
@@ -326,8 +337,9 @@ class MRTrackingSurfaceMapping(MRTrackingPanelBase):
       displayNode.SetActiveScalarName("Colors")
       displayNode.SetAndObserveColorNodeID('vtkMRMLColorTableNodeFileColdToHotRainbow.txt')
       displayNode.SetScalarRangeFlag(0) # Manual
-      displayNode.SetScalarRange(self.defaultEgramValueRange[0], self.defaultEgramValueRange[1])
+      displayNode.SetScalarRange(scalarRangeMin, scalarRangeMax)
       displayNode.SetScalarVisibility(1)
+      displayNode.Modified()
       
       if self.scalarBarWidget == None:
         self.createScalarBar();
@@ -335,6 +347,10 @@ class MRTrackingSurfaceMapping(MRTrackingPanelBase):
       
       actor = self.scalarBarWidget.GetScalarBarActor()
       actor.SetTitle(paramStr)
+
+      if self.lookupTable:
+        self.lookupTable.SetRange(scalarRangeMin, scalarRangeMax)
+
 
 
   def getEgramParameterSelected(self, markupsNode):
