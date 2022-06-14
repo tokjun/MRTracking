@@ -32,20 +32,24 @@ class MRTrackingSurfaceMapping(MRTrackingPanelBase):
 
     layout = qt.QVBoxLayout(frame)
 
+    # Point recording
     pointGroupBox = ctk.ctkCollapsibleGroupBox()
     pointGroupBox.title = "Recording"
     pointGroupBox.collapsed = False
-
-    # Point recording
-    
     layout.addWidget(pointGroupBox)
     pointLayout = qt.QVBoxLayout(pointGroupBox)
     self.precording = QPointRecordingFrame(catheterComboBox=self.catheterComboBox)
     pointLayout.addWidget(self.precording)
     self.precording.recordPointsSelector.connect("currentNodeChanged(vtkMRMLNode*)",  self. onPointRecordingMarkupsNodeSelected)
 
-    mappingLayout = qt.QFormLayout(frame)
-    layout.addLayout(mappingLayout)
+
+    # Surface model
+    modelGroupBox = ctk.ctkCollapsibleGroupBox()
+    modelGroupBox.title = "Surface Model"
+    modelGroupBox.collapsed = False
+    layout.addWidget(modelGroupBox)
+    #modelLayout = qt.QVBoxLayout(modelGroupBox)
+    modelLayout = qt.QFormLayout(modelGroupBox)
 
     self.modelSelector = slicer.qMRMLNodeComboBox()
     self.modelSelector.nodeTypes = ( ("vtkMRMLModelNode"), "" )
@@ -57,7 +61,7 @@ class MRTrackingSurfaceMapping(MRTrackingPanelBase):
     self.modelSelector.showChildNodeTypes = False
     self.modelSelector.setMRMLScene( slicer.mrmlScene )
     self.modelSelector.setToolTip( "Surface model node" )
-    mappingLayout.addRow("Model: ", self.modelSelector)
+    modelLayout.addRow("Model: ", self.modelSelector)
 
     # Point distance factor is used to generate a surface model from the point cloud
     self.pointDistanceFactorSliderWidget = ctk.ctkSliderWidget()
@@ -67,25 +71,67 @@ class MRTrackingSurfaceMapping(MRTrackingPanelBase):
     self.pointDistanceFactorSliderWidget.value = 8.0
     #self.minIntervalSliderWidget.setToolTip("")
 
-    mappingLayout.addRow("Point Disntace Factor: ",  self.pointDistanceFactorSliderWidget)
+    modelLayout.addRow("Point Disntace Factor: ",  self.pointDistanceFactorSliderWidget)
     
     self.generateSurfaceButton = qt.QPushButton()
     self.generateSurfaceButton.setCheckable(False)
     self.generateSurfaceButton.text = 'Generate Surface Map'
     self.generateSurfaceButton.setToolTip("Generate a surface model from the collected points.")
 
-    mappingLayout.addRow(" ",  self.generateSurfaceButton)
+    modelLayout.addRow(" ",  self.generateSurfaceButton)
+    
+
+    # Parameter map
+    mappingGroupBox = ctk.ctkCollapsibleGroupBox()
+    mappingGroupBox.title = "Parameter Mapping"
+    mappingGroupBox.collapsed = False
+    layout.addWidget(mappingGroupBox)
+    mappingLayout = qt.QFormLayout(mappingGroupBox)    
     
     self.paramSelector = qt.QComboBox()
     self.paramSelector.addItem('None')
     
-    mappingLayout.addRow("Egram Param",  self.paramSelector)
+    mappingLayout.addRow("Egram Param:",  self.paramSelector)
     
     self.mapModelButton = qt.QPushButton()
     self.mapModelButton.setCheckable(False)
-    self.mapModelButton.text = 'Color Map'
+    self.mapModelButton.text = 'Generate Color Map'
     self.mapModelButton.setToolTip("Map the surface model with Egram Data.")
 
+    # Distance threshold. We only use the points proximity to the surface model
+    self.surfaceDistanceSliderWidget = ctk.ctkSliderWidget()
+    self.surfaceDistanceSliderWidget.singleStep = 0.1
+    self.surfaceDistanceSliderWidget.minimum = 0.0
+    self.surfaceDistanceSliderWidget.maximum = 100.0
+    self.surfaceDistanceSliderWidget.value = 100.0   # If 0.0, we won't pass the value to the function.
+    #self.minIntervalSliderWidget.setToolTip("")
+    mappingLayout.addRow("Surface Distance: ",  self.surfaceDistanceSliderWidget)
+
+    # Epsilon factor for radius basis function
+    # Note: The default value for scipy.interpolate.Rbf is the average distance between the points.
+    #       The slider may need to be updated to what the function comes up with.
+    self.epsilonSliderWidget = ctk.ctkSliderWidget()
+    self.epsilonSliderWidget.singleStep = 0.1
+    self.epsilonSliderWidget.minimum = 0.0
+    self.epsilonSliderWidget.maximum = 100.0
+    self.epsilonSliderWidget.value = 0.0   # If 0.0, we won't pass the value to the function.
+    #self.minIntervalSliderWidget.setToolTip("")
+    mappingLayout.addRow("Epsilon (0=Auto): ",  self.epsilonSliderWidget)
+
+    self.rbfSelector = qt.QComboBox()
+    self.rbfSelector.addItem('multiquadric')  # sqrt((r/self.epsilon)**2 + 1)   -- Default
+    self.rbfSelector.addItem('inverse')       # 1.0/sqrt((r/self.epsilon)**2 + 1)
+    self.rbfSelector.addItem('gaussian')      # exp(-(r/self.epsilon)**2)
+    self.rbfSelector.addItem('linear')        # r
+    self.rbfSelector.addItem('cubic')         # r**3
+    self.rbfSelector.addItem('quintic')       # r**5
+    self.rbfSelector.addItem('thin_plate')    # r**2 * log(r)
+    mappingLayout.addRow("Function:",  self.rbfSelector)
+    
+    self.mapModelButton = qt.QPushButton()
+    self.mapModelButton.setCheckable(False)
+    self.mapModelButton.text = 'Generate Color Map'
+    self.mapModelButton.setToolTip("Map the surface model with Egram Data.")
     mappingLayout.addRow(" ",  self.mapModelButton)
 
     #-- Color range
@@ -167,10 +213,8 @@ class MRTrackingSurfaceMapping(MRTrackingPanelBase):
       
   def onMapModel(self):
     td = self.currentCatheter            
-    #markupsNode = self.egramRecordPointsSelector.currentNode()
     markupsNode = self.precording.getCurrentFiducials()
     modelNode = self.modelSelector.currentNode()
-
     modelPoly = modelNode.GetPolyData()
     if modelPoly == None:
       print('No vtkPolyData in the model node.')
@@ -197,6 +241,9 @@ class MRTrackingSurfaceMapping(MRTrackingPanelBase):
         self.colorRangeWidget.minimum = -100.0
         self.colorRangeWidget.maximum = 100.0
 
+      surfaceDistance = self.surfaceDistanceSliderWidget.value
+      epsilon = self.epsilonSliderWidget.value
+      rbfName = self.rbfSelector.currentText
         
       # Select points to be used for mapping
       pointsNP = self.fiducialsToNP(markupsNode)
@@ -213,23 +260,14 @@ class MRTrackingSurfaceMapping(MRTrackingPanelBase):
       #                      [x_2, y_2, z_2, dist_2, egram1_2, egram1_2, ...., egramM_2],
       #                                 ...
       #                      [x_N, y_N, z_N, dist_N, egram1_N, egram1_N, ...., egramM_N]])
-      print(pointsNP.shape)
-      print(egramNP.shape)
-      print(distanceNP)
+      
       pointsNP = numpy.concatenate((pointsNP, distanceNP, egramNP), axis=1)
-      print(pointsNP[:,3])
 
       # Threashold by distance (5mm)
-      pointsNP = pointsNP[numpy.abs(pointsNP[:,3]) < 5.0,:]
+      pointsNP = pointsNP[numpy.abs(pointsNP[:,3]) <= surfaceDistance,:]
       
-      print(pointsNP.shape)
-      
-
-      #poly = modelNode.GetPolyData()
       polyDataNormals = vtk.vtkPolyDataNormals()
-      
       polyDataNormals.SetInputData(modelPoly)
-      
       polyDataNormals.ComputeCellNormalsOn()
       polyDataNormals.Update()
       polyData = polyDataNormals.GetOutput()
@@ -243,13 +281,6 @@ class MRTrackingSurfaceMapping(MRTrackingPanelBase):
       ## Create a list of points on the surface
       surfacePoints = numpy.ndarray(shape=(nPoints,3))
       
-      pointValue = vtk.vtkDoubleArray()
-      pointValue.SetName("Colors")
-      pointValue.SetNumberOfComponents(1)
-      pointValue.SetNumberOfTuples(nPoints)
-      pointValue.Reset()
-      pointValue.FillComponent(0,0.0);
-      
       p=[0.0, 0.0, 0.0]
       for id in range(nPoints):
         polyData.GetPoint(id, p)
@@ -259,29 +290,38 @@ class MRTrackingSurfaceMapping(MRTrackingPanelBase):
       pointsX = pointsNP[:,0]
       pointsY = pointsNP[:,1]
       pointsZ = pointsNP[:,2]
-      values  = pointsNP[:,3+paramIndex]
+      values  = pointsNP[:,4+paramIndex]
       
       surfacePointsX = surfacePoints[:,0]
       surfacePointsY = surfacePoints[:,1]
       surfacePointsZ = surfacePoints[:,2]
 
-      # Linear interpolation
-      #grid = griddata(points, values, surfacePoints, method='linear')
-
       # Radial basis function (RBF) interplation
       # The following code is for SciPy version < 1.70
       # A new RBF interpolator has been introduced version 1.70. Consider updating the code
       # once 3D Slicer updates its SciPy version.
-      
-      rbfi = Rbf(pointsX, pointsY, pointsZ, values)  # radial basis function interpolator instance
+
+      if epsilon == 0.0:
+        rbfi = Rbf(pointsX, pointsY, pointsZ, values, function=rbfName)  # radial basis function interpolator instance
+      else:
+        rbfi = Rbf(pointsX, pointsY, pointsZ, values, epsilon=epsilon, function=rbfName)
+        
       grid = rbfi(surfacePointsX, surfacePointsY, surfacePointsZ)
 
+      pointValue = vtk.vtkDoubleArray()
+      pointValue.SetName("Colors")
+      pointValue.SetNumberOfComponents(1)
+      pointValue.SetNumberOfTuples(nPoints)
+      pointValue.Reset()
+      pointValue.FillComponent(0,0.0);
+      
       for id in range(nPoints):
         pointValue.InsertValue(id, grid[id])
       
       modelNode.AddPointScalars(pointValue)
       modelNode.SetActivePointScalars("Colors", vtk.vtkDataSetAttributes.SCALARS)
       modelNode.Modified()
+      
       displayNode = modelNode.GetModelDisplayNode()
       displayNode.SetActiveScalarName("Colors")
       displayNode.SetAndObserveColorNodeID('vtkMRMLColorTableNodeFileColdToHotRainbow.txt')
