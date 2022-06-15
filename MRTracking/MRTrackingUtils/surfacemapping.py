@@ -28,6 +28,8 @@ class MRTrackingSurfaceMapping(MRTrackingPanelBase):
     self.lookupTable = None
     self.defaultEgramValueRange = [0.0, 20.0]
     self.prevParamStr = ''
+    self.recordingMarkupsNode = None
+    self.recordingMarkupsTag = ''
 
   def buildMainPanel(self, frame):
 
@@ -414,7 +416,8 @@ class MRTrackingSurfaceMapping(MRTrackingPanelBase):
 
   def onPointRecordingMarkupsNodeSelected(self):
     print('onPointRecordingMarkupsNodeSelected()')
-    self.onUpdateParamSelector() 
+    self.onUpdateParamSelector()
+    self.updateRecordingMarkupsObserver()
 
     
   def onUpdateParamSelector(self):
@@ -435,8 +438,29 @@ class MRTrackingSurfaceMapping(MRTrackingPanelBase):
         for p in paramList:
           self.paramSelector.setItemText(i, p)
           i = i + 1
-    
 
+          
+  def updateRecordingMarkupsObserver(self):
+    fnode = self.precording.recordPointsSelector.currentNode()
+    if fnode:
+      if self.recordingMarkupsNode and self.recordingMarkupsTag != '':
+        self.recordingMarkupsNode.RemoveObserver(self.recordingMarkupsTag)
+        
+      self.recordingMarkupsTag = fnode.AddObserver(slicer.vtkMRMLMarkupsNode.PointStartInteractionEvent, self.onRecordingPointSelected)
+      self.recordingMarkupsNode = fnode
+      
+
+  def onRecordingPointSelected(self, caller, event):
+    print('onRecordingPointSelected() called')
+    if caller:
+      fnode = caller
+      dispNode = fnode.GetDisplayNode()
+      pt = dispNode.GetActiveControlPoint()
+      desc = fnode.GetNthControlPointDescription(pt)
+      print('Egram: %s' % desc)
+
+      
+          
   def generateSurfaceModel(self, markupsNode, modelNode, pointDistanceFactor):
 
     svnode = slicer.mrmlScene.CreateNodeByClass('vtkMRMLScalarVolumeNode')
