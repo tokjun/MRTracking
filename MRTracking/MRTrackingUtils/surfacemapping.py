@@ -146,6 +146,8 @@ class MRTrackingSurfaceMapping(MRTrackingPanelBase):
     self.colorRangeWidget.minimum = -50.0
     self.colorRangeWidget.maximum = 50.0
     mappingLayout.addRow("Color range: ", self.colorRangeWidget)
+
+    #self.paramSelector.view().pressed.connect(self.onUpdateParamSelector)
     
     self.modelSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onModelSelected)
     self.generateSurfaceButton.connect('clicked(bool)', self.onGenerateSurface)
@@ -163,8 +165,6 @@ class MRTrackingSurfaceMapping(MRTrackingPanelBase):
     #
     pass
 
-
-  
   #def onEgramRecordPointsSelected(self):
   #  
   #  td = self.currentCatheter    
@@ -211,6 +211,8 @@ class MRTrackingSurfaceMapping(MRTrackingPanelBase):
     
     if markupsNode:
       self.generateSurfaceModel(markupsNode, modelNode, pdf)
+
+    self.onUpdateParamSelector()
 
       
   def onMapModel(self):
@@ -410,9 +412,12 @@ class MRTrackingSurfaceMapping(MRTrackingPanelBase):
     self.scalarBarWidget.GetScalarBarActor().SetLookupTable(self.lookupTable)
     
 
-  # TODO: Who should call this?
   def onPointRecordingMarkupsNodeSelected(self):
     print('onPointRecordingMarkupsNodeSelected()')
+    self.onUpdateParamSelector() 
+
+    
+  def onUpdateParamSelector(self):
     td = self.currentCatheter
     fnode = td.pointRecordingMarkupsNode
     paramListStr = fnode.GetAttribute('MRTracking.EgramParamList')
@@ -430,7 +435,7 @@ class MRTrackingSurfaceMapping(MRTrackingPanelBase):
         for p in paramList:
           self.paramSelector.setItemText(i, p)
           i = i + 1
-
+    
 
   def generateSurfaceModel(self, markupsNode, modelNode, pointDistanceFactor):
 
