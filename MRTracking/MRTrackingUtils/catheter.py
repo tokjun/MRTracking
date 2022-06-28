@@ -851,6 +851,7 @@ class Catheter:
     # Draw Sheath
     sheathIndex0 = -1
     sheathIndex1 = -1
+    nCoils = self.coilPoints.GetNumberOfPoints()
     if (self.sheathRange[0] >= 0) and (self.sheathRange[1] >= 0) and (self.sheathRange[0] <= self.sheathRange[1]) and (self.sheathRange[1] < nCoils):
       p0 = [0.0]*3
       p1 = [0.0]*3
@@ -864,6 +865,7 @@ class Catheter:
       curvePoints.SetNumberOfPoints(sheathIndex1-sheathIndex0+1)
       p = [0.0]*3
       idx = 0
+      matrix = vtk.vtkMatrix4x4()
       for i in range(sheathIndex0, sheathIndex1+1):
         curveNode.GetCurvePointToWorldTransformAtPointIndex(i, matrix)
         p[0] = matrix.GetElement(0, 3)
