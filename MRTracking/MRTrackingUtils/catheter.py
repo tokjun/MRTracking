@@ -752,6 +752,7 @@ class Catheter:
 
     # Add a extended tip
     # make sure that there is more than one points
+    
     if curveNode.GetNumberOfControlPoints() < 2:
       return (False, None)
     
@@ -764,7 +765,10 @@ class Catheter:
     ## The 'curve end point matrix' (normal vectors + the curve end position)
     matrix = vtk.vtkMatrix4x4()
 
-    curvePoints = curveNode.GetCurvePoints()
+    #curvePoints = curveNode.GetCurvePoints() # This does not work on Slicer 5.x
+    #TODO: The following obtains points in the world coordinates. Does it work??
+    curvePoints = vtk.vtkPoints()
+    curveNode.GetControlPointPositionsWorld(curvePoints)
     p0 = numpy.array(curvePoints.GetPoint(0))
     p1 = numpy.array(curvePoints.GetPoint(1))
 
@@ -1299,7 +1303,10 @@ class Catheter:
     locator.BuildLocator()
     
     nPoints = len(self.coilPointsNP)
-    curvePointsWorld = curveNode.GetCurvePointsWorld()
+    #curvePointsWorld = curveNode.GetCurvePointsWorld() # This does not work in Slicer 5.x
+    curvePointsWorld = vtk.vtkPoints()
+    curveNode.GetControlPointPositionsWorld(curvePointsWorld)
+
     
     for s in range(nPoints):
       pos = [0.0]*3
@@ -1357,9 +1364,14 @@ class Catheter:
     curvePoly = curveNode.GetCurve()
     curvePoints = None
     if world:
-      curvePoints = curveNode.GetCurvePointsWorld()
+      #curvePoints = curveNode.GetCurvePointsWorld() # This does not work on Slicer 5.x
+      curvePoints = vtk.vtkPoints()
+      curveNode.GetControlPointPositionsWorld(curvePoints)
     else:
-      curvePoints = curveNode.GetCurvePoints()
+      #curvePoints = curveNode.GetCurvePoints() # This does not work on Slicer 5.x
+      #TODO: The following obtains points in the world coordinates. Does it work??
+      curvePoints = vtk.vtkPoints()
+      curveNode.GetControlPointPositionsWorld(curvePoints)
     
     locator = vtk.vtkPointLocator()
     locator.SetDataSet(curvePoly)
